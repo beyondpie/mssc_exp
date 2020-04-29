@@ -2,40 +2,64 @@ data {
     int<lower=0> N;  // total sample size
     /* int<lower=0> K;   // number of covariats. */
     int<lower=0> I; // number of individuals
+
+    int<lower=0> T; // number of cell type
+
     int<lower=10> scale; // scale factor
-    matrix[N, 2] ds; // conditions
+
+    int K; // number of condistions
+
+    matrix[N, K] ds; // conditions
     matrix[N, I] ic; // individual indicator
     vector<N> x_; // total UMI counts
     vector<N> x_cg; // in
 }
 
+// define hyper parameters here.
+transformed data {
+    real<lower=0> alpha_0;
+    real<lower=0> beta_0;
+    alpha_0 = 1;
+    beta_0 = 1;
+}
 
 parameters {
     real alpha;
     real beta;
 
     real<lower=0> lambda_cg;
+
+    real<lower=0> Lambda_cg;
+
     vector[I] mu_g_ic;
-    vector[2] mu_g_di;
+    vector[K] mu_g_di;
 
     vector[I] mu_0;
-    vector[I] Lambda_0;
-    vector[2] mu_g;
-    vector[2] Lambda_g;
+
+    /* cholesky_factor_cov[2] Lambda_0; */
+    /* cov_matrix[I] Lambda_0; */
+    vector<lower=0>[I] Lambda_0;
+
+    vector[K] mu_g;
+
+    /* cholesky_factor_cov[2] Lambda_g; */
+    /* cov_matrix[2] Lambda_g; */
+    vector<lower=0>[K] Lambda_g;
 
 }
 
 transformed parameters {
-    vector[N] ln_xcg;
+    real ln_xcg;
     ln_xcg <- ln(lambda_cg);
 }
 
 
 
 model {
-    lambda_cg ~ invgamma_lpdf(alpha, beta)
-    mu_g_di ~ normal_lpdf(mu_g, Lambda_g)
-    mu_g_ic ~ normal_lpdf(mu_0, Lambda_0)
-    ln_xcg ~ normal_lpdf(ic * mu_g_ic + ds * mu_g_di, lambda_cg)
-    x_cg ~ poisson_lpdf(x_ * lambda_cg)
+    lambda_cg ~ invgamma(alpha, beta)
+    mu_g_di ~ normal(mu_g, Lambda_g)
+    mu_g_ic ~ normal(mu_0, Lambda_0)
+    ln_xcg ~ normal(ic * mu_g_ic + ds * mu_g_di, Lambda_cg)
+
+    x_cg ~ poisson(x_ * lambda_cg)
 }
