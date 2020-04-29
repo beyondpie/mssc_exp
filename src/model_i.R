@@ -23,17 +23,17 @@ stan_rdump(c("N","I","K","scale","di","ic","x_","x_cg"), file="./model_i.rdump")
 model_i_res  <- read_stan_csv("output.csv")
 
 
-modeli_dat <- list(
-  N = N, I = I, K = K, scale = scale, di = di,
-  ic = ic, x_ = x_, x_cg = x_cg
-)
+## modeli_dat <- list(
+##   N = N, I = I, K = K, scale = scale, di = di,
+##   ic = ic, x_ = x_, x_cg = x_cg
+## )
 
-modeli_fit <- stan(
-  file = "model_i.stan",
-  model_name = "model_i",
-  data = modeli_dat,
-  chains = 4, warmup = 1000, iter = 2000,
-  cores = 2
-)
+## modeli_fit <- stan(
+##   file = "model_i.stan",
+##   model_name = "model_i",
+##   data = modeli_dat,
+##   chains = 4, warmup = 1000, iter = 2000,
+##   cores = 2
+## )
 
 

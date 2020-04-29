@@ -54,9 +54,16 @@ transformed parameters {
 }
 
 model {
-    mu_g_di ~ normal(mu_g, Lambda_g);
-    mu_g_ic ~ normal(mu_0, Lambda_0);
-    ln_xcg ~ normal(ic * mu_g_ic + di * mu_g_di, Lambda_cg);
-    lambda_cg ~ inv_gamma(alpha, beta);
+    for (i in 1:K) {
+        mu_g_di[i] ~ normal(mu_g[i], Lambda_g[i]);
+    }
+
+    for (i in 1:I) {
+        mu_g_ic[i] ~ normal(mu_0[i], Lambda_0[i]);
+    }
+
+    Lambda_cg ~ inv_gamma(alpha, beta);
+
+    lambda_cg ~ lognormal(ic * mu_g_ic + di * mu_g_di, Lambda_cg);
     x_cg ~ poisson(x_ * lambda_cg);
 }
