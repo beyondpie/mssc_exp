@@ -39,3 +39,7 @@ vignettes/*.pdf
 .Renviron
 *.o
 *.d
+*.Rproj
+/test/cmdstan/poisson
+/test/cmdstan/poisson.hpp
+/test/cmdstan/output.csv
