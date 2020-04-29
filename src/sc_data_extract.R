@@ -28,14 +28,17 @@ mycells <- which(sccluster == mycluster)
 scresp <- scmeta$response
 scind <- scmeta$patient
 scdata <- gse145281@assays$RNA@counts
+# total read counts per individual
+sc_tcperi  <- colSums(as.matrix(scdata))
 
 scHBB <- data.table(
-  x = scdata[which(rownames(scdata) == "HBB"), mycells],
-  i = factor(scind[mycells]),
-  d = factor(scresp[mycells])
+  x_cg = scdata[which(rownames(scdata) == "HBB"), mycells],
+  x_ = sc_tcperi[mycells],
+  ic = factor(scind[mycells]),
+  di = factor(scresp[mycells])
 )
 
-p <- ggplot(scHBB, aes(x = i, y = x, color = i)) +
+p <- ggplot(scHBB, aes(x = ic, y = x_cg, color = ic)) +
   geom_violin(trim = FALSE) +
   geom_jitter(shape = 16, position = position_jitter(0.2))
 
@@ -43,3 +46,4 @@ p <- ggplot(scHBB, aes(x = i, y = x, color = i)) +
 
 # * for rstan
 scHBBd  <- one_hot(scHBB)
+saveRDS(scHBBd, file="scHBB.Rds")

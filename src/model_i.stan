@@ -3,16 +3,16 @@ data {
     /* int<lower=0> K;   // number of covariats. */
     int<lower=0> I; // number of individuals
 
-    int<lower=0> T; // number of cell type
+    /* int<lower=0> T; // number of cell type */
 
     int<lower=10> scale; // scale factor
 
     int K; // number of condistions
 
-    matrix[N, K] ds; // conditions
+    matrix[N, K] di; // conditions
     matrix[N, I] ic; // individual indicator
-    vector<N> x_; // total UMI counts
-    vector<N> x_cg; // in
+    vector[N] x_; // total UMI counts
+    int x_cg[N]; // read counts for gene g in different cells.
 }
 
 // define hyper parameters here.
@@ -50,16 +50,13 @@ parameters {
 
 transformed parameters {
     real ln_xcg;
-    ln_xcg <- ln(lambda_cg);
+    ln_xcg = log(lambda_cg);
 }
 
-
-
 model {
-    lambda_cg ~ invgamma(alpha, beta)
-    mu_g_di ~ normal(mu_g, Lambda_g)
-    mu_g_ic ~ normal(mu_0, Lambda_0)
-    ln_xcg ~ normal(ic * mu_g_ic + ds * mu_g_di, Lambda_cg)
-
-    x_cg ~ poisson(x_ * lambda_cg)
+    mu_g_di ~ normal(mu_g, Lambda_g);
+    mu_g_ic ~ normal(mu_0, Lambda_0);
+    ln_xcg ~ normal(ic * mu_g_ic + di * mu_g_di, Lambda_cg);
+    lambda_cg ~ inv_gamma(alpha, beta);
+    x_cg ~ poisson(x_ * lambda_cg);
 }
