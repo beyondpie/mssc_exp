@@ -15,12 +15,12 @@ x_ <- data[[2]]
 x_cg <- data[[1]]
 
 
-stan_rdump(c("N","I","K","scale","di","ic","x_","x_cg"), file="./model_i.rdump")
+stan_rdump(c("N","I","K","scale","di","ic","x_","x_cg"), file="./scHBB.rdump")
 # In terminal, use stan make to compile and then sample
 # stancm `pwd`/model_i.stan
 # ./model_i methpd=sample adopt delta=0.9 data file=model_i.rdump
 
-model_i_res  <- read_stan_csv("output.csv")
+## model_i_res  <- read_stan_csv("output.csv")
 
 
 ## modeli_dat <- list(

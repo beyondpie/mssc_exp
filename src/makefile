@@ -1,21 +1,21 @@
 dir := $(shell pwd)
 
-model_i: model_i.stan
+${MODEL}: ${MODEL}.stan
 	cd ${HOME}/softwares/cmdstan-2.23.0 ;\
 	make ${dir}/$@; \
 	cd -
 
 .PHONY: compile
-compile: model_i
+compile: ${MODEL}
 
-model_i.rdump:
-	Rscript model_i.R
+scHBB.rdump:
+	Rscript scHBB.R
 
 .PHONY: generate
-generate: model_i.rdump
+generate: ${MODEL}.rdump
 
 .PHONY: sample
-sample : model_i model_i.rdump
+sample : ${MODEL} scHBB.rdump
 	for i in {1..1}; do \
      ./$(word 1, $^) method=$@ adapt delta=0.85 random seed=12345 \
               id=$${i} \
@@ -25,4 +25,4 @@ sample : model_i model_i.rdump
 
 .PHONE: clean
 clean:
-	-rm model_i *.d *.hpp *.o *.csv
+	-rm ${MODEL} *.d *.hpp *.o *.csv
