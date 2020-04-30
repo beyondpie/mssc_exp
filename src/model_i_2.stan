@@ -29,7 +29,7 @@ transformed data {
 parameters {
     real mu_g_ic[I];
     real mu_g_di[K];
-    real mu_0;
+    /* real mu_0; */
     real mu_g;
     real<lower=0> Lambda_0;
     real<lower=0> Lambda_g;
@@ -38,17 +38,18 @@ parameters {
 
 transformed parameters {
     vector[K+I] betas;
-    betas = to_vector(append_array(mu_g_ic, mu_g_di));
+    betas = to_vector(append_array(mu_g_di, mu_g_ic));
 }
 
 model {
-    Lambda_g ~ inv_gamma(0.01, 0.01);
+    Lambda_g ~ inv_gamma(0.001, 0.001);
+    mu_g ~ normal(0.0, 400);
     for (i in 1:K) {
         mu_g_di[i] ~ normal(mu_g, Lambda_g);
     }
-    Lambda_0 ~ inv_gamma(0.01, 0.01);
+    Lambda_0 ~ inv_gamma(0.001, 0.001);
     for (i in 1:I) {
-        mu_g_ic[i] ~ normal(mu_0, Lambda_0);
+        mu_g_ic[i] ~ normal(0.0, Lambda_0);
     }
-    target += poisson_log_glm_lpmf(x_cg | x_dic, 0, betas);
+    target += poisson_log_glm_lpmf(x_cg | x_dic, log(x_), betas);
 }

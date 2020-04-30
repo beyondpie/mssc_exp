@@ -20,7 +20,8 @@ stan_rdump(c("N","I","K","scale","di","ic","x_","x_cg"), file="./scHBB.rdump")
 # stancm `pwd`/model_i.stan
 # ./model_i methpd=sample adopt delta=0.9 data file=model_i.rdump
 
-## model_i_res  <- read_stan_csv("output.csv")
+model_i_res  <- read_stan_csv("model_i_21.csv")
+
 
 
 ## modeli_dat <- list(
