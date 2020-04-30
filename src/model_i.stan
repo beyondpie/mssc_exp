@@ -38,13 +38,13 @@ parameters {
 
     /* cholesky_factor_cov[2] Lambda_0; */
     /* cov_matrix[I] Lambda_0; */
-    vector<lower=0>[I] Lambda_0;
+    vector<lower=0.0001>[I] Lambda_0;
 
     vector[K] mu_g;
 
     /* cholesky_factor_cov[2] Lambda_g; */
     /* cov_matrix[2] Lambda_g; */
-    vector<lower=0>[K] Lambda_g;
+    vector<lower=0.0001>[K] Lambda_g;
 
 }
 
@@ -64,6 +64,6 @@ model {
 
     Lambda_cg ~ inv_gamma(alpha, beta);
 
-    lambda_cg ~ lognormal(ic * mu_g_ic + di * mu_g_di, Lambda_cg);
+    ln_xcg ~ normal(ic * mu_g_ic + di * mu_g_di, Lambda_cg);
     x_cg ~ poisson(x_ * lambda_cg);
 }

@@ -16,7 +16,7 @@ generate: model_i.rdump
 
 .PHONY: sample
 sample : model_i model_i.rdump
-	for i in {1..2}; do \
+	for i in {1..1}; do \
      ./$(word 1, $^) method=$@ adapt delta=0.85 random seed=12345 \
               id=$${i} \
               data file=$(word 2, $^) \
