@@ -47,3 +47,7 @@ p <- ggplot(scHBB, aes(x = ic, y = x_cg, color = ic)) +
 # * for rstan
 scHBBd  <- one_hot(scHBB)
 saveRDS(scHBBd, file="scHBB.Rds")
+
+
+# should no DE: HBB, HBA2, HBA1
+# should DE: CCL4L1, CCL3L1, CCL3L3
