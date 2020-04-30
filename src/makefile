@@ -25,4 +25,4 @@ sample : model_i model_i.rdump
 
 .PHONE: clean
 clean:
-	rm model_i *.d *.hpp *.o
+	-rm model_i *.d *.hpp *.o *.csv

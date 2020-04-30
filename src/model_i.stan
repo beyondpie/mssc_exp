@@ -27,8 +27,7 @@ parameters {
     real<lower=0> alpha;
     real<lower=0> beta;
 
-    real<lower=0> lambda_cg;
-
+    vector<lower=0>[N] lambda_cg;
     real<lower=0> Lambda_cg;
 
     vector[I] mu_g_ic;
@@ -49,7 +48,7 @@ parameters {
 }
 
 transformed parameters {
-    real ln_xcg;
+    vector[N] ln_xcg;
     ln_xcg = log(lambda_cg);
 }
 
@@ -64,6 +63,10 @@ model {
 
     Lambda_cg ~ inv_gamma(alpha, beta);
 
-    ln_xcg ~ normal(ic * mu_g_ic + di * mu_g_di, Lambda_cg);
-    x_cg ~ poisson(x_ * lambda_cg);
+    for (i in 1 : N) {
+        ln_xcg[i] ~ normal(ic[i] * mu_g_ic + di[i] * mu_g_ic, (scale / x_[i]) *Lambda_cg);
+    }
+    // below seems to be OK but with warning accasionally at warming.
+    /* ln_xcg ~ normal(ic * mu_g_ic + di * mu_g_di, Lambda_cg); */
+    x_cg ~ poisson(x_ .* lambda_cg);
 }
