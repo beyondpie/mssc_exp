@@ -59,7 +59,7 @@ model {
     for (i in 1:K) {
         mu_g_di[i] ~ normal(mu_g, Lambda_g);
     }
-    Lambda_0 ~ inv_gamma(1,0, 1.0);
+    Lambda_0 ~ inv_gamma(1.0, 1.0);
     for (i in 1:I) {
         mu_g_ic[i] ~ normal(mu_0, Lambda_0);
     }
