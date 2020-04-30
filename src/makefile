@@ -12,7 +12,7 @@ scHBB.rdump:
 	Rscript scHBB.R
 
 .PHONY: generate
-generate: ${MODEL}.rdump
+generate: scHBB.rdump
 
 .PHONY: sample
 sample : ${MODEL} scHBB.rdump
@@ -25,4 +25,5 @@ sample : ${MODEL} scHBB.rdump
 
 .PHONE: clean
 clean:
-	-rm ${MODEL} *.d *.hpp *.o *.csv
+	-rm ${MODEL} *.d *.hpp *.o
+
