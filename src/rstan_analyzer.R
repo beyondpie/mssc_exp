@@ -3,9 +3,12 @@ import::from(
   check_hmc_diagnostics, sampling, stan_rdump, plot,
   get_sampler_params,traceplot
 )
-
+model <- "model_i_2"
 model <- "model_i_3"
 model <- "model_i_5"
+model <- "model_i_4"
+
+# model 2, 4 not that good.
 gene <- "HBB"
 gene  <- "LYZ"
 model_fnm <- paste0("./result/", model, "_", gene, ".csv")
