@@ -8,19 +8,20 @@ ${MODEL}: ${MODEL}.stan
 .PHONY: compile
 compile: ${MODEL}
 
-scHBB.rdump:
-	Rscript scHBB.R
+# scHBB.rdump:
+# Rscript scHBB.R
 
-.PHONY: generate
-generate: scHBB.rdump
+# .PHONY: generate
+# generate: scHBB.rdump
 
 .PHONY: sample
-sample : ${MODEL} scHBB.rdump
+sample : ${MODEL} sc${GENE}.rdump
 	for i in {1..1}; do \
-     ./$(word 1, $^) method=$@ adapt delta=0.85 random seed=12345 \
+     ./$(word 1, $^) method=$@  num_samples=6000 num_warmup=1500 thin=5 \
+              adapt delta=0.9 random seed=12345 \
               id=$${i} \
               data file=$(word 2, $^) \
-              output file=$(word 1, $^)$${i}.csv ;\
+              output file=$(word 1, $^)$${i}_$(word 2,$^).csv ;\
   done;
 
 .PHONE: clean
