@@ -24,6 +24,14 @@ sample : ${MODEL} sc${GENE}.rdump
               output file=$(word 1, $^)$${i}_$(word 2,$^).csv ;\
   done;
 
+.PHONY: ssample
+ssample : ${MODEL} sc${GENE}.rdump
+	./$(word 1, $^) method=sample  num_samples=6000 num_warmup=1500 thin=5 \
+              adapt delta=0.9 random seed=12345 \
+              data file=$(word 2, $^) \
+              output file=$(word 1, $^)_${GENE}.csv
+
+
 .PHONE: clean
 clean:
 	-rm ${MODEL} *.d *.hpp *.o
