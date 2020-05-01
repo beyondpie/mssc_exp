@@ -26,7 +26,7 @@ sample : ${MODEL} sc${GENE}.rdump
 
 .PHONY: ssample
 ssample : ${MODEL} sc${GENE}.rdump
-	./$(word 1, $^) method=sample  num_samples=6000 num_warmup=1500 thin=5 \
+	./$(word 1, $^) method=sample  num_samples=1 num_warmup=1 thin=1 \
               adapt delta=0.9 random seed=12345 \
               data file=$(word 2, $^) \
               output file=$(word 1, $^)_${GENE}.csv
