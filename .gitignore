@@ -43,3 +43,5 @@ vignettes/*.pdf
 /test/cmdstan/poisson
 /test/cmdstan/poisson.hpp
 /test/cmdstan/output.csv
+/src/model_i_2
+.DS_Store
