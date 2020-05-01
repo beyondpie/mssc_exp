@@ -6,7 +6,7 @@ do
     make MODEL=${model} compile
     for g in HBB LYZ GPX1
     do
-        make MODEL=${model} GENE=${g} ssample
+        make MODEL=${model} GENE=${g} ssample >${model}_${g}_sample.log &
     done
 done
 
