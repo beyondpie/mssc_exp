@@ -26,5 +26,12 @@ traceplot(fit, pars=c(param), inc_warmup=TRUE, nrow=2)
 dfr <- as.data.frame(fit)
 
 diff  <- dfr[["mu_g_di[1]"]]  - dfr[["mu_g_di[2]"]]
-hist(diff, breaks=50)
-t.test(diff)
+hist(diff, breaks=100)
+quantile(diff, 0.025)
+quantile(diff, 0.9725)
+ecdf(diff)(0.0)
+
+# foldchange, influenced by small values quite a lot.
+# fc <- exp(diff)
+# hist(fc, breaks=100)
+
