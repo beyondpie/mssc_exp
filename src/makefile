@@ -34,5 +34,5 @@ ssample : ${MODEL} sc${GENE}.rdump
 
 .PHONE: clean
 clean:
-	-rm ${MODEL} *.d *.hpp *.o *.log 
+	-rm ${MODEL} *.d *.hpp *.o *.log
 
