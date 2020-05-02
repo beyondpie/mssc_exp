@@ -45,3 +45,5 @@ vignettes/*.pdf
 /test/cmdstan/output.csv
 /src/model_i_2
 .DS_Store
+/model_i/model_i_2
+*.hpp
