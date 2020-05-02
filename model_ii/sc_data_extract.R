@@ -10,7 +10,8 @@ import::from(mltools, one_hot)
 import::from(
   ggplot2, ggplot, geom_point,
   geom_smooth, ggsave, geom_violin,
-  geom_jitter, geom_boxplot, geom_dotplot
+  geom_jitter, geom_boxplot, geom_dotplot, aes,
+  position_jitter
 )
 
 import::from(

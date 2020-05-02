@@ -40,7 +40,7 @@ parameters {
 }
 
 transformed parameters {
-    vector[J+K] betas;
+    vector[1 + J+K] betas;
     betas = to_vector(append_array(mu, append_array(mu_g_di, mu_g_ic)));
 }
 
