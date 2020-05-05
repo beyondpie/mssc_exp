@@ -27,6 +27,10 @@ plot_posterior <- function(modelnm, genenm, param = c("mu_g_ic", "mu", "mu_g_di"
     geom_histogram(color = "blue", fill = "blue")
 
   p <- ggarrange(p1, hist, ncol = 1, nrow = 2)
+  p <- annotate_figure(p,
+                       top = text_grob(paste(modelnm, genenm),
+                                          color = "red",
+                                          face = "bold", size = 14))
   print(p)
 
   print(quantile(diff, 0.025))
