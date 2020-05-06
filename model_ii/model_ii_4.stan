@@ -47,11 +47,11 @@ model {
     /* choose variance as var estimated from samples, cover the estimated mean,
        and multiplied by constant */
     mu[1] ~ normal(0.0, 400);
-    LambdaJ ~ inv_gamma(0.5,1);
+    LambdaJ ~ inv_gamma(0.5,0.5);
     for (i in 1:J) {
         mu_g_di[i] ~ normal(0.0, LambdaJ);
     }
-    LambdaK ~ inv_gamma(1, 1);
+    LambdaK ~ inv_gamma(0.1, 0.1);
     for (i in 1:K) {
         mu_g_ic[i] ~ normal(0.0, LambdaK);
     }

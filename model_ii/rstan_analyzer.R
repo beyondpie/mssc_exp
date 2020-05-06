@@ -40,10 +40,12 @@ plot_posterior <- function(modelnm, genenm, param = c("mu_g_ic", "mu", "mu_g_di"
 plot_posterior("model_ii_1", "HBB")
 plot_posterior("model_ii_2", "HBB")
 plot_posterior("model_ii_3", "HBB")
+plot_posterior("model_ii_4", "HBB")
 
 plot_posterior("model_ii_1", "LYZ")
 plot_posterior("model_ii_2", "LYZ")
 plot_posterior("model_ii_3", "LYZ")
+plot_posterior("model_ii_4", "LYZ")
 
 ## TEST
 ## model <- "model_ii_1"
