@@ -1,6 +1,7 @@
 library(Seurat)
 library(magrittr)
 library(ggplot2)
+library(corrplot)
 import::from(harmony, RunHarmony)
 import::from(data.table, data.table)
 import::from(mltools, one_hot)
@@ -12,55 +13,62 @@ gse145281 <- readRDS("../from_avi/20200504/seurat.RDS")
 
 scmeta <- gse145281@meta.data
 sccluster <- scmeta$seurat_clusters
-# cytotoxic T cell clusters
-mycluster <- 2
+# response, i.e., condition
 scresp <- scmeta$response
 scind <- scmeta$patient
 scdata <- gse145281@assays$RNA@counts
-sc_tcperi <- colSums(as.matrix(scdata))
+# total counts per cell
+sc_tcpc <- colSums(as.matrix(scdata))
 
 ## * get selected genes
 # get deseq.dt object
 load("../from_avi/20200504/deseq.dt.RData")
-top_rank <- 100
-cells <- deseq.dt$gene[top_rank]
-VlnPlot(object = gse145281, features = cells[1:10],
-        group.by = "patient", idents = mycluster)
+topgnum <- 100
+mygenes <- deseq.dt$gene[1:topgnum]
 
-# * get harmony delta mean for each individual
-orig_pca <- gse145281@reductions$pca@cell.embeddings
-harmony_correct_pca <- gse145281@reductions$harmony@cell.embeddings
+# cytototic T cell
+mycluster <- 2
+mycells <- which(sccluster == mycluster)
+
+VlnPlot(
+  object = gse145281, features = mygenes[1:10],
+  group.by = "patient", idents = mycluster
+)
+
+## * get harmony delta mean for each individual
+## ** extract the correction vectors.
+orig_pca <- gse145281@reductions$pca@cell.embeddings[mycells,]
+harmony_correct_pca <- gse145281@reductions$harmony@cell.embeddings[mycells,]
 delta_pca <- harmony_correct_pca - orig_pca
-
-indhay <- aggregate(delta_pca, list(gse145281@meta.data$patient), mean)
+indhay <- aggregate(delta_pca, list(gse145281@meta.data$patient[mycells]), mean)
 colnames(indhay)[1] <- "patient"
-## rownames(indhay) <- indhay$Group.1
-## indhay  <- indhay[, -1]
 
+## * get data for model iii
+modelnm <- "model_v3"
 
-sc_gene_extract <- function(genm = "HBB", mycluster = 1) {
-  mycells <- which(sccluster == mycluster)
-  x_cg <- scdata[which(rownames(scdata) == genm), mycells]
-  x_ <- sc_tcperi[mycells]
+## ** use the individual correction vectors for correlation estimation
+nnegcor <- indhay %>%
+  .[, -1] %>%
+  t() %>%
+  cor(., method = "pearson")
+nnegcor[which(nnegcor < 0)] <- 0
+corrplot(nnegcor)
 
-  indhays <- merge(x_cg, indhay, by="patient")
+## ** get counts matrix and design matrix
+x_cg <- scdata[mygenes, mycells]
+x_ <- sc_tcpc[mycells]
+## merge data: merge(x_cg, indhay, by="patient")
+ic <- as.matrix(one_hot(data.table(ic = factor(scind[mycells]))))
+di <- as.matrix(one_hot(data.table(di = factor(scresp[mycells]))))
 
-  sc_gd <- data.table(
-    x_cg = x_cg,
-    x_ = x_,
-    ic = factor(scind[mycells]),
-    di = factor(scresp[mycells]),
-    indhc = indhays[, 2:22]
-  )
-  data <- one_hot(sc_gd)
-  N <- nrow(data)
-  K <- ncol(data) - 2 - 2
-  scale <- 10000
-  J <- 2
-  ic <- as.matrix(data[, 3:(K + 2)])
-  di <- as.matrix(data[, (ncol(data) - 1):ncol(data)])
-  stan_rdump(c("N", "K", "J", "scale", "di", "ic", "x_", "x_cg"),
-    file = paste0("./sc", genm, ".rdump")
-  )
-  return(sc_gd)
-}
+## ** set constants
+N <- length(mycells)
+K <- ncol(ic)
+G <- topgnum
+J <- 2
+scale <- 10000
+
+## ** save data for cmdstan
+stan_rdump(c("N", "K", "J", "G","scale", "di", "ic", "x_", "x_cg", "nnegcor"),
+  file = paste0("./", modelnm, ".rdump")
+)
