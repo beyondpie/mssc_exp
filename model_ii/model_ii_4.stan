@@ -17,9 +17,9 @@ data {
 
 // define hyper parameters here.
 transformed data {
-    real<lower=0> alpha_0;
+    real<lower=0> alpha_0 = 0.5;
     real<lower=0> beta_0;
-    alpha_0 = 1;
+    /* alpha_0 = 1; */
     beta_0 = 1;
 
     matrix[N,1] ones;
@@ -47,7 +47,7 @@ model {
     /* choose variance as var estimated from samples, cover the estimated mean,
        and multiplied by constant */
     mu[1] ~ normal(0.0, 400);
-    LambdaJ ~ inv_gamma(0.5,0.5);
+    LambdaJ ~ inv_gamma(alpha_0,0.5);
     for (i in 1:J) {
         mu_g_di[i] ~ normal(0.0, LambdaJ);
     }
