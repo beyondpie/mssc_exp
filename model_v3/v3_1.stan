@@ -15,28 +15,27 @@ data {
 
 transformed data {
     // hyperparam for variances of ind and cond.
-    vector<lower=0>[K] alpha_ind = rep_vector(0.1, K);
-    vector<lower=0>[K] beta_ind = rep_vector(0.1, K);
-    real<lower=0> alpha_cond = 0.5;
-    real<lower=0> beta_cond = 0.5;
-
-    vector[G] gzeros = rep_vector(0.0, G);
     vector[K] izeros = rep_vector(0.0, K);
-    real<lower=0> Lambda = 400;
+    real Lambda = 20;
     // add 1 for intercept.
     matrix[N,1] ones = rep_matrix(1, N, 1);
     matrix[N,1+J+K] x_dic = append_col(ones, append_col(di, ic));
+
+    real unilow = 0.001;
+    real uniupp = 20;
 }
 
 parameters {
     real<lower=0> LambdaInd;
     vector<lower=0>[G] LambdaCond;
     vector[K] mu_g_ic;
-    matrix[G, J] mu_g_di;
+    matrix[G, J] mu_di_raw;
     real mu;
 }
 
 transformed parameters {
+    matrix[G, J] mu_g_di = diag_pre_multiply(LambdaCond, mu_di_raw);
+
     matrix[1 + J+K, G] gbetas;
     for (g in 1:G) {
         gbetas[, g] = append_row(mu,append_row(mu_g_di[g]', mu_g_ic));
@@ -47,16 +46,18 @@ model {
 
     mu ~ normal(0.0, Lambda);
 
-    LambdaInd ~ inv_gamma(alpha_ind, beta_ind);
+    LambdaInd ~ uniform(unilow, uniupp);
     mu_g_ic ~ multi_normal(izeros, LambdaInd * nnegcor);
 
-    LambdaCond  ~ inv_gamma(alpha_cond, beta_cond);
+    LambdaCond  ~ uniform(unilow, uniupp);
 
-    for (j in 1:J){
-        mu_g_di[ ,j] ~ normal(gzeros, LambdaCond);
-    }
+    // opotimize this using reparameterization.
+    mu_di_raw ~ std_normal();
 
+    // change to map-reduce for parallel.
     for (g in 1:G) {
         target += poisson_log_glm_lpmf(x_cg[, g] | x_dic, log(x_), gbetas[,g]);
     }
 }
+
+// add block for diff of mu_g_di under different conditions.
