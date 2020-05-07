@@ -1,3 +1,4 @@
+// each gene share the same variance with invgamma prior.
 data {
     int<lower=10> N;  // number of cells
     int<lower=2> K; // number of individuals

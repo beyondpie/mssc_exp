@@ -1,3 +1,11 @@
+//     real<lower=0> LambdaInd;
+//     vector<lower=0>[K] alpha_ind = rep_vector(0.1, K);
+// so the model is just use one LambdaInd with invgamma prior.
+// This should be same as v3_2.stan.
+// But the result is a little different, so I think this implementation is wrong.
+
+
+
 data {
     int<lower=10> N;  // number of cells
     int<lower=2> K; // number of individuals
