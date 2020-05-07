@@ -1,12 +1,9 @@
 #!/bin/bash
 
-for i in 4
+for i in 1 2 3 4 5
 do
-    model="model_ii_${i}"
+    model="v3_${i}"
     make MODEL=${model} compile
-    for g in HBB LYZ
-    do
-        make MODEL=${model} GENE=${g} ssample >${model}_${g}_sample.log &
-    done
+    make MODEL=${model} ssample >${model}_sample.log &
 done
 
