@@ -12,7 +12,8 @@ draw_invgamma <- function(alpha, rate = 1 / alpha, from = 0.0001, to = 20) {
   qplot(x, dinvgamma(x, alpha, rate), geom = "line")
 }
 
-plot_posterior <- function(modelnm, genenm, param = c("mu_g_ic", "mu", "mu_g_di")) {
+plot_posterior <- function(modelnm, genenm,
+                           param = c("mu_g_ic", "mu", "mu_g_di")) {
   library(ggplot2)
   library(ggpubr)
 
@@ -36,39 +37,3 @@ plot_posterior <- function(modelnm, genenm, param = c("mu_g_ic", "mu", "mu_g_di"
   print(quantile(diff, 0.025))
   print(quantile(diff, 0.975))
 }
-
-plot_posterior("model_ii_1", "HBB")
-plot_posterior("model_ii_2", "HBB")
-plot_posterior("model_ii_3", "HBB")
-plot_posterior("model_ii_4", "HBB")
-
-plot_posterior("model_ii_1", "LYZ")
-plot_posterior("model_ii_2", "LYZ")
-plot_posterior("model_ii_3", "LYZ")
-plot_posterior("model_ii_4", "LYZ")
-
-## TEST
-## model <- "model_ii_1"
-## model <- "model_ii_2"
-## model <- "model_ii_3"
-
-## # model 2, 4 not that good. gene <- "HBB"
-## gene <- "HBA2"
-## gene <- "LYZ"
-## model_fnm <- paste0("./", model, "_", gene, ".csv")
-## fit <- read_stan_csv(model_fnm)
-## sampler_params <- get_sampler_params(fit, inc_warmup = TRUE)
-## summary(do.call(rbind, sampler_params), digits = 2)
-## param <- "mu_g_ic"
-## param <- "mu_g_di"
-## param <- "mu"
-## param <- c("mu_g_ic", "mu", "mu_g_di")
-## ## par(mfrow=c(2,2))
-## plot(fit, pars = c(param))
-## plot(fit, pars = c(param), plotfun = "hist")
-## traceplot(fit, pars = c(param), inc_warmup = TRUE, nrow = 2)
-## ## ecdf(diff)(0.0)
-
-# foldchange, influenced by small values quite a lot.
-# fc <- exp(diff)
-# hist(fc, breaks=100)
