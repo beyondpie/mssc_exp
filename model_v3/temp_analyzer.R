@@ -66,7 +66,7 @@ stan_analyzer <- function(model, prefix = "./05062300/") {
       axis.text.y = element_blank(),
       axis.ticks.y = element_blank(),
       axis.title.x = element_blank(),
-      strip.text.x = element_text(size = 14, face="bold")
+      strip.text.x = element_text(size = 12, face="bold")
     ) +
     ggtitle("Genes with zeros out of the 95% quantitle intervals.",
             "Hist of the differences of log fold changes.")
