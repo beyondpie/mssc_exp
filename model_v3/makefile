@@ -29,7 +29,7 @@ ssample : ${MODEL} model_v3.rdump
 	./$(word 1, $^) method=sample  num_samples=1000 num_warmup=1000 thin=1 save_warmup=1\
               adapt random seed=12345 \
               data file=$(word 2, $^) \
-              output refresh=5 file=$(word 1, $^).csv 
+              output refresh=5 file=$(word 1, $^).csv
 
 
 .PHONE: clean

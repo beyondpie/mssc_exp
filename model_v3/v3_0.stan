@@ -1,5 +1,6 @@
 // individual effect independent
 // popolation mean shared among genes
+// this runs 1883.18 sec for warm-up; 968.075 sec for sampling.
 
 data {
     int<lower=10> N;  // number of cells
