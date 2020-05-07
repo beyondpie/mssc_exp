@@ -28,14 +28,14 @@ transformed data {
 parameters {
     real<lower=0> LambdaInd;
     vector<lower=0>[G] LambdaCond;
-    vector[K] mu_g_ic;
+    vector[K] mu_ic_raw;
     matrix[G, J] mu_di_raw;
     real mu;
 }
 
 transformed parameters {
     matrix[G, J] mu_g_di = diag_pre_multiply(LambdaCond, mu_di_raw);
-
+    vector[K] mu_g_ic = LambdaInd * ( iL * mu_ic_raw);
     matrix[1 + J+K, G] gbetas;
     for (g in 1:G) {
         gbetas[, g] = append_row(mu,append_row(mu_g_di[g]', mu_g_ic));
@@ -47,12 +47,13 @@ model {
     mu ~ normal(0.0, Lambda);
 
     LambdaInd ~ uniform(unilow, uniupp);
-    mu_g_ic ~ multi_normal(izeros, LambdaInd * nnegcor);
-
     LambdaCond  ~ uniform(unilow, uniupp);
 
     // opotimize this using reparameterization.
-    mu_di_raw ~ std_normal();
+    mu_ic_raw ~ std_normal();
+    for (j in 1:J){
+        mu_di_raw[,j] ~ std_normal();
+    }
 
     // change to map-reduce for parallel.
     for (g in 1:G) {
