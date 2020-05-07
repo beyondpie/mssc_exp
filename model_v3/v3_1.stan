@@ -23,6 +23,8 @@ transformed data {
 
     real unilow = 0.001;
     real uniupp = 20;
+    // reparameterization for MVN
+    matrix[K, K] iL = cholesky_decompose(nnegcor);
 }
 
 parameters {
