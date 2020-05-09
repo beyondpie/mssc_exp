@@ -1,4 +1,4 @@
-// individual effect independent
+// individual effect gene-wise
 // gene-wise popolation mean
 
 data {
