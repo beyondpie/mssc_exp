@@ -1,5 +1,5 @@
-// individual independent, but mean shared among the genes.
-// A minor modification of Model ii.
+// individual effects share the same variances.
+// each individual share the same effect among the genes.
 data {
     int<lower=10> N;  // number of cells
     int<lower=2> K; // number of individuals
