@@ -1,3 +1,4 @@
+// different with Model II:
 // each gene share the same variance with invgamma prior.
 data {
     int<lower=10> N;  // number of cells

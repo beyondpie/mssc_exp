@@ -1,3 +1,6 @@
+// exactly model II
+// global mean shared among genes
+// individual effect shared among genes.
 data {
     int<lower=10> N;  // number of cells
     int<lower=2> K; // number of individuals
