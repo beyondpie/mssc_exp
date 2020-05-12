@@ -37,3 +37,34 @@ vignettes/*.pdf
 
 # R Environment Variables
 .Renviron
+*.o
+*.d
+*.Rproj
+/test/cmdstan/poisson
+/test/cmdstan/poisson.hpp
+/test/cmdstan/output.csv
+/src/model_i_2
+.DS_Store
+/model_i/model_i_2
+*.hpp
+*.log
+*.rdump
+*.csv
+/model_ii/model_ii_1
+/model_ii/model_ii_2
+/model_ii/model_ii_3
+/model_ii/model_ii_4
+/model_v3/v3_1
+*.RDS
+*.RData
+/from_avi/20200504/gse145281.harmony.umap.cluster.pdf
+/from_avi/20200504/gse145281.harmony.umap.patient.pdf
+/from_avi/20200504/gse145281.harmony.umap.pdf
+/from_avi/20200504/feature.pdf
+/from_avi/20200504/features.pdf
+/from_avi/20200410/gse145281.harmony.umap.patient.pdf
+/from_avi/20200410/gse145281.harmony.umap.pdf
+/model_v3/v3_6
+/model_v3/v3_7
+/model_v3/v3_8
+/test/test
