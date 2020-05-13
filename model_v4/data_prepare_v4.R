@@ -58,7 +58,7 @@ mycentd <- lapply(inds, function(x) {
 s <- svd(mycentd)
 
 p <- 20
-myB <- mycentd %>% as.matrix %>% `%*%`(., s$v[, 1:p])
+B <- mycentd %>% as.matrix %>% `%*%`(., s$v[, 1:p])
 
 ## * summarize data for stan.
 modelnm <- "model_v4"
@@ -77,7 +77,7 @@ J <- 2
 scale <- 10000
 
 ## ** save data for cmdstan
-stan_rdump(c("N", "K", "J", "G", "scale", "di", "ic", "x_", "x_cg", "myB"),
+stan_rdump(c("N", "K", "J", "G", "scale", "di", "ic", "x_", "x_cg", "B"),
   file = paste0("./", modelnm, ".rdump")
 )
 
