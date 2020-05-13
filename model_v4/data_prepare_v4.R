@@ -89,9 +89,9 @@ XCond <- as.matrix(one_hot(data.table(di = factor(scresp[mycells]))))
 
 ## ** set constants
 N <- length(mycells)
-K <- ncol(ic)
+K <- ncol(XInd)
 G <- topgnum
-J <- 2
+J <- ncol(XCond)
 P <- 20
 scale <- 10000
 
