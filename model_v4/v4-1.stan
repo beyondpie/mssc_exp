@@ -79,11 +79,11 @@ parameters {
 
 transformed parameters{
     // population-wise gene expression
-    vector[G] Mu = LambdaG .* MuRaw;
+    vector[G] Mu = sqrt(LambdaG) .* MuRaw;
     // individual effects on gene module
-    matrix[P,K] MuF = LambdaF .* MuFRaw;
+    matrix[P,K] MuF = sqrt(LambdaF) .* MuFRaw;
     // gene expression level per cond
-    matrix[G,J] MuCond = diag_pre_multiply(LambdaCond, MuCondRaw);
+    matrix[G,J] MuCond = diag_pre_multiply(sqrt(LambdaCond), MuCondRaw);
 
 }
 
