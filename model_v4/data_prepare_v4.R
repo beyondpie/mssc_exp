@@ -50,11 +50,29 @@ mygroups <- sapply(inds, function(x) {
 }, simplify = FALSE)
 ## gene means across cells per individual
 gmeans <- lapply(mygroups, rowMeans) %>% as.data.frame()
-## center data per dividual and then merge.
+
+## *** analyze PCA per individual
+p <- 20
+mycentds <- lapply(inds, function(x) {
+  sweep(mygroups[[x]], 1, gmeans[[x]])
+})
+
+names(mycentds) <- inds
+
+sVDs <- lapply(inds, function(x) {
+  svd(mycentds[[x]])
+})
+
+contribs <- lapply(sVDs, function(x) {
+  sum(x$d[1:p]) / sum(x$d)
+})
+
+names(contribs) <- inds
+
+## *** center data per dividual and then merge.
 mycentd <- lapply(inds, function(x) {
   sweep(mygroups[[x]], 1, gmeans[[x]])
 }) %>% do.call(cbind, .)
-
 s <- svd(mycentd)
 
 p <- 20
