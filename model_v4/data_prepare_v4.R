@@ -59,3 +59,29 @@ s <- svd(mycentd)
 
 p <- 20
 myB <- mycentd %>% as.matrix %>% `%*%`(., s$v[, 1:p])
+
+## * summarize data for stan.
+modelnm <- "model_v4"
+## ** get counts matrix and design matrix
+x_cg <- t(as.matrix(scdata[mygenes, mycells]))
+x_ <- sc_tcpc[mycells]
+## merge data: merge(x_cg, indhay, by="patient")
+ic <- as.matrix(one_hot(data.table(ic = factor(scind[mycells]))))
+di <- as.matrix(one_hot(data.table(di = factor(scresp[mycells]))))
+
+## ** set constants
+N <- length(mycells)
+K <- ncol(ic)
+G <- topgnum
+J <- 2
+scale <- 10000
+
+## ** save data for cmdstan
+stan_rdump(c("N", "K", "J", "G", "scale", "di", "ic", "x_", "x_cg", "myB"),
+  file = paste0("./", modelnm, ".rdump")
+)
+
+
+
+
+
