@@ -2,6 +2,7 @@ library(Seurat)
 library(magrittr)
 library(ggplot2)
 library(corrplot)
+library(Matrix)
 import::from(harmony, RunHarmony)
 import::from(data.table, data.table)
 import::from(mltools, one_hot)
@@ -23,52 +24,38 @@ sc_tcpc <- colSums(as.matrix(scdata))
 ## * get selected genes
 # get deseq.dt object
 load("../from_avi/20200504/deseq.dt.RData")
-topgnum <- 100
+topgnum <- 1000
 mygenes <- deseq.dt$gene[1:topgnum]
 
+## * select cell cluster
 # cytototic T cell
 mycluster <- 2
 mycells <- which(sccluster == mycluster)
 
-VlnPlot(
-  object = gse145281, features = mygenes[1:10],
-  group.by = "patient", idents = mycluster
-)
+## * PCA analysis for genes in the cell cluster
+## normalized data
+mynmldata <- gse145281@assays$RNA@data[mygenes, mycells] %>% as.data.frame()
+myinds <- gse145281@meta.data$patient[mycells]
 
-## * get harmony delta mean for each individual
-## ** extract the correction vectors.
-orig_pca <- gse145281@reductions$pca@cell.embeddings[mycells,]
-harmony_correct_pca <- gse145281@reductions$harmony@cell.embeddings[mycells,]
-delta_pca <- harmony_correct_pca - orig_pca
-indhay <- aggregate(delta_pca, list(gse145281@meta.data$patient[mycells]), mean)
-colnames(indhay)[1] <- "patient"
+## ** center mean per individual
+old_colnm <- colnames(mynmldata)
+colnames(mynmldata) <- myinds
 
-## * get data for model iii
-modelnm <- "model_v3"
+## not scale since we hope matrix can involve
+## different count scale in matrix B or W.
 
-## ** use the individual correction vectors for correlation estimation
-nnegcor <- indhay %>%
-  .[, -1] %>%
-  t() %>%
-  cor(., method = "pearson")
-nnegcor[which(nnegcor < 0)] <- 0
-corrplot(nnegcor)
+inds <- attr(factor(myinds), "levels")
+mygroups <- sapply(inds, function(x) {
+  mynmldata[startsWith(names(mynmldata), x)]
+}, simplify = FALSE)
+## gene means across cells per individual
+gmeans <- lapply(mygroups, rowMeans) %>% as.data.frame()
+## center data per dividual and then merge.
+mycentd <- lapply(inds, function(x) {
+  sweep(mygroups[[x]], 1, gmeans[[x]])
+}) %>% do.call(cbind, .)
 
-## ** get counts matrix and design matrix
-x_cg <- t(as.matrix(scdata[mygenes, mycells]))
-x_ <- sc_tcpc[mycells]
-## merge data: merge(x_cg, indhay, by="patient")
-ic <- as.matrix(one_hot(data.table(ic = factor(scind[mycells]))))
-di <- as.matrix(one_hot(data.table(di = factor(scresp[mycells]))))
+s <- svd(mycentd)
 
-## ** set constants
-N <- length(mycells)
-K <- ncol(ic)
-G <- topgnum
-J <- 2
-scale <- 10000
-
-## ** save data for cmdstan
-stan_rdump(c("N", "K", "J", "G","scale", "di", "ic", "x_", "x_cg", "nnegcor"),
-  file = paste0("./", modelnm, ".rdump")
-)
+p <- 20
+myB <- mycentd %>% as.matrix %>% `%*%`(., s$v[, 1:p])
