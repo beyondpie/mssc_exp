@@ -24,7 +24,7 @@ sc_tcpc <- colSums(as.matrix(scdata))
 ## * get selected genes
 # get deseq.dt object
 load("../from_avi/20200504/deseq.dt.RData")
-topgnum <- 1000
+topgnum <- 100
 mygenes <- deseq.dt$gene[1:topgnum]
 
 ## * select cell cluster
