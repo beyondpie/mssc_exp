@@ -3,6 +3,7 @@
 //     on the cells from a cluster.
 // Remove hyper prior for variances, directly use predefined.
 // Use indicators for Xind, Xcond, instead of one-hot matrix production.
+// Use poisson log glm in order to compare the calculation efficiency and stability with poisson_log.
 // Test the scalability on 1,000 genes together.
 
 
