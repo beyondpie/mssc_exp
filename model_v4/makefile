@@ -7,13 +7,7 @@ ${MODEL}: ${MODEL}.stan
 	cd -
 
 .PHONY: compile
-	compile : ${MODEL}
-
-# ${data}:
-	# Rscript data_prepare_v3.R
-
-# .PHONY: generate
-# generate: ${data}
+compile : ${MODEL}
 
 .PHONY: sample
 sample : ${MODEL} ${data}

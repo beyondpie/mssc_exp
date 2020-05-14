@@ -5,12 +5,17 @@ transformed data {
 
 parameters {
     /* real sigma[N]; */
-    real sigma;
+    /* real sigma; */
+    real<lower=0> sigma;
+}
+
+transformed parameters {
+    real<lower=0> p = sigma - 10;
 }
 
 model {
     sigma ~ inv_gamma(1,1);
-    /* for (i in 1:N) { */
+    /* for (i in 1:n) { */
     /*     if(sigma[i] < 0) { */
     /*         print("sampling sigma is ", sigma[i]); */
     /*     } */
@@ -19,5 +24,9 @@ model {
         print("sampling sigma is ", sigma);
     }
 
-    y ~ normal(0, sigma[1]);
+    if (p < 0 ) {
+        print("p is out of control, ", p);
+    }
+
+    y ~ normal(0, sigma);
 }
