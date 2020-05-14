@@ -22,8 +22,8 @@ data {
     // gene module matrix
     matrix[G, P] B;
 
-    // count matrix of cell by gene
-    int<lower=0> Xcg[N,G];
+    // count matrix of gene by cell
+    int<lower=0> Xgc[G, N];
 
     // total counts per cell
     vector<lower=0>[N] S;
@@ -35,7 +35,7 @@ data {
 }
 
 transformed data{
-    // fixed parameter for hLambdaG
+    // fixed parameter for SigmaG, this is std.
     real<lower=0> SigmaG = 20;
     // fixed parameter for hLambdaF
     real<lower=0> alphahLambdaF = 2;
@@ -49,12 +49,14 @@ transformed data{
 
     // log total counts per cell;
     vector[N] logS = log(S);
+    matrix[N, G] logSs = rep_matrix(logS, G);
 }
 
 parameters {
-    // population-wise gene expressions: gene by 1
-    // variances per gene: gene by 1
-    vector[G] Mu;
+    // gene-wise population mean expressions: gene by 1
+    // mean per gene: gene by 1
+    // use raw for reparameterization
+    vector[G] MuRaw;
 
     // individual effects on gene module: gene_module by inds;
     // use raw for reparameterization
@@ -70,6 +72,9 @@ parameters {
 }
 
 transformed parameters{
+    // gene-wise population mean expression: gene by 1
+    vector[G] Mu = SigmaG * MuRaw;
+
     // individual effects on gene module
     matrix[P,K] MuF = diag_pre_multiply(sqrt(LambdaF), MuFRaw);
     // gene expression level per cond
@@ -78,22 +83,19 @@ transformed parameters{
 }
 
 model {
-
     // variances prior
     LambdaF ~ inv_gamma(alphahLambdaF, alphahLambdaF);
     LambdaCond ~ inv_gamma(alphahLambdaCond, alphahLambdaCond);
 
-    Mu ~ normal(0.0, SigmaG);
-    for (k in 1:K) {
-        MuFRaw[, k] ~ std_normal();
-    }
-    for (j in 1:J) {
-        MuCondRaw[, j] ~ std_normal();
-    }
+    MuRaw ~ std_normal();
+    to_vector(MuFRaw) ~ std_normal();
+    to_vector(MuCondRaw) ~ std_normal();
+
     matrix[G, K] MuInd = B * MuF;
-    for (g in 1:G) {
-        vector[1 + J + K] weight = append_row(Mu[g], append_row(MuCond[g]', MuInd[g]'));
-        /* print("The weight is ", weight); */
-        target += poisson_log_glm_lpmf(Xcg[, g] | X, logS,weight);
-    }
+    matrix[G, 1 + J + K] W = append_col(Mu, append_col(MuCond, MuInd));
+    matrix[N,G] Lcg = X * W' + logSs;
+
+    // NOTE: to_array_1d for int array is row major order.
+    //       while to_vector for matrix is column major order.
+    to_array_1d(Xgc) ~ poisson_log(to_vector(Lcg));
 }

@@ -24,7 +24,7 @@ sc_tcpc <- colSums(as.matrix(scdata))
 ## * get selected genes
 # get deseq.dt object
 load("../from_avi/20200504/deseq.dt.RData")
-topgnum <- 100
+topgnum <- 1000
 mygenes <- deseq.dt$gene[1:topgnum]
 
 ## * select cell cluster
@@ -87,6 +87,7 @@ B <- mycentd %>% as.matrix %>% `%*%`(., s$v[, 1:p])
 modelnm <- "model_v4"
 ## ** get counts matrix and design matrix
 Xcg <- t(as.matrix(scdata[mygenes, mycells]))
+Xgc <- as.matrix(scdata[mygenes, mycells])
 S <- sc_tcpc[mycells]
 ## merge data: merge(x_cg, indhay, by="patient")
 XInd <- as.matrix(one_hot(data.table(ic = factor(scind[mycells]))))
@@ -102,7 +103,7 @@ scale <- 10000
 
 ## ** save data for cmdstan
 stan_rdump(c("N", "K", "J", "G", "scale", "XCond",
-             "XInd", "S", "Xcg", "B", "P"),
+             "XInd", "S", "Xcg", "Xgc","B", "P"),
   file = paste0("./", modelnm, ".rdump")
 )
 
