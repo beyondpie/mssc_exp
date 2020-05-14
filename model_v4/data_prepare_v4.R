@@ -81,17 +81,25 @@ mycentd <- lapply(inds, function(x) {
 s <- svd(mycentd)
 
 p <- 20
-B <- mycentd %>% as.matrix %>% `%*%`(., s$v[, 1:p])
+B <- mycentd %>%
+  as.matrix() %>%
+  `%*%`(., s$v[, 1:p])
 
 ## * summarize data for stan.
 modelnm <- "model_v4"
 ## ** get counts matrix and design matrix
 Xcg <- t(as.matrix(scdata[mygenes, mycells]))
+IXcg <- Xcg
 Xgc <- as.matrix(scdata[mygenes, mycells])
 S <- sc_tcpc[mycells]
 ## merge data: merge(x_cg, indhay, by="patient")
-XInd <- as.matrix(one_hot(data.table(ic = factor(scind[mycells]))))
-XCond <- as.matrix(one_hot(data.table(di = factor(scresp[mycells]))))
+ic <- factor(scind[mycells], levels = inds)
+XInd <- as.matrix(one_hot(data.table(ic = ic)))
+IXInd <- as.numeric(ic)
+
+di <- factor(scresp[mycells], levels=c(0,1))
+XCond <- as.matrix(one_hot(data.table(di = di)))
+IXCond <- as.numeric(di)
 
 ## ** set constants
 N <- length(mycells)
@@ -102,12 +110,9 @@ P <- 20
 scale <- 10000
 
 ## ** save data for cmdstan
-stan_rdump(c("N", "K", "J", "G", "scale", "XCond",
-             "XInd", "S", "Xcg", "Xgc","B", "P"),
-  file = paste0("./", modelnm, ".rdump")
+stan_rdump(c(
+  "N", "K", "J", "G", "scale", "XCond", "IXCond",
+  "XInd", "IXInd", "S", "Xcg", "IXcg","Xgc", "B", "P"
+),
+file = paste0("./", modelnm, ".rdump")
 )
-
-
-
-
-

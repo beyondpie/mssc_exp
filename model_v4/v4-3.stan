@@ -23,13 +23,10 @@ data {
     matrix[G, P] B;
     // int count 2d array of cell by gene
     int IXcg[N, G];
-    // total counts per cell
-    int IS[N];
     // condition indicator: control 1, case 2
     int IXCond[N];
     // individual indicator: from 1 to 10
     int IXInd[N];
-
     // total counts per cell
     vector[N] S;
 }
