@@ -34,7 +34,10 @@ mycells <- which(sccluster == mycluster)
 
 ## * PCA analysis for genes in the cell cluster
 ## normalized data
-mynmldata <- gse145281@assays$RNA@data[mygenes, mycells] %>% as.data.frame()
+## mynmldata <- gse145281@assays$RNA@data[mygenes, mycells] %>% as.data.frame()
+
+## use all the genes for PCA
+mynmldata <- gse145281@assays$RNA@data[, mycells] %>% as.data.frame()
 myinds <- gse145281@meta.data$patient[mycells]
 
 ## ** center mean per individual
@@ -84,6 +87,7 @@ p <- 20
 B <- mycentd %>%
   as.matrix() %>%
   `%*%`(., s$v[, 1:p])
+B <- B[mygenes, ]
 
 ## * summarize data for stan.
 modelnm <- "model_v4"
