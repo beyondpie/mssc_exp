@@ -69,6 +69,11 @@ contribs <- lapply(sVDs, function(x) {
 
 names(contribs) <- inds
 
+## RowVar <- function(x, ...) {
+##   rowSums((x - rowMeans(x, ...))^2, ...) / (dim(x)[2] - 1)
+## }
+
+## RowVar(A)
 ## *** center data per dividual and then merge.
 mycentd <- lapply(inds, function(x) {
   sweep(mygroups[[x]], 1, gmeans[[x]])
