@@ -6,7 +6,7 @@ test: test.stan
 	cd -
 
 .PHONY: compile
-mycompile: test
+compile: test
 
 .PHONY: clean
 clean:

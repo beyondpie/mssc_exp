@@ -2,36 +2,36 @@
 // Gene module is directly estimated from PCA results of genes
 //     on the cells from a cluster.
 // Remove hyper prior for variances, directly use predefined.
+// Use indicators for Xind, Xcond, instead of one-hot matrix production.
 // Test the scalability on 1,000 genes together.
 
 
 data {
     // number of cells
-    int<lower=10> N;
+    int N;
     // number of individuals
-    int<lower=2> K;
+    int K;
     // scRNAseq scale factor
-    int<lower=1000> scale;
+    int scale;
     // number of conditions
-    int<lower=2> J;
+    int J;
     // number of genes;
-    int<lower=1> G;
+    int G;
     // dimension of gene module matrix
-    int<lower=1> P;
-
+    int P;
     // gene module matrix
     matrix[G, P] B;
-
-    // count matrix of gene by cell
-    int<lower=0> Xgc[G, N];
+    // int count 2d array of cell by gene
+    int IXcg[N, G];
+    // total counts per cell
+    int IS[N];
+    // condition indicator: control 1, case 2
+    int IXCond[N];
+    // individual indicator: from 1 to 10
+    int IXInd[N];
 
     // total counts per cell
-    vector<lower=0>[N] S;
-
-    // condition matrix of cell by cond
-    matrix[N, J] XCond;
-    // individual index matrix of cell by indi
-    matrix[N, K] XInd;
+    vector[N] S;
 }
 
 transformed data{
@@ -42,14 +42,9 @@ transformed data{
     // fixed parameter for hLambdaCond
     real<lower=0> alphahLambdaCond = 2;
 
-    // add ones for the total counts per cell;
-    matrix[N, 1] Ones = rep_matrix(1, N, 1);
-    // append glm data matrix
-    matrix[N, 1 + J + K] X = append_col(Ones, append_col(XCond, XInd));
-
     // log total counts per cell;
-    vector[N] logS = log(S);
-    matrix[N, G] logSs = rep_matrix(logS, G);
+    vector[N] LogS = log(S);
+    matrix[G,N] LogSGN = rep_matrix(LogS, G)';
 }
 
 parameters {
@@ -74,6 +69,7 @@ parameters {
 transformed parameters{
     // gene-wise population mean expression: gene by 1
     vector[G] Mu = SigmaG * MuRaw;
+
     // individual effects on gene module
     matrix[P,K] MuF = diag_pre_multiply(sqrt(LambdaF), MuFRaw);
     // gene expression level per cond
@@ -91,10 +87,11 @@ model {
     to_vector(MuCondRaw) ~ std_normal();
 
     matrix[G, K] MuInd = B * MuF;
-    matrix[G, 1 + J + K] W = append_col(Mu, append_col(MuCond, MuInd));
-    matrix[N,G] Lcg = X * W' + logSs;
+    matrix[G, N] MuIndGN = MuInd[:, IXInd];
+    matrix[G, N] MuCondGN = MuCond[:, IXCond];
+    matrix[G, N] Lgc = LogSGN + MuIndGN + MuCondGN;
 
     // NOTE: to_array_1d for int array is row major order.
     //       while to_vector for matrix is column major order.
-    to_array_1d(Xgc) ~ poisson_log(to_vector(Lcg));
+    to_array_1d(IXcg) ~ poisson_log(to_vector(Lgc));
 }

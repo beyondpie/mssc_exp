@@ -7,6 +7,7 @@ parameters {
     /* real sigma[N]; */
     /* real sigma; */
     real<lower=0> sigma;
+    matrix[100, 10] w;
 }
 
 transformed parameters {
@@ -28,5 +29,6 @@ model {
         print("p is out of control, ", p);
     }
 
+    vector[10] s = w[[1,2,3,4,5,6,7,8,9,10],1];
     y ~ normal(0, sigma);
 }
