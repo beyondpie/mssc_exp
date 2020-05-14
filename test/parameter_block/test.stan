@@ -4,14 +4,20 @@ transformed data {
 }
 
 parameters {
-    real<lower=0> sigma[N];
+    /* real sigma[N]; */
+    real sigma;
 }
 
 model {
-    for (i in 1:N) {
-        if(sigma[i] < 0) {
-            print("sampling sigma is ", sigma[i]);
-        }
+    sigma ~ inv_gamma(1,1);
+    /* for (i in 1:N) { */
+    /*     if(sigma[i] < 0) { */
+    /*         print("sampling sigma is ", sigma[i]); */
+    /*     } */
+    /* } */
+    if (sigma <0 ) {
+        print("sampling sigma is ", sigma);
     }
+
     y ~ normal(0, sigma[1]);
 }
