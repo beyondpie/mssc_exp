@@ -13,7 +13,7 @@ compile : ${MODEL}
 
 .PHONY: sample
 sample : ${MODEL} ${data}
-	./${mc} $<
+	./${mc} ${MODEL} ${data}
 
 .PHONY: ssample
 ssample : ${MODEL} ${data}
