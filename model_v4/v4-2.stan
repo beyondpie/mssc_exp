@@ -106,5 +106,4 @@ model {
         /* print("The weight is ", weight); */
         /* target += poisson_log_glm_lpmf(Xcg[, g] | X, logS,weight); */
     /* } */
-
 }
