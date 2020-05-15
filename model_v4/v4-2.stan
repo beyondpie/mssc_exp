@@ -38,9 +38,9 @@ transformed data{
     // fixed parameter for SigmaG, this is std.
     real<lower=0> SigmaG = 20;
     // fixed parameter for hLambdaF
-    real<lower=0> alphahLambdaF = 2;
+    real<lower=0> alphahLambdaF = 1;
     // fixed parameter for hLambdaCond
-    real<lower=0> alphahLambdaCond = 2;
+    real<lower=0> alphahLambdaCond = 1;
 
     // add ones for the total counts per cell;
     matrix[N, 1] Ones = rep_matrix(1, N, 1);
@@ -93,8 +93,10 @@ model {
     matrix[G, K] MuInd = B * MuF;
     matrix[G, 1 + J + K] W = append_col(Mu, append_col(MuCond, MuInd));
     matrix[N,G] Lcg = X * W' + logSs;
+    matrix[G*N, 1] Xm = rep_matrix(to_vector(Lcg),1);
 
     // NOTE: to_array_1d for int array is row major order.
     //       while to_vector for matrix is column major order.
-    to_array_1d(Xgc) ~ poisson_log(to_vector(Lcg));
+    /* to_array_1d(Xgc) ~ poisson_log(to_vector(Lcg)); */
+    target += poisson_log_glm_lpmf(to_array_1d(Xgc) | Xm, 0.0, [1.0]');
 }
