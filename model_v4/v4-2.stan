@@ -93,10 +93,18 @@ model {
     matrix[G, K] MuInd = B * MuF;
     matrix[G, 1 + J + K] W = append_col(Mu, append_col(MuCond, MuInd));
     matrix[N,G] Lcg = X * W' + logSs;
-    matrix[G*N, 1] Xm = rep_matrix(to_vector(Lcg),1);
 
     // NOTE: to_array_1d for int array is row major order.
     //       while to_vector for matrix is column major order.
-    /* to_array_1d(Xgc) ~ poisson_log(to_vector(Lcg)); */
-    target += poisson_log_glm_lpmf(to_array_1d(Xgc) | Xm, 0.0, [1.0]');
+    to_array_1d(Xgc) ~ poisson_log(to_vector(Lcg));
+
+    // TODO: test
+    // This version seems to be faster
+    /* for (g in 1:G) { */
+        /* vector[1 + J + K] weight = append_row(Mu[g], */
+                                              /* append_row(MuCond[g]', MuInd[g]')); */
+        /* print("The weight is ", weight); */
+        /* target += poisson_log_glm_lpmf(Xcg[, g] | X, logS,weight); */
+    /* } */
+
 }
