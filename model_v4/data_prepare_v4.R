@@ -118,5 +118,5 @@ stan_rdump(c(
   "N", "K", "J", "G", "scale", "XCond", "IXCond",
   "XInd", "IXInd", "S", "Xcg", "IXcg","Xgc", "B", "P"
 ),
-file = paste0("./", modelnm, ".rdump")
+file = paste0("./", paste(c(modelnm, topgnum,P),collapse = "-") ,".rdump")
 )
