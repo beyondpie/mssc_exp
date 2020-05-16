@@ -111,7 +111,7 @@ model {
     // NOTE: to_array_1d for int array is row major order.
     //       while to_vector for matrix is column major order.
     /* target += poisson_log_lpmf(Axgc | to_vector(Lcg)); */
-    int grainsize = G;
+    int grainsize = 1;
     target += reduce_sum(partial_sum,AXcg,grainsize, vLcg);
 
     // TODO: test
