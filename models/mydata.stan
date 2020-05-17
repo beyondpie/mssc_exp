@@ -10,11 +10,23 @@ data {
     matrix[N, J] XCond; // one-hot condition repr
     matrix[N, K] XInd; // one-hot individual repr
 
+
     int scale; // for scRNAseq
 
     real<lower=0> alphaSigma2G;
     real<lower=0> betaSigma2G;
-
     real<lower=0> sigmaMu;
+
+    real<lower=0> alphaLambda2Ind;
+    real<lower=0> betaLambda2Ind;
+
+    real<lower=0> sigmaMuCond;
+
+    int<lower=0, upper=1> GRAINSIZE;
 }
 
+transformed data {
+    vector[N] logS = log(S);
+    matrix[N, 1 + J + K] X = append_col(rep_matrix(1,N,1),
+                                        append_col(XCond, XInd));
+}

@@ -5,7 +5,7 @@ cpc := cpc.sh
 
 ${MODEL}: ${MODEL}.stan
 	cd ${HOME}/softwares/cmdstan-2.23.0 ;\
-	make STANCFLAGS="--include_paths=${dir}" ${dir}/$@; \
+	make -j4 STANCFLAGS="--include_paths=${dir}" ${dir}/$@; \
 	cd -
 
 .PHONY: compile
