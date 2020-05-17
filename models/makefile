@@ -1,5 +1,5 @@
 dir := $(shell pwd)
-data := model_v4.rdump
+data := my27gene18module.rdump
 mc := mc.sh
 cpc := cpc.sh
 

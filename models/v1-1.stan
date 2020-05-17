@@ -43,11 +43,11 @@ model {
     vector[1 + J + K] W;
     for (g in 1:G) {
         W[1] = MuG[g];
-        for (j in 2:(2+J-1)) {
-            W[j] = MuCond[g, j];
+        for (j in 1:J) {
+            W[j+1] = MuCond[g, j];
         }
-        for (k in (J+2): (1+J +K)) {
-            W[k] = MuInd[g, k];
+        for (k in 1: K) {
+            W[k+J+1] = MuInd[g,k];
         }
         scores[g] = poisson_log_glm_lpmf(Xcg[,g] | X, logS, W);
     }

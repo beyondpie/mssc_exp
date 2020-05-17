@@ -118,13 +118,21 @@ goldgenes <- data.frame(genes = c(
   ), module = c(seq(1, utr), rep(utr+1, 3),
                  rep(utr+2, 3), rep(utr+3, 4),
                  rep(utr+4, 3), seq(utr+5, utr+5 + ulr-1)))
+module <- factor(goldgenes$module)
+GoldB <- as.matrix(one_hot(data.table(module)))
+rownames(GoldB) <- goldgenes$genes
 
 ## ** get counts matrix and design matrix
+mygenes <- goldgenes$genes
+B <- GoldB
+
 Xcg <- t(as.matrix(scdata[mygenes, mycells]))
 IXcg <- Xcg
 Xgc <- as.matrix(scdata[mygenes, mycells])
 S <- sc_tcpc[mycells]
 ## merge data: merge(x_cg, indhay, by="patient")
+myinds <- gse145281@meta.data$patient[mycells]
+inds <- attr(factor(myinds), "levels")
 ic <- factor(scind[mycells], levels = inds)
 XInd <- as.matrix(one_hot(data.table(ic = ic)))
 IXInd <- as.numeric(ic)
@@ -136,15 +144,24 @@ IXCond <- as.numeric(di)
 ## ** set constants
 N <- length(mycells)
 K <- ncol(XInd)
-G <- topgnum
+G <- length(mygenes)
 J <- ncol(XCond)
-P <- p
+P <- ncol(B)
 scale <- 10000
+
+alphaSigma2G <- 1
+betaSigma2G <- 1
+sigmaMu <- 10
+
+alphaLambda2Ind <- 1
+betaLambda2Ind <- 1
+
+sigmaMuCond <- 5
+GRAINSIZE <- 1
 
 ## ** save data for cmdstan
 stan_rdump(c(
-  "N", "K", "J", "G", "scale", "XCond", "IXCond",
-  "XInd", "IXInd", "S", "Xcg", "IXcg","Xgc", "B", "P"
-),
-file = paste0("./", paste(c(modelnm, topgnum),collapse = "-") ,".rdump")
-)
+  "N", "K", "J", "G", "scale", "XCond", "XInd","S", "Xcg", "B", "P",
+  "alphaSigma2G", "betaSigma2G", "sigmaMu", "alphaLambda2Ind", "betaLambda2Ind",
+  "sigmaMuCond", "GRAINSIZE"),
+  file = paste0("./", "my27gene18module",".rdump"))
