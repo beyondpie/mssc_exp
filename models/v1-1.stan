@@ -3,14 +3,14 @@
 #include mydata.stan
 
 parameters {
-    real Sigma2G;
+    real<lower=0> Sigma2G;
     real Mu;
     vector[G] MuGRaw;
     vector[G] MuIndMean;
 
     matrix[G, K] MuIndRaw;
     matrix[G, J] MuCondRaw;
-    vector[G] Lambda2Ind;
+    vector<lower=0>[G] Lambda2Ind;
 }
 
 transformed parameters {

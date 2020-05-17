@@ -8,17 +8,9 @@ import::from(data.table, data.table)
 import::from(mltools, one_hot)
 import::from(rstan, stan_rdump)
 import::from(dplyr, group_by, top_n)
-library(ggdendro)
-library(reshape2)
-library(grid)
-library(gplots)
 
 ## * Load scRNAseq data.
-scale <- 10000
 gse145281 <- readRDS("../from_avi/20200504/seurat.RDS")
-gse145281 <- NormalizeData(object = gse145281,
-                           normalization.method = "LogNormalize",
-                           scale.factor=scale)
 
 scmeta <- gse145281@meta.data
 sccluster <- scmeta$seurat_clusters
@@ -32,65 +24,19 @@ sc_tcpc <- colSums(as.matrix(scdata))
 ## * get selected genes
 # get deseq.dt object
 load("../from_avi/20200504/deseq.dt.RData")
-topgnum <- 500
+topgnum <- 20
 mygenes <- deseq.dt$gene[1:topgnum]
+
 ## * select cell cluster
 # cytototic T cell
 mycluster <- 2
 mycells <- which(sccluster == mycluster)
-## * do clustering to find the gene modules on top ranked genes
-genexp <- as.matrix(t(scale(t(gse145281@assays$RNA@data[mygenes , mycells]))))
-
-genexphc <- hclust( as.dist(1 - cor(t(genexp), method="pearson")), method="complete")
-# mycl <- cutree(genexphc, h=max(genexphc$height/1.5))
-mycl <- cutree(genexphc, h=0.9)
-
-a <- rep(0, max(mycl))
-for (i in 1:max(mycl)) {
-  a[i] = length(which(mycl == i))
-}
-clusters = which(a > 2)
-# examine the cluster membership by it's order
-# in the heatmap
-# mycl[hr$order]
-# grab a cluster
-# cluster1 <- d[mycl == 1,]
-# or simply add the cluster ID to your data
-# foo <- cbind(d, clusterID=mycl)
-# examine the data with cluster ids attached, and ordered like the heat map
-# foo[hr$order,]
-# too slow, and not looks well
-clusterCols <- rainbow(length(unique(mycl)))
-myClusterSideBar <- clusterCols[mycl]
-myheatcol <- rev(redgreen(75))
-# heatmap.2(genexp, main="Hierarchical Cluster", Rowv=as.dendrogram(genexphc), 
-#          Colv=NA, dendrogram="row", scale="row", 
-#          col=myheatcol, density.info="none", trace="none", 
-#          RowSideColors= myClusterSideBar)
-# naive plot
-genexp.dendro <- as.dendrogram(genexphc)
-dendro.plot <- ggdendrogram(data = genexp.dendro, rotate = TRUE)  + 
-  theme(axis.text.y = element_text(size=4))
-print(dendro.plot)
-
-gsetmp <- ScaleData(gse145281, features = mygenes)
-DoHeatmap(gsetmp, features=mygenes[genexphc$order], cells = mycells,
-          group.bar=T, group.by = 'patient', slot ="scale.data") + 
-  theme(axis.text.y = element_text(size=2))
-
-
-
-VlnPlot(
-  object = gse145281, features = deseq.dt$gene[5005],
-  group.by = "patient", idents = mycluster
-)
 
 ## * PCA analysis for genes in the cell cluster
 ## normalized data
 ## mynmldata <- gse145281@assays$RNA@data[mygenes, mycells] %>% as.data.frame()
 
 ## use all the genes for PCA
-## normalize the gene per cell.
 mynmldata <- gse145281@assays$RNA@data[, mycells] %>% as.data.frame()
 myinds <- gse145281@meta.data$patient[mycells]
 
@@ -98,6 +44,7 @@ myinds <- gse145281@meta.data$patient[mycells]
 old_colnm <- colnames(mynmldata)
 colnames(mynmldata) <- myinds
 
+## not scale since we hope matrix can involve
 ## different count scale in matrix B or W.
 
 inds <- attr(factor(myinds), "levels")
@@ -134,9 +81,8 @@ names(contribs) <- inds
 mycentd <- lapply(inds, function(x) {
   sweep(mygroups[[x]], 1, gmeans[[x]])
 }) %>% do.call(cbind, .)
-
 s <- svd(mycentd)
-saveRDS(s, file="SVD_Cluster2_CytotoxicTcell")
+
 p <- 2
 B <- mycentd %>%
   as.matrix() %>%
@@ -145,6 +91,34 @@ B <- B[mygenes, ]
 
 ## * summarize data for stan.
 modelnm <- "model_v4"
+## * Redefine genes
+## use top rank
+utr <- 8
+## use low rank
+ulr <- 6
+goldgenes <- data.frame(genes = c(
+  "SNHG16",
+  "OASL",
+  "NAMPT",
+  "NFKB1",
+  "BCL2L11",
+  "IRF8",
+  "TPM4",
+  "TRAF4",
+  "ICAM1", "XCL2", "XCL1",
+  "RPS26P11", "LOC101929876", "LOC100996747",
+  "HBA1", "HBA2", "HBB", "HBD",
+  "CCL3L3", "CCL3L1", "CCL3",
+  "KDM6A",
+  "ZNF721",
+  "HDDC2",
+  "YIPF5",
+  "MAK16",
+  "TOX"
+  ), module = c(seq(1, utr), rep(utr+1, 3),
+                 rep(utr+2, 3), rep(utr+3, 4),
+                 rep(utr+4, 3), seq(utr+5, utr+5 + ulr-1)))
+
 ## ** get counts matrix and design matrix
 Xcg <- t(as.matrix(scdata[mygenes, mycells]))
 IXcg <- Xcg
@@ -165,6 +139,7 @@ K <- ncol(XInd)
 G <- topgnum
 J <- ncol(XCond)
 P <- p
+scale <- 10000
 
 ## ** save data for cmdstan
 stan_rdump(c(
