@@ -12,7 +12,7 @@ library(ggdendro)
 library(reshape2)
 library(grid)
 library(gplots)
-
+library(viridis)
 ## * Load scRNAseq data.
 scale <- 10000
 gse145281 <- readRDS("../from_avi/20200504/seurat.RDS")
@@ -145,6 +145,40 @@ B <- B[mygenes, ]
 
 ## * summarize data for stan.
 modelnm <- "model_v4"
+## * Redefine genes
+## use top rank
+utr <- 8
+## use low rank
+ulr <- 6
+goldgenes <- data.frame(genes = c(
+  "SNHG16",
+  "OASL",
+  "NAMPT",
+  "NFKB1",
+  "BCL2L11",
+  "IRF8",
+  "TPM4",
+  "TRAF4",
+  "ICAM1", "XCL2", "XCL1",
+  "RPS26P11", "LOC101929876", "LOC100996747",
+  "HBA1", "HBA2", "HBB", "HBD",
+  "CCL3L3", "CCL3L1", "CCL3",
+  "KDM6A",
+  "ZNF721",
+  "HDDC2",
+  "YIPF5",
+  "MAK16",
+  "TOX"
+), module = c(seq(1, utr), rep(utr+1, 3),
+              rep(utr+2, 3), rep(utr+3, 4),
+              rep(utr+4, 3), seq(utr+5, utr+5 + ulr-1)))
+
+gsetmp <- ScaleData(gse145281, features = goldgenes$genes)
+DoHeatmap(gsetmp, features=goldgenes$genes, cells = mycells,
+          group.bar=T, group.by = 'patient', slot ="scale.data") + 
+  theme(axis.text.y = element_text(size=9)) + scale_fill_viridis() 
+## + scale_fill_gradientn(colors = c("blue", "white", "red"))
+
 ## ** get counts matrix and design matrix
 Xcg <- t(as.matrix(scdata[mygenes, mycells]))
 IXcg <- Xcg
