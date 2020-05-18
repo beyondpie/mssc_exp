@@ -3,42 +3,36 @@
 #include mydata.stan
 
 parameters {
-    real<lower=0> Sigma2G;
-    real Mu;
-    vector[G] MuGRaw;
-    vector[P] MuIndMean;
-
+    vector[G] MuG;
     matrix[P, K] MuIndRaw;
-
     matrix[G, J] MuCondRaw;
-    vector<lower=0>[P] Lambda2Ind;
+    vector<lower=0>[P] Kappa2P;
+    vector<lower=0>[G] Tau2G;
 }
 
 transformed parameters {
-    real SigmaG = sqrt(Sigma2G);
-    vector[G] MuG = Mu + SigmaG * MuGRaw;
-    vector[P] LambdaInd = sqrt(Lambda2Ind);
+    vector[P] KappaP = sqrt(Kappa2P);
     matrix[P, K] MuInd;
     for (k in 1:K) {
-        MuInd[,k] = dot_product(LambdaInd, MuIndRaw[, k]) + MuIndMean;
+        MuInd[, k] = KappaP .* MuIndRaw[, k];
     }
-    matrix[G, J] MuCond = sigmaMuCond * MuCondRaw;
+    vector[G] TauG = sqrt(Tau2G);
+    matrix[G, J] MuCond;
+    for (j in 1:J) {
+        MuCond[, j]  = TauG .* MuCondRaw[, j];
+    }
 }
 
 
 model {
-    Sigma2G ~ inv_gamma(alphaSigma2G, betaSigma2G);
-    Lambda2Ind ~ inv_gamma(alphaLambda2Ind, betaLambda2Ind);
-
-    Mu ~ normal(0.0, sigmaMu);
-    MuIndMean ~ normal(0.0, sigmaMuIndMean);
-    MuGRaw ~ std_normal(); // implicit MuG ~ normal(Mu, sqrt(Sigma2G))
+    Kappa2P ~ inv_gamma(alphaKappaP, betaKappaP);
+    Tau2G ~ inv_gamma(alphaTauG, betaTauG);
+    MuG ~ normal(0.0, sigmaG0);
     for (k in 1:K) {
-        // implicit MuInd ~ normal(MuIndMean, diag(LambdaInd))
-        MuIndRaw[, k] ~ std_normal();
+        MuIndRaw[, k] ~ std_normal();//implicit MuInd[,k] ~ normal(0, diag(KappaP))
     }
     for (j in 1:J) {
-        MuCondRaw[, j] ~ std_normal(); // implicit MuCond ~ normal(0.0, sigmaMuCond)
+        MuCondRaw[, j] ~ std_normal();//implicit MuCond[,j] ~ normal(0.0, diag(TauG))
     }
     matrix[G, K] MuIndonG = B * MuInd;
     vector[G] scores;

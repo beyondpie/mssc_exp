@@ -1,4 +1,5 @@
-// Model batch effect shared for all the genes
+// Model batch effect gene-wise
+// Add hyper prior for the kappa and tau
 
 #include mydata.stan
 
