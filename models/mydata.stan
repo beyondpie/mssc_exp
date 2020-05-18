@@ -25,6 +25,16 @@ transformed data {
     real<lower=0> alphaTauG = 1.0;
     real<lower=0> betaTauG = 1.0;
 
+    real<lower=0> alphaAlphaKappa = 1.0;
+    real<lower=0> betaAlphaKappa = 1.0;
+    real<lower=0> alphaBetaKappa = 1.0;
+    real<lower=0> betaBetaKappa = 1.0;
+
+    real<lower=0> alphaAlphaTau = 1.0;
+    real<lower=0> betaAlphaTau = 1.0;
+    real<lower=0> alphaBetaTau = 1.0;
+    real<lower=0> betaBetaTau = 1.0;
+
     int<lower=0, upper=1> GRAINSIZE = 1;
 
     vector[N] logS = log(S);
