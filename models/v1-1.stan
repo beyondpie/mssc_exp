@@ -30,7 +30,7 @@ model {
     Lambda2Ind ~ inv_gamma(alphaLambda2Ind, betaLambda2Ind);
 
     Mu ~ normal(0.0, sigmaMu);
-    MuIndMean ~ normal(0.0. sigmaMuIndMean);
+    MuIndMean ~ normal(0.0, sigmaMuIndMean);
     MuGRaw ~ std_normal(); // implicit MuG ~ normal(Mu, sqrt(Sigma2G))
     for (k in 1:K) {
         // implicit MuInd ~ normal(MuIndMean, diag(LambdaInd))
