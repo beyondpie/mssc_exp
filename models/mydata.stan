@@ -12,22 +12,23 @@ data {
     matrix[N, K] XInd; // one-hot individual repr
 
     matrix[G,P] B; // gene-moduel matrix
-
-    int scale; // for scRNAseq
-
-    real<lower=0> alphaSigma2G;
-    real<lower=0> betaSigma2G;
-    real<lower=0> sigmaMu;
-
-    real<lower=0> alphaLambda2Ind;
-    real<lower=0> betaLambda2Ind;
-
-    real<lower=0> sigmaMuCond;
-
-    int<lower=0, upper=1> GRAINSIZE;
 }
 
 transformed data {
+    int scale = 10000; // for scRNAseq
+
+    real<lower=0> alphaSigma2G = 1;
+    real<lower=0> betaSigma2G = 1;
+    real<lower=0> sigmaMu = 20;
+    real<lower=0> sigmaMuIndMean = 10;
+
+    real<lower=0> alphaLambda2Ind = 1;
+    real<lower=0> betaLambda2Ind = 1;
+
+    real<lower=0> sigmaMuCond = 10;
+
+    int<lower=0, upper=1> GRAINSIZE = 1;
+
     vector[N] logS = log(S);
     matrix[N, 1 + J + K] X = append_col(rep_matrix(1,N,1),
                                         append_col(XCond, XInd));

@@ -127,7 +127,7 @@ mygenes <- goldgenes$genes
 B <- GoldB
 
 Xcg <- t(as.matrix(scdata[mygenes, mycells]))
-IXcg <- Xcg
+## IXcg <- Xcg
 Xgc <- as.matrix(scdata[mygenes, mycells])
 S <- sc_tcpc[mycells]
 ## merge data: merge(x_cg, indhay, by="patient")
@@ -135,11 +135,11 @@ myinds <- gse145281@meta.data$patient[mycells]
 inds <- attr(factor(myinds), "levels")
 ic <- factor(scind[mycells], levels = inds)
 XInd <- as.matrix(one_hot(data.table(ic = ic)))
-IXInd <- as.numeric(ic)
+## IXInd <- as.numeric(ic)
 
 di <- factor(scresp[mycells], levels=c(0,1))
 XCond <- as.matrix(one_hot(data.table(di = di)))
-IXCond <- as.numeric(di)
+## IXCond <- as.numeric(di)
 
 ## ** set constants
 N <- length(mycells)
@@ -147,21 +147,8 @@ K <- ncol(XInd)
 G <- length(mygenes)
 J <- ncol(XCond)
 P <- ncol(B)
-scale <- 10000
-
-alphaSigma2G <- 1
-betaSigma2G <- 1
-sigmaMu <- 10
-
-alphaLambda2Ind <- 1
-betaLambda2Ind <- 1
-
-sigmaMuCond <- 5
-GRAINSIZE <- 1
 
 ## ** save data for cmdstan
 stan_rdump(c(
-  "N", "K", "J", "G", "scale", "XCond", "XInd","S", "Xcg", "B", "P",
-  "alphaSigma2G", "betaSigma2G", "sigmaMu", "alphaLambda2Ind", "betaLambda2Ind",
-  "sigmaMuCond", "GRAINSIZE"),
+  "N", "K", "J", "G", "XCond", "XInd","S", "Xcg", "B", "P"),
   file = paste0("./", "my27gene18module",".rdump"))
