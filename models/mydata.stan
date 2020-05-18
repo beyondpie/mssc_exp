@@ -17,15 +17,13 @@ data {
 transformed data {
     int scale = 10000; // for scRNAseq
 
-    real<lower=0> alphaSigma2G = 1;
-    real<lower=0> betaSigma2G = 1;
-    real<lower=0> sigmaMu = 20;
-    real<lower=0> sigmaMuIndMean = 10;
+    vector<lower=0>[G] sigmaG0 = rep_vector(10.0, G);
 
-    real<lower=0> alphaLambda2Ind = 1;
-    real<lower=0> betaLambda2Ind = 1;
+    real<lower=0> alphaKappa2G = 1.0;
+    real<lower=0> betaKappa2G = 1.0;
 
-    real<lower=0> sigmaMuCond = 10;
+    real<lower=0> alphaTauG = 1.0;
+    real<lower=0> betaTauG = 1.0;
 
     int<lower=0, upper=1> GRAINSIZE = 1;
 

@@ -1,43 +1,41 @@
-// Model batch effect shared for all the genes
+// Model batch effect gene-wise.
+// This version model each gene indepdendently.
 
 #include mydata.stan
 
 parameters {
-    real<lower=0> Sigma2G;
-    real Mu;
-    vector[G] MuGRaw;
-    vector[G] MuIndMean;
-
+    vector[G] MuG;
     matrix[G, K] MuIndRaw;
     matrix[G, J] MuCondRaw;
-    vector<lower=0>[G] Lambda2Ind;
+    vector<lower=0>[G] Kappa2G;
+    vector<lower=0>[G] Tau2G;
 }
 
 transformed parameters {
-    real SigmaG = sqrt(Sigma2G);
-    vector[G] MuG = Mu + SigmaG * MuGRaw;
-    vector[G] LambdaInd = sqrt(Lambda2Ind);
+    vector[G] KappaG = sqrt(Kappa2G);
     matrix[G, K] MuInd;
     for (k in 1:K) {
-        MuInd[,k] = dot_product(LambdaInd, MuIndRaw[, k]) + MuIndMean;
+        MuInd[, k] = KappaG .* MuIndRaw[, k];
     }
-    matrix[G, J] MuCond = sigmaMuCond * MuCondRaw;
+    vector[G] TauG = sqrt(Tau2G);
+    matrix[G, J] MuCond;
+    for (j in 1:J) {
+        MuCond[ ,j] = TauG .* MuCondRaw[, j];
+    }
 }
 
 
 model {
-    Sigma2G ~ inv_gamma(alphaSigma2G, betaSigma2G);
-    Lambda2Ind ~ inv_gamma(alphaLambda2Ind, betaLambda2Ind);
+    Kappa2G ~ inv_gamma(alphaKappa2G, betaKappa2G);
+    Tau2G ~ inv_gamma(alphaTauG, betaTauG);
+    MuG ~ normal(0.0, sigmaG0);
 
-    Mu ~ normal(0.0, sigmaMu);
-    MuIndMean ~ normal(0.0, sigmaMuIndMean);
-    MuGRaw ~ std_normal(); // implicit MuG ~ normal(Mu, sqrt(Sigma2G))
     for (k in 1:K) {
-        // implicit MuInd ~ normal(MuIndMean, diag(LambdaInd))
-        MuIndRaw[, k] ~ std_normal();
+        MuIndRaw[, k] ~ std_normal();//implicit MuInd[,k] ~ normal(0, diag(KappaG))
     }
+
     for (j in 1:J) {
-        MuCondRaw[, j] ~ std_normal(); // implicit MuCond ~ normal(0.0, sigmaMuCond)
+        MuCondRaw[, j] ~ std_normal();//implicit MuCond[,j] ~ normal(0.0, diag(TauG))
     }
 
     vector[G] scores;
@@ -48,7 +46,7 @@ model {
             W[j+1] = MuCond[g, j];
         }
         for (k in 1: K) {
-            W[k+J+1] = MuInd[g,k];
+            W[k+J+1] = MuInd[g, k];
         }
         scores[g] = poisson_log_glm_lpmf(Xcg[,g] | X, logS, W);
     }
