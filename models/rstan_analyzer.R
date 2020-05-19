@@ -148,9 +148,12 @@ v22_stan <- stan_analyzer("v2-2",
                           desc="modeling gene-module invididual effect, and sharing hyper prior for variances.",
                           color="blue")
 
-p2 <- ggarrange(v11_stan$dhist, v12_stan$dhist, nrow = 2, ncol=1)
+p2 <- ggarrange(v21_stan$dhist, v22_stan$dhist, nrow = 2, ncol=1)
 
-
+v22_stan_rep <- stan_analyzer("v2-2",
+                              prefix = "./rep_result/", 
+                          desc="modeling gene-module invididual effect, and sharing hyper prior for variances.",
+                          color="blue")
 ## * vln plot
 pos_sgenes <- c("SNHG16",
   "OASL",
