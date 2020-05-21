@@ -202,8 +202,12 @@ ccc_vln <- VlnPlot(object = gse145281, features = CCCmodule,
 
 ## * test vi
 
-v22_stan_rep <- stan_analyzer("v2-2",
+v22vi <- stan_analyzer("v2-2",
                               prefix = "./", 
                               desc="modeling gene-module invididual effect, and sharing hyper prior for variances.",
                               color="blue")
 
+v21vi <- stan_analyzer("v2-1",
+                              prefix = "./result/vi/", 
+                              desc="modeling gene-module invididual effect, and sharing hyper prior for variances.",
+                              color="blue")

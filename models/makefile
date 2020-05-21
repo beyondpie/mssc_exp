@@ -1,6 +1,6 @@
 dir := $(shell pwd)
-# data := my27gene18module.rdump
-data := v1_2000.rdump
+data := my27gene18module.rdump
+# data := v1_2000.rdump
 mc := mc.sh
 cpc := cpc.sh
 
