@@ -30,9 +30,13 @@ ssample : ${MODEL} ${data}
 vi : ${MODEL} ${data}
 	-mkdir -p ${vidir}
 	./$(word 1, $^) variational algorithm=meanfield \
+                              iter=10000 grad_samples=1 \
+                              elbo_samples=100 eta=1.0 \
+                              adapt engaged=1 iter=50 \
+                              eval_elbo=100 output_samples=1000\
               random seed=12345 \
               data file=$(word 2, $^) \
-              output refresh=5 file=${vidir}/$(word 1, $^).csv \
+              output file=${vidir}/$(word 1, $^).csv \
                      diagnostic_file=${vidir}/$(word 1,$^)_diag.csv \
               > ${vidir}/${word 1, $^}.log &
 
