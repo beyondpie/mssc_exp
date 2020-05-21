@@ -1,7 +1,11 @@
 dir := $(shell pwd)
-data := my27gene18module.rdump
+# data := my27gene18module.rdump
+data := v1_2000.rdump
 mc := mc.sh
 cpc := cpc.sh
+
+samdir := ./result/sample
+vidir := ./result/vi
 
 ${MODEL}: ${MODEL}.stan
 	cd ${HOME}/softwares/cmdstan-2.23.0 ;\
@@ -13,7 +17,7 @@ compile : ${MODEL}
 
 .PHONY: sample
 sample : ${MODEL} ${data}
-	./${mc} ${MODEL} ${data}
+	./${mc} ${MODEL} ${data} ${samdir}
 
 .PHONY: ssample
 ssample : ${MODEL} ${data}
@@ -21,6 +25,17 @@ ssample : ${MODEL} ${data}
               adapt random seed=12345 \
               data file=$(word 2, $^) \
               output refresh=5 file=$(word 1, $^).csv
+
+.PHONY: vi
+vi : ${MODEL} ${data}
+	-mkdir -p ${vidir}
+	./$(word 1, $^) variational algorithm=meanfield \
+              random seed=12345 \
+              data file=$(word 2, $^) \
+              output refresh=5 file=${vidir}/$(word 1, $^).csv \
+                     diagnostic_file=${vidir}/$(word 1,$^)_diag.csv \
+              > ${vidir}/${word 1, $^}.log &
+
 
 .PHONY: merge
 merge: ${MODEL}1.csv

@@ -25,7 +25,7 @@ sc_tcpc <- colSums(as.matrix(scdata))
 ## * get selected genes
 # get deseq.dt object
 load("../from_avi/20200504/deseq.dt.RData")
-topgnum <- 20
+topgnum <- 2000
 mygenes <- deseq.dt$gene[1:topgnum]
 
 ## * select cell cluster
@@ -91,7 +91,7 @@ B <- mycentd %>%
 B <- B[mygenes, ]
 
 ## * summarize data for stan.
-modelnm <- "model_v4"
+modelnm <- "v1"
 ## * Redefine genes
 ## use top rank
 utr <- 8
@@ -153,3 +153,10 @@ P <- ncol(B)
 stan_rdump(c(
   "N", "K", "J", "G", "XCond", "XInd","S", "Xcg", "B", "P"),
   file = paste0("./", "my27gene18module",".rdump"))
+
+## ** for model 1
+B <- matrix(0.0, nrow=G, ncol=1)
+P <- ncol(B)
+stan_rdump(c(
+  "N", "K", "J", "G", "XCond", "XInd","S", "Xcg", "B", "P"),
+  file = paste0("./", modelnm,"_", G,".rdump"))

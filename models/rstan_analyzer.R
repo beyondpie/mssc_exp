@@ -4,6 +4,8 @@ library(ggpubr)
 library(tidyr)
 library(Seurat)
 library(bayesplot)
+library(data.table)
+import::from(mltools, one_hot)
 ## * meta settings
 bayesplot::color_scheme_set("blue")
 
@@ -198,6 +200,10 @@ hb_vln <-VlnPlot(object = gse145281, features = HBmodule,
 ccc_vln <- VlnPlot(object = gse145281, features = CCCmodule,
                    group.by = "patient", idents = mycluster)
 
+## * test vi
 
-
+v22_stan_rep <- stan_analyzer("v2-2",
+                              prefix = "./", 
+                              desc="modeling gene-module invididual effect, and sharing hyper prior for variances.",
+                              color="blue")
 
