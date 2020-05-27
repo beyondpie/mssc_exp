@@ -1,0 +1,33 @@
+* cytotoxic T cell gene modules
+
+
+** Positive control
+  - "ICAM1" "XCL2"  "XCL1"
+  - "RPS26P11"     "LOC101929876" "LOC100996747"
+    - DEseq2 rank: 15, 22, 97
+  - DESeq2 rank: top 10
+    - "SNHG16" 
+    - "OASL"
+    - "NAMPT"
+    - "NFKB1"
+    - "BCL2L11"
+    - "IRF8"
+    - "TPM4"
+    - "TRAF4"
+
+** Negative control
+- "HBA1" "HBA2" "HBB"  "HBD"
+  - DESeq2 rank: 14
+- "CCL3L3" "CCL3L1" "CCL3"
+  - DESeq2 rank: 99
+- DESeq2 rank 1000: 1005
+  - "KDM6A" 
+  - "ZNF721"
+  - "HDDC2"
+  - "YIPF5" 
+  - "MAK16"
+- TOX
+  - DESeq2 Rank: 3465
+  - A recent paper emphasize this gene.
+
+
