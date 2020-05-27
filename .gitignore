@@ -68,3 +68,7 @@ vignettes/*.pdf
 /model_v3/v3_7
 /model_v3/v3_8
 /test/test
+/test/mapreduce/test
+/models/ref/
+/test/*/test
+/test/*/*test
