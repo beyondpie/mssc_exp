@@ -72,3 +72,7 @@ vignettes/*.pdf
 /models/ref/
 /test/*/test
 /test/*/*test
+*.rda
+/ref/from_avi/*.pdf
+/ref/from_avi/20200504/*.pdf
+/ref/from_avi/20200410/*.pdf
