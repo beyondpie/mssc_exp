@@ -7,6 +7,7 @@ import GEOparse
 import harmonypy as hm
 import matplotlib.pyplot as plt
 import scipy
+from scipy.io import mmread
 from scipy.sparse import csr_matrix
 import numpy as np
 import pandas as pd
@@ -14,6 +15,7 @@ import scanpy as sc
 import seaborn as sns
 from pandas import DataFrame, Series
 from pyprojroot import here
+import gzip
 
 # * configs
 datas: str = "data"
@@ -37,6 +39,9 @@ p = sample_id[1]
 cnt = sc.read_10x_mtx(scRNAseqs[p])
 
 dtype="float32"
-with open(scRNAseqs[p], 'r') as f:
-    x = scipy.io.mmread(f)
+with open(scRNAseqs[p], 'rb') as f:
+    gzip_f = gzip.GzipFile(fileobj=f)
+    x = mmread(gzip_f)
     a = csr_matrix(x)
+
+sc.tl.embedding_density
