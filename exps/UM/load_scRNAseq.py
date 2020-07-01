@@ -26,6 +26,7 @@ mygeo: str = "GSE139829"
 mygse = GEOparse.get_GEO(geo=mygeo, destdir=here(PurePath(datas, tumor)))
 sample_id: List[str] = mygse.metadata['sample_id']
 genders: Series = mygse.phenotype_data["characteristics_ch1.4.Sex"]
+genders.to_csv(here(PurePath(datas, tumor, "genders.csv")), header=False)
 
 # * get the count matrix.
 mydatat = here(PurePath(datas, tumor, f"{mygeo}_RAW"))
