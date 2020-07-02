@@ -78,3 +78,5 @@ vignettes/*.pdf
 /ref/from_avi/20200410/*.pdf
 /data/
 *.pyc
+/exps/UM/MANIFEST.txt
+/exps/UM/PreprocessingOutput.png
