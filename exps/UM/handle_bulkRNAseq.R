@@ -49,8 +49,9 @@ data_norm <- TCGAbiolinks::TCGAanalyze_Normalization(
 data_fit <- TCGAbiolinks::TCGAanalyze_Filtering(
   tabDF = data_norm,
   method = "quantile",
-  qnt.cut = 0.25
-)
+  qnt.cut = 0.5
+  )
+
 ## * load meta data
 meta_data <- data.table::fread(here(
   "data", "UM",
@@ -64,13 +65,13 @@ uvm_meta_data <- meta_data[match(simple_barcodes, bcr_patient_barcode),
 uvm_degs <- TCGAbiolinks::TCGAanalyze_DEA(
   mat1 = data_fit[, which(uvm_meta_data == "FEMALE")],
   mat2 = data_fit[, which(uvm_meta_data == "MALE")],
-  pipeline = "limma",
+  pipeline = "edgeR",
+  ## pipeline = "limma",
   Cond1type = "FEMALE",
   Cond2type = "MALE",
-  fdr.cut = 0.01,
+  fdr.cut = 0.05,
   logFC.cut = 1,
-  method = "glmLRT",
-  ClinicalDF = data.frame()
+  method = "glmLRT"
 )
 
 ensembl2symbol <- AnnotationDbi::select(org.Hs.eg.db,
