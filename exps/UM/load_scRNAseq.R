@@ -3,29 +3,16 @@ library(tidyverse)
 library(Seurat)
 library(harmony)
 
-## * test seurat to load the scRNAseq dataset.
-## NOTE:deprecated below.
-data_dir <- here("data", "UM", "GSE139829_RAW", "GSM4147091")
-data <- Read10X(data.dir = data_dir)
-seurat_object <- CreateSeuratObject(counts = data$`Gene Expression`)
-
-## the result is the same as in scanpy.
-
 ## * use the UM data from Liu's lab
 liu_uvm <- readRDS(here("data", "UM", "UVM_GSE139829_res.rds"))
 luvm_seurat <- liu_uvm$RNA
 liu_uvm_patients <- luvm_seurat@meta.data$patient
 
-## ** test original batch effect correction.
-## NOTE: deprecated
-liu_uvm_celltypes <- luvm_seurat@meta.data$assign.curated
-liu_uvm_celltypes <- luvm_seurat@meta.data$assign.level1_anno
-liu_uvm_celltypes <- luvm_seurat@meta.data$assign.level3_anno
-DimPlot(object = luvm_seurat, group = "patient", label = TRUE, pt.size = 0.1)
-DimPlot(
-  object = luvm_seurat, group = "assign.level3_anno",
-  label = TRUE, pt.size = 0.1
-)
+## ** load patient gender information from GEO.
+genders <- read.csv(here("data", "UM", "genders.csv"),
+                    stringsAsFactors = FALSE, header = FALSE,
+                    row.names = 1,
+                    col.names=c("pid","gender"))
 
 ## * batch correction
 luvm_seurat <- Seurat::NormalizeData(
@@ -37,19 +24,31 @@ luvm_seurat <- Seurat::NormalizeData(
   RunPCA(pc.genes = luvm_seurat@assays$RNA@var.features, npcs = 20, verbose = FALSE)
 
 
-luvm_seurat <- luvm_seurat %>%
-  RunHarmony("patient") %>%
-  RunUMAP(reduction = "harmony", dims = 1:20) %>%
-  FindNeighbors(reduction = "harmony", dims = 1:20) %>%
-  FindClusters(resolution = 0.5) %>%
-  identity()
+luvm_seurat <- luvm_seurat %>% RunHarmony("patient")
+luvm_seurat <- RunUMAP(object = luvm_seurat, reduction = "harmony", dims = 1:20)
+
+luvm_seurat <- FindNeighbors(object=luvm_seurat,
+                             reduction = "harmony", dims = 1:20)
+luvm_seurat <- FindClusters(object = luvm_seurat,
+                            resolution = 0.5) %>% identity()
+
+saveRDS(luvm_seurat, here("data", "UM", "UVM_GSE139829_harmony.rds"))
 
 DimPlot(
   object = luvm_seurat, reduction = "umap", group = "patient",
   label = TRUE, pt.size = 0.1
 )
 
-DimPlot(
+p <- DimPlot(
   object = luvm_seurat, reduction = "umap", group = "assign.level3_anno",
   label = TRUE, pt.size = 0.1
 )
+
+ggsave(filename = "umap_after_harmony.pdf", path = here("exps", "UM", "pdf"),
+       plot=p, width = 10, height=10)
+
+## * re-annotate the cell clusters
+## currently, we directly use the results
+# from liu_uvm since the results seems to be resaonable.
+
+
