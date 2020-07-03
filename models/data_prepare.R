@@ -116,9 +116,11 @@ goldgenes <- data.frame(genes = c(
   "YIPF5",
   "MAK16",
   "TOX"
-  ), module = c(seq(1, utr), rep(utr+1, 3),
-                 rep(utr+2, 3), rep(utr+3, 4),
-                 rep(utr+4, 3), seq(utr+5, utr+5 + ulr-1)))
+), module = c(
+  seq(1, utr), rep(utr + 1, 3),
+  rep(utr + 2, 3), rep(utr + 3, 4),
+  rep(utr + 4, 3), seq(utr + 5, utr + 5 + ulr - 1)
+))
 module <- factor(goldgenes$module)
 GoldB <- as.matrix(one_hot(data.table(module)))
 rownames(GoldB) <- goldgenes$genes
@@ -138,7 +140,7 @@ ic <- factor(scind[mycells], levels = inds)
 XInd <- as.matrix(one_hot(data.table(ic = ic)))
 ## IXInd <- as.numeric(ic)
 
-di <- factor(scresp[mycells], levels=c(0,1))
+di <- factor(scresp[mycells], levels = c(0, 1))
 XCond <- as.matrix(one_hot(data.table(di = di)))
 ## IXCond <- as.numeric(di)
 
@@ -151,12 +153,16 @@ P <- ncol(B)
 
 ## ** save data for cmdstan
 stan_rdump(c(
-  "N", "K", "J", "G", "XCond", "XInd","S", "Xcg", "B", "P"),
-  file = paste0("./", "my27gene18module",".rdump"))
+  "N", "K", "J", "G", "XCond", "XInd", "S", "Xcg", "B", "P"
+),
+file = paste0("./", "my27gene18module", ".rdump")
+)
 
 ## ** for model 1
-B <- matrix(0.0, nrow=G, ncol=1)
+B <- matrix(0.0, nrow = G, ncol = 1)
 P <- ncol(B)
 stan_rdump(c(
-  "N", "K", "J", "G", "XCond", "XInd","S", "Xcg", "B", "P"),
-  file = paste0("./", modelnm,"_", G,".rdump"))
+  "N", "K", "J", "G", "XCond", "XInd", "S", "Xcg", "B", "P"
+),
+file = paste0("./", modelnm, "_", G, ".rdump")
+)
