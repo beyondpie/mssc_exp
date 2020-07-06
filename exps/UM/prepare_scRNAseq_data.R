@@ -3,6 +3,7 @@ library(tidyverse)
 library(Seurat)
 library(harmony)
 
+## * load util functions.
 options("import.path" = here("rutils"))
 myt <- modules::import("transform")
 ## use modules::reload(myt) to reload the module if any updates.
@@ -66,6 +67,8 @@ ggpubr::ggarrange(umap_p, umap_cell, nrow = 1, ncol = 2) %>%
   )
 
 ## * re-annotate the cell clusters
+## ** reload data.
+luvm_seurat <- readRDS(here("data", "UM", "UVM_GSE139829_harmony.rds"))
 
 ## ** load patient gender information from GEO.
 genders <- read.csv(here("data", "UM", "genders.csv"),
@@ -84,7 +87,6 @@ ensembl2symbol_bulk <- readRDS(here(
 ))
 ## ** to bagwiff model
 ## bagwiff: modeling batch effects on gene-wise level
-
 the_cell <- "Malignant"
 
 gsymbols <- rownames(luvm_seurat)
@@ -119,14 +121,16 @@ S <- rowSums(Xcg)
 P <- 1
 B <- matrix(1:G, nrow = G, ncol = P)
 
+## * use pystan to transform.
+Xcg <- as.data.frame(Xcg)
+save(N, J, K, G, S, P, B, XInd, XCond, Xcg,
+file = here("data", "UM", "rstan", "sc_genewise.RData"))
+
 ## * save for stan
 ## out of memory error for long vector
 
 ## myt$quickdump(name = here("data", "UM", "rstan", "scRNAseq_genewise.rdump"),
 ## myenv=environment())
-
-## save(N, J, K, G, S, P, B, XInd, XCond, Xcg,
-## file = here("data", "UM", "rstan", "sc_genewise.RData"))
 
 ## The same error.
 ## R character strings are limited to 2^31-1 bytes
