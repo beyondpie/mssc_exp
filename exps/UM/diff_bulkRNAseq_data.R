@@ -62,6 +62,8 @@ saveRDS(object = ensembl2symbol_bulk, file = here("data", "UM",
                                                   "tcga_bulk_ensembl2symbol.rds"))
 
 ## * load meta data
+## TODO: use library of SummarizedExperiment
+## colData to get the sampel information
 meta_data <- data.table::fread(here(
   "data", "UM",
   "clinical_PANCAN_patient_with_followup.tsv"

@@ -80,3 +80,4 @@ vignettes/*.pdf
 *.pyc
 /exps/UM/MANIFEST.txt
 /exps/UM/PreprocessingOutput.png
+/quick/ref/

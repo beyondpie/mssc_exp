@@ -2,6 +2,8 @@ library(here)
 library(tidyverse)
 library(Seurat)
 library(harmony)
+import::from(rstan, stan_rdump)
+import::from(mltools, one_hot)
 
 ## * use the UM data from Liu's lab
 lab_uvm <- readRDS(here("data", "UM", "UVM_GSE139829_res.rds"))
@@ -25,7 +27,8 @@ luvm_seurat <- Seurat::NormalizeData(
 ) %>%
   FindVariableFeatures(selection.method = "vst", nfeatures = 2000) %>%
   ScaleData(verbose = FALSE) %>%
-  RunPCA(pc.genes = luvm_seurat@assays$RNA@var.features, npcs = 20, verbose = FALSE)
+  RunPCA(pc.genes = luvm_seurat@assays$RNA@var.features,
+         npcs = 20, verbose = FALSE)
 
 
 luvm_seurat <- luvm_seurat %>% RunHarmony("patient")
@@ -56,10 +59,14 @@ umap_cell <- DimPlot(
   label = TRUE, pt.size = 0.1
 )
 
-ggpubr::ggarrange(umap_p, umap_cell, nrow = 1, ncol = 2) %>% ggpubr::ggexport(
-  filename = here("exps", "UM", "result", "UMAP After Batch Correction.pdf"), ncol = 2, nrow = 1,
-  height = 10, width = 20
-)
+ggpubr::ggarrange(umap_p, umap_cell, nrow = 1, ncol = 2) %>%
+  ggpubr::ggexport(
+    filename = here(
+      "exps", "UM", "result",
+      "UMAP After Batch Correction.pdf"
+    ), ncol = 2, nrow = 1,
+    height = 10, width = 20
+  )
 
 ## * re-annotate the cell clusters
 ## currently, we directly use the results
@@ -67,21 +74,25 @@ ggpubr::ggarrange(umap_p, umap_cell, nrow = 1, ncol = 2) %>% ggpubr::ggexport(
 
 ## * transform data for gene differential expressed analysis
 ## ** load the genes considered in TCGA bulkRNAseq.
-ensembl2symbol_bulk <- readRDS(here("data", "UM", "tcga_bulk_ensembl2symbol.rds"))
+ensembl2symbol_bulk <- readRDS(here("data", "UM",
+                                    "tcga_bulk_ensembl2symbol.rds"))
 ## ** to bagwiff model
 ## bagwiff: modeling batch effects on gene-wise level
 
 the_cell <- "Malignant"
 
-gsymbols_scRNAseq <- rownames(luvm_seurat)
-patients_scRNAseq <- colnames(luvm_seurat)
-cellanno_scRNAseq <- luvm_seurat@meta.data$assign.level3_anno
-cnt_scRNAseq <- luvm_seurat@assays$RNA@counts
+gsymbols <- rownames(luvm_seurat)
+cellanno <- luvm_seurat@meta.data$assign.level3_anno
+cnt <- luvm_seurat@assays$RNA@counts
 ## [9232,79105]
-x_cg <- cnt_scRNAseq[gsymbols_scRNAseq %in% ensembl2symbol_bulk$SYMBOL, which(cellanno_scRNAseq == the_cell)]
+x_cg <- cnt[gsymbols %in% ensembl2symbol_bulk$SYMBOL,
+                     which(cellanno == the_cell)]
 
 ## TODO: if we need to further filter the genes in x_cg
 
+## label patient ids for x_cg
+patients <- gsub("_.*", "", colnames(luvm_seurat))
+patient_genders <- genders[patients, 1]
 
 ## ** to bagmiff mdel
 ## bagmiff: modeling batch effects on gene-module level
