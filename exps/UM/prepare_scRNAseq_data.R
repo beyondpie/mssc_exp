@@ -127,8 +127,11 @@ B <- matrix(1:G, nrow = G, ncol = P)
 
 ## save(N, J, K, G, S, P, B, XInd, XCond, Xcg,
 ## file = here("data", "UM", "rstan", "sc_genewise.RData"))
-data <- list(
-  N = N, J = J, K = K, G = G, S = S, P = P, B = B,
-  XInd = XInd, XCond = XCond, Xcg = Xcg
-)
-cmdstanr::write_stan_json(data, here("data", "UM", "rstan", "sc_genewise.json"))
+
+## The same error.
+## R character strings are limited to 2^31-1 bytes
+## data <- list(
+##   N = N, J = J, K = K, G = G, S = S, P = P, B = B,
+##   XInd = XInd, XCond = XCond, Xcg = Xcg
+## )
+## cmdstanr::write_stan_json(data, here("data", "UM", "rstan", "sc_genewise.json"))
