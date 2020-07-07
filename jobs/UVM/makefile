@@ -24,8 +24,6 @@ ${mydir}/${sc_rdata}: ${mydir}/${sc_seurat} ${mydir}/${sc_condf} ${mydir}/${gene
 																			--sc_file ${sc_seurat} \
 																			--condf ${sc_condf} \
 																			--genef ${genef} \
-                                      --soutput ${sc_small_rdump} \
-																			--boutput ${sc_rdata} \
                                       --output ${sc_rdata}
 
 ${mydir}/${sc_big_rdump}: ${mydir}/${sc_rdata}

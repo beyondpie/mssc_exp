@@ -43,18 +43,6 @@ option_list <- list(
     default = "mygenes.rds"
   ),
   make_option(
-    c("--soutput"),
-    action = "store",
-    type = "character",
-    default = "out.rdump"
-  ),
-  make_option(
-    c("--boutput"),
-    action = "store",
-    type = "character",
-    default = "out.rds"
-  ),
-  make_option(
     c("--output"),
     action = "store",
     type = "character",
@@ -128,15 +116,9 @@ S <- rowSums(Xcg)
 P <- 1
 B <- matrix(1:G, nrow = G, ncol = P)
 
-## * use rdumpt tp store the small data
-## myt$quickdump(here(mydatadir, mysubdir, args$soutput))
-
 ## * use pystan to transform.
 Xcg <- as.data.frame(Xcg)
 save(N, J, K, G, S, P, B, XInd, XCond, Xcg,
   file = here(mydatadir, mysubdir, args$output)
 )
 
-## save(Xcg,
-  ## file = here(mydatadir, mysubdir, args$boutput)
-## )
