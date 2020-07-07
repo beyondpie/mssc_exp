@@ -7,7 +7,7 @@ import copy
 import logging
 from pyprojroot import here
 from pathlib import PurePath
-from numpy import np
+import numpy as np
 
 logging.basicConfig(format='%(asctime)s %(message)s')
 
