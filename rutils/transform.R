@@ -5,7 +5,7 @@ to_onehot_matrix <- function(str_vec) {
 quickdump <- function(name, myenv = parent.frame()) {
   rstan::stan_rdump(
     c(
-      "N", "K", "J", "G", "XCond", "XInd", "S", "Xcg", "B", "P"
+      "N", "K", "J", "G", "XCond", "XInd", "S","B", "P"
     ),
     file = name,
     envir = myenv,

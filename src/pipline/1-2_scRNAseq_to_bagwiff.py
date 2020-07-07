@@ -2,27 +2,13 @@ import pystan
 import pyreadr
 import argparse
 from typing import Dict
-from numbers import Number
-from numpy import np
 import pandas as pd
 import copy
 import logging
+from pyprojroot import here
+from pathlib import PurePath
 
 logging.basicConfig(format='%(asctime)s %(message)s')
-
-
-def test():
-    from pyprojroot import here
-    from pathlib import PurePath
-
-    mydata = pyreadr.read_r(here(
-        PurePath("data", "UM", "rstan", "sc_genewise.RData")).as_posix(),
-                            use_objects=["N"])
-    mydata = pyreadr.read_r(
-        here(PurePath("data", "UM", "rstan", "test.RData")).as_posix())
-    Xcg = {'Xcg': mydata['Xcg'].to_numpy()}
-    pystan.misc.stan_rdump(
-        Xcg, here(PurePath("data", "UM", "rstan", "test.pydump").as_posix()))
 
 
 def to_numpy(mydata: Dict) -> Dict:
@@ -37,12 +23,26 @@ def to_numpy(mydata: Dict) -> Dict:
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         "transform RData for stan using pystan rdump.")
+    parser.add_argument("-d",
+                        "--data_dir",
+                        type=str,
+                        default="data",
+                        help="data dir")
+    parser.add_argument("-s",
+                        "--sub",
+                        type=str,
+                        default="UM",
+                        help="sub dir under data")
     parser.add_argument("-i", "--infl", type=str, help="input file")
     parser.add_argument("-o", "--outfl", type=str, help="ouput file")
     args = parser.parse_args()
-    mydata: Dict = pyreadr.read_r(args.infl)
+
+    inputf = here(PurePath(args.data_dir, args.sub, args.infl)).as_posix()
+    mydata: Dict = pyreadr.read_r(inputf)
     logging.info("detect pandas format, and transform to numpy ...")
     npdata: Dict = to_numpy(mydata)
     logging.info("passing to pystan rdump...")
-    pystan.misc.stan_rdump(npdata, args.outfl)
+
+    outputf = here(PurePath(args.data_dir, args.sub, args.outfl)).as_posix()
+    pystan.misc.stan_rdump(npdata, outputf)
     logging.info("rdump done.")

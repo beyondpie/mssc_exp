@@ -1,46 +1,55 @@
+options(warn = -1)
+
 library(here)
 library(tidyverse)
 library(Seurat)
 library(optparse)
 
 option_list <- list(
-  make_option(c("data_dir"),
+  make_option(
+    c("--data_dir"),
     action = "store",
     type = "character",
     default = "data"
   ),
   make_option(
-    c("tcga_tumor"),
+    c("--sub"),
     action = "store",
     type = "character",
     default = "UM"
   ),
   make_option(
-    c("sc_file"),
+    c("--sc_file"),
     action = "store",
     type = "character",
     default = "test.rds"
   ),
   make_option(
-    c("condf"),
+    c("--condf"),
     action = "store",
     type = "character",
     default = "gender.csv"
   ),
   make_option(
-    c("celltype"),
+    c("--celltype"),
     action = "store",
     type = "character",
     default = "malignant"
   ),
   make_option(
-    c("genef"),
+    c("--genef"),
     action = "store",
     type = "character",
     default = "mygenes.rds"
   ),
   make_option(
-    c("output"),
+    c("--soutput"),
+    action = "store",
+    type = "character",
+    default = "out.rdump"
+  ),
+  make_option(
+    c("--boutput"),
     action = "store",
     type = "character",
     default = "out.rds"
@@ -51,13 +60,19 @@ args <- option_list %>%
   OptionParser(option_list = .) %>%
   parse_args()
 
+mydatadir = args$data_dir
+mysubdir = args$sub
+
+## * load util functions.
+options("import.path" = here("rutils"))
+myt <- modules::import("transform")
 
 ## * re-annotate the cell clusters
 ## ** reload data.
-luvm_seurat <- readRDS(here(args$data, args$tcga_tumor, args$sc_file))
+luvm_seurat <- readRDS(here(mydatadir, mysubdir, args$sc_file))
 
 ## ** load patient gender information from GEO.
-genders <- read.csv(here(args$data, args$tcga_tumor, args$condf),
+genders <- read.csv(here(mydatadir, mysubdir, args$condf),
   stringsAsFactors = FALSE, header = FALSE,
   row.names = 1,
   col.names = c("pid", "gender")
@@ -69,12 +84,12 @@ genders <- read.csv(here(args$data, args$tcga_tumor, args$condf),
 ## * transform data for gene differential expressed analysis
 ## ** load the genes considered in TCGA bulkRNAseq.
 ensembl2symbol_bulk <- readRDS(here(
-  args.data, args.tcga_tumor,
-  args.genef
+  mydatadir, mysubdir,
+  args$genef
 ))
 ## ** to bagwiff model
 ## bagwiff: modeling batch effects on gene-wise level
-the_cell <- args.celltype
+the_cell <- args$celltype
 
 gsymbols <- rownames(luvm_seurat)
 cellanno <- luvm_seurat@meta.data$assign.level3_anno
@@ -90,24 +105,32 @@ Xcg <- t(as.matrix(cnt[
 patients <- gsub("_.*", "", colnames(luvm_seurat))
 patient_genders <- genders[patients, 1]
 
-XInd <- as.data.frame(myt$to_onehot_matrix(patients))
-XCond <- as.data.frame(myt$to_onehot_matrix(patient_genders))
+XInd <- myt$to_onehot_matrix(patients)
+XCond <- myt$to_onehot_matrix(patient_genders)
 
 N <- nrow(XCond)
 J <- ncol(XCond)
 K <- ncol(XInd)
 G <- ncol(Xcg)
 
-S <- as.data.frame(rowSums(Xcg))
+S <- rowSums(Xcg)
 ## ** to bagmiff mdel
 ## bagmiff: modeling batch effects on gene-module level
 ## add gene module infomration.
 
 ## a trivial one
 P <- 1
-B <- as.data.frame(matrix(1:G, nrow = G, ncol = P))
+B <- matrix(1:G, nrow = G, ncol = P)
+
+## * use rdumpt tp store the small data
+myt$quickdump(here(mydatadir, mysubdir, args$soutput))
+
 ## * use pystan to transform.
 Xcg <- as.data.frame(Xcg)
-save(N, J, K, G, S, P, B, XInd, XCond, Xcg,
-  file = here(args$data_dir, args$tcga_tumor, args$output)
+## save(N, J, K, G, S, P, B, XInd, XCond, Xcg,
+  ## file = here(mydatadir, mysubdir, args$output)
+## )
+
+save(Xcg,
+  file = here(mydatadir, mysubdir, args$boutput)
 )
