@@ -19,14 +19,6 @@ def to_numpy(mydata: Dict) -> Dict:
             v = value.to_numpy()
             if v.shape == (1,1):
                 tmp[name] = int(v[0,0])
-                # if v.dtype == np.float:
-                #     logging.warnings(f"{name} shape is (1,1) float, change it to float")
-                #     tmp[name] = float(v[0,0])
-                # elif v.dtype == np.int:
-                #     logging.warnings(f"{name} shape is (1,1) int, change it to int")
-                #     tmp[name] = int(v[0,0])
-                # else:
-                #     logging.error(f"{name} shape is (1,1) {v[0,0]} with unknown type")
             else:
                 tmp[name] = v
     return tmp
