@@ -68,9 +68,11 @@ mybagwiffdata := ${mydir}/${sc_rdump}
 onemcresult := ${mcdir}/${MODEL}_chain_1.csv
 
 ${model_bin}: ${stanmodel_dir}/${MODEL}.stan
+	cp $< ${model_bin}.stan; \
 	cd ${HOME}/softwares/cmdstan-2.23.0 ;\
 	make -j4 STANCFLAGS="--include_paths=${stanmodel_dir}" $@; \
-	cd -
+	cd - ;\
+	rm ${model_bin}.stan
 
 compile : ${model_bin}
 
@@ -88,7 +90,9 @@ vi: ${cmdstan_dir}/${vi}.sh ${model_bin} ${mybagwiffdata}
 	$^ ${vidir}
 
 clean:
-	-rm ${curdir}/*.d ${curdir}/*.hpp ${curdir}/*.o ${curdir}/*.log
+	-rm ${curdir}/*.d ${curdir}/*.hpp ${curdir}/*.o
+	-rm ${mcdir}/*.log
+	-rm ${vidir}/*.log
 	-rm ${model_bin}
 
 
