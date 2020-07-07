@@ -3,5 +3,12 @@
 # combine stan mutiple-chain results
 # cpc: combine parallel chains
 
-grep lp__ ${1}1.csv > cpc_${1}.csv
-sed '/^[#l]/d' ${1}*.csv >> cpc_${1}.csv
+# select model name, basename get v1-1_chain_1 like pattern
+# then only use v1-1
+model_name=${$(basename ${1})/_*/}
+to_dir=$(dirname ${1})
+prefix=${model_name}_chain
+resultf=${to_dir}/cpc_${model_name}.csv
+
+grep lp__ ${to_dir}/${prefix}_1.csv > ${resultf}
+sed '/^[#l]/d' ${to_dir}/${model_name}*.csv >> ${resultf}
