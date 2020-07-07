@@ -9,9 +9,6 @@ from pyprojroot import here
 from pathlib import PurePath
 import numpy as np
 
-logging.basicConfig(format='%(asctime)s %(message)s')
-
-
 def to_numpy(mydata: Dict) -> Dict:
     tmp = copy.deepcopy(mydata)
     for name, value in tmp.items():
@@ -19,6 +16,8 @@ def to_numpy(mydata: Dict) -> Dict:
             v = value.to_numpy()
             if v.shape == (1,1):
                 tmp[name] = int(v[0,0])
+            elif name == 'Xcg':
+                tmp[name] = v.astype(int)
             else:
                 tmp[name] = v
     return tmp
