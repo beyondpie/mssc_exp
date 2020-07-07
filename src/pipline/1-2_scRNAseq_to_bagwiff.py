@@ -7,6 +7,7 @@ import copy
 import logging
 from pyprojroot import here
 from pathlib import PurePath
+from numpy import np
 
 logging.basicConfig(format='%(asctime)s %(message)s')
 
@@ -15,8 +16,15 @@ def to_numpy(mydata: Dict) -> Dict:
     tmp = copy.deepcopy(mydata)
     for name, value in tmp.items():
         if isinstance(value, (pd.Series, pd.DataFrame)):
-            logging.info(f"{name} is pandas format, now change it to numpy")
-            tmp[name] = value.to_numpy()
+            v = value.to_numpy()
+            if v.shape == (1,1):
+                logging.warnings(f"{name} shape is (1,1),")
+                if v.dtype == np.float:
+                    logging.warnings(f"{name} shape is (1,1) float, change it to float")
+                    tmp[name] = flaot(v)
+                if v.dtype == np.int:
+                    logging.warnings(f"{name} shape is (1,1) int, change it to int")
+                    tmp[name] = int(v)
     return tmp
 
 

@@ -113,7 +113,7 @@ S <- rowSums(Xcg)
 ## add gene module infomration.
 
 ## a trivial one
-P <- 1
+P <- 1L
 B <- matrix(1:G, nrow = G, ncol = P)
 
 ## * use pystan to transform.
