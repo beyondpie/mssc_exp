@@ -18,12 +18,17 @@ def to_numpy(mydata: Dict) -> Dict:
         if isinstance(value, (pd.Series, pd.DataFrame)):
             v = value.to_numpy()
             if v.shape == (1,1):
-                if v.dtype == np.float:
-                    logging.warnings(f"{name} shape is (1,1) float, change it to float")
-                    tmp[name] = float(v[0,0])
-                if v.dtype == np.int:
-                    logging.warnings(f"{name} shape is (1,1) int, change it to int")
-                    tmp[name] = int(v[0,0])
+                tmp[name] = int(v[0,0])
+                # if v.dtype == np.float:
+                #     logging.warnings(f"{name} shape is (1,1) float, change it to float")
+                #     tmp[name] = float(v[0,0])
+                # elif v.dtype == np.int:
+                #     logging.warnings(f"{name} shape is (1,1) int, change it to int")
+                #     tmp[name] = int(v[0,0])
+                # else:
+                #     logging.error(f"{name} shape is (1,1) {v[0,0]} with unknown type")
+            else:
+                tmp[name] = v
     return tmp
 
 
@@ -46,9 +51,7 @@ if __name__ == '__main__':
 
     inputf = here(PurePath(args.data_dir, args.sub, args.infl)).as_posix()
     mydata: Dict = pyreadr.read_r(inputf)
-    logging.info("detect pandas format, and transform to numpy ...")
     npdata: Dict = to_numpy(mydata)
-    logging.info("passing to pystan rdump...")
 
     outputf = here(PurePath(args.data_dir, args.sub, args.outfl)).as_posix()
     pystan.misc.stan_rdump(npdata, outputf)
