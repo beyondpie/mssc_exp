@@ -53,6 +53,12 @@ option_list <- list(
     action = "store",
     type = "character",
     default = "out.rds"
+  ),
+  make_option(
+    c("--output"),
+    action = "store",
+    type = "character",
+    default = "out.rds"
   )
 )
 
