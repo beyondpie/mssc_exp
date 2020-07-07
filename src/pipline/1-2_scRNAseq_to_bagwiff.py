@@ -18,13 +18,12 @@ def to_numpy(mydata: Dict) -> Dict:
         if isinstance(value, (pd.Series, pd.DataFrame)):
             v = value.to_numpy()
             if v.shape == (1,1):
-                logging.warnings(f"{name} shape is (1,1),")
                 if v.dtype == np.float:
                     logging.warnings(f"{name} shape is (1,1) float, change it to float")
-                    tmp[name] = flaot(v)
+                    tmp[name] = float(v[0,0])
                 if v.dtype == np.int:
                     logging.warnings(f"{name} shape is (1,1) int, change it to int")
-                    tmp[name] = int(v)
+                    tmp[name] = int(v[0,0])
     return tmp
 
 
