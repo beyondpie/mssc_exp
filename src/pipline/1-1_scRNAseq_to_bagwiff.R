@@ -123,14 +123,14 @@ P <- 1
 B <- matrix(1:G, nrow = G, ncol = P)
 
 ## * use rdumpt tp store the small data
-myt$quickdump(here(mydatadir, mysubdir, args$soutput))
+## myt$quickdump(here(mydatadir, mysubdir, args$soutput))
 
 ## * use pystan to transform.
 Xcg <- as.data.frame(Xcg)
-## save(N, J, K, G, S, P, B, XInd, XCond, Xcg,
-  ## file = here(mydatadir, mysubdir, args$output)
-## )
-
-save(Xcg,
-  file = here(mydatadir, mysubdir, args$boutput)
+save(N, J, K, G, S, P, B, XInd, XCond, Xcg,
+  file = here(mydatadir, mysubdir, args$output)
 )
+
+## save(Xcg,
+  ## file = here(mydatadir, mysubdir, args$boutput)
+## )

@@ -1,6 +1,6 @@
 local_data_dir := data
 sub := UM
-cell := malignant
+cell := Malignant
 root := ../..
 
 mydir := ${root}/${local_data_dir}/${sub}
