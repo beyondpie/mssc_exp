@@ -62,7 +62,7 @@ mcdir := ${result_dir}/${mc}
 vidir := ${result_dir}/${vi}
 
 MODEL ?= v1-1
-mymodel := ${curdir}/${MODEL}
+model_bin := ${curdir}/${MODEL}
 mybagwiffdata := ${mydir}/${sc_rdump}
 
 onemcresult := ${mcdir}/${MODEL}_chain_1.csv
@@ -87,6 +87,9 @@ vi: ${cmdstan_dir}/${vi}.sh ${model_bin} ${mybagwiffdata}
 	-mkdir -p ${vidir}
 	$^ ${vidir}
 
+clean:
+	-rm ${curdir}/*.d ${curdir}/*.hpp ${curdir}/*.o ${curdir}/*.log
+	-rm ${model_bin}
 
 
 
