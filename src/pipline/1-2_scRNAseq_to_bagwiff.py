@@ -18,7 +18,7 @@ def to_numpy(mydata: Dict) -> Dict:
                 tmp[name] = int(v[0,0])
             elif name == 'Xcg':
                 tmp[name] = v.astype(int)
-            elif (v.shape[1] == 1) or (v.shapep[0] == 1):
+            elif (v.shape[1] == 1) or (v.shape[0] == 1):
                 tmp[name] = v.flatten()
             else:
                 tmp[name] = v
