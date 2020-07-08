@@ -90,13 +90,13 @@ cellanno <- luvm_seurat@meta.data$assign.level3_anno
 cnt <- luvm_seurat@assays$RNA@counts
 ## [9232,79105]
 
-Xcg <- t(as.matrix(cnt[
+Xcg <- t(as.matrix(floor(cnt[
   gsymbols %in% ensembl2symbol_bulk$SYMBOL,
   which(cellanno == the_cell)
-]))
+])))
 
 ## label patient ids for x_cg
-patients <- gsub("_.*", "", colnames(luvm_seurat))
+patients <- gsub("_.*", "", rownames(Xcg))
 patient_genders <- genders[patients, 1]
 
 XInd <- myt$to_onehot_matrix(patients)
