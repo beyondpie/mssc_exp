@@ -1,5 +1,5 @@
 library(here)
-library(tidyverse)
+suppressPackageStartupMessages(library(tidyverse))
 library(Seurat)
 library(harmony)
 
@@ -101,7 +101,7 @@ Xcg <- t(as.matrix(cnt[
 ## TODO: if we need to further filter the genes in x_cg
 
 ## label patient ids for x_cg
-patients <- gsub("_.*", "", colnames(luvm_seurat))
+patients <- gsub("_.*", "", rownames(Xcg))
 patient_genders <- genders[patients, 1]
 
 XInd <- myt$to_onehot_matrix(patients)

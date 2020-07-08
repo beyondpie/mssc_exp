@@ -1,7 +1,6 @@
 options(warn = -1)
-
 library(here)
-library(tidyverse)
+suppressPackageStartupMessages(library(tidyverse))
 library(Seurat)
 library(optparse)
 
@@ -54,8 +53,8 @@ args <- option_list %>%
   OptionParser(option_list = .) %>%
   parse_args()
 
-mydatadir = args$data_dir
-mysubdir = args$sub
+mydatadir <- args$data_dir
+mysubdir <- args$sub
 
 ## * load util functions.
 options("import.path" = here("rutils"))
@@ -118,7 +117,8 @@ B <- matrix(1:G, nrow = G, ncol = P)
 
 ## * use pystan to transform.
 Xcg <- as.data.frame(Xcg)
+XInd <- as.data.frame(XInd)
+XCond <- as.data.frame(XCond)
 save(N, J, K, G, S, P, B, XInd, XCond, Xcg,
   file = here(mydatadir, mysubdir, args$output)
 )
-
