@@ -12,3 +12,11 @@ quickdump <- function(name, myenv = parent.frame()) {
     append = TRUE
   )
 }
+
+print_sc <- function(nr, nc, row="gene") {
+  if (row == "gene") {
+    message(stringr::str_glue("scRNAseq: {nr} genes and {nc} cells."))
+  } else {
+    message(stringr::str_glue("scRNAseq: {nc} genes and {nr} cells."))
+  }
+}
