@@ -4,7 +4,8 @@
 # it can be defined outside
 root ?= /Users/beyondpie/git-recipes/sDESeq
 
-.PHONY: bagwiff_data rm_bagwiff_data compile sample combchains vi
+.PHONY: bagwiff_data rm_bagwiff_data compile sample combchains vi \
+        test_filter
 
 local_data_dir := data
 sub := UM
@@ -26,16 +27,17 @@ sc_rdata := UVM_scRNAseq.RData
 sc_rdump := UVM_scRNAseq.rdump
 
 ${mydir}/${sc_rdata}: ${mydir}/${sc_seurat} ${mydir}/${sc_condf} ${mydir}/${genef}
-	Rscript ${pipline_dir}/${bagwiff_r} --data_dir ${local_data_dir} \
+	@Rscript ${pipline_dir}/${bagwiff_r} --data_dir ${local_data_dir} \
                                       --sub ${sub}\
 																			--celltype ${cell} \
 																			--sc_file ${sc_seurat} \
 																			--condf ${sc_condf} \
 																			--genef ${genef} \
                                       --output ${sc_rdata}
+test_filter: ${mydir}/${sc_rdata}
 
 ${mydir}/${sc_rdump}: ${mydir}/${sc_rdata}
-	python ${pipline_dir}/${bagwiff_py} --data_dir ${local_data_dir} \
+	@python ${pipline_dir}/${bagwiff_py} --data_dir ${local_data_dir} \
                                       --sub ${sub} \
                                       --infl ${sc_rdata}\
                                       --outfl ${sc_rdump}

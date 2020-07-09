@@ -2,6 +2,7 @@ library(here)
 suppressPackageStartupMessages(library(tidyverse))
 library(Seurat)
 library(harmony)
+library(Matrix)
 
 ## * load util functions.
 options("import.path" = here("rutils"))
@@ -69,6 +70,55 @@ ggpubr::ggarrange(umap_p, umap_cell, nrow = 1, ncol = 2) %>%
 ## * re-annotate the cell clusters
 ## ** reload data.
 luvm_seurat <- readRDS(here("data", "UM", "UVM_GSE139829_harmony.rds"))
+
+cnt <- floor(as.matrix(luvm_seurat@assays$RNA@counts))
+message("Raw data:")
+myt$print_sc(nrow(cnt), ncol(cnt), row = "gene")
+## ** filtering scRNAseq
+## *** remove ERCC related pseudo genes
+erccs <- grep(pattern = "^ERCC-", x = rownames(cnt), value = FALSE)
+ne <- length(erccs)
+if (ne > 0) {
+  message(str_glue("num of ERCC: {ne}"))
+  cnt <- cnt[-ercc, ]
+}
+
+## *** remove cells with higher mitochodia-related genes
+mts <- grep(pattern = "^MT-", x = rownames(cnt), value = FALSE)
+nmts <- length(mts)
+if (nmts > 1) {
+  message(str_glue("num of MT genes: {nmts}"))
+  mtratios <- colSums(cnt[mts, ]) / colSums(cnt)
+  ## num of high ratio of mitochotria reads
+  nhmt <- length(which(mtratios > 0.2))
+  if (nhmt > 0) {
+    message(str_glue("num of cells with at least 20% mt reads: {nhmt}"))
+    cnt <- cnt[, mtratios <= 0.2]
+  }
+  cnt <- cnt[-mts, ]
+}
+
+## *** remove cells with too low/high-reads and genes seldomly expressed
+ncnts <- colSums(cnt)
+ncells <- rowSums(cnt)
+
+low_ncnts <- quantile(ncnts, 0.05)
+nlcnt <- length(which(ncnts < low_ncnts))
+message(str_glue("cells with reads below {low_ncnts}: {nlcnt}"))
+
+up_ncnts <- quantile(ncnts, 0.95)
+nucnt <- length(which(ncnts > up_ncnts))
+message(str_glue("cells with reads above {up_ncnts}: {nucnt}"))
+
+low_ncells <- 500
+## number of filtered genes
+nfgenes <- length(which(ncells < low_ncells))
+message(str_glue("genes expressed less than {low_ncells}:{nfgenes}"))
+
+cnt <- cnt[ncells > 500, (ncounts)]
+message("After filtering: ")
+myt$print_sc(nrow(cnt), ncol(cnt), row = "gene")
+
 
 ## ** load patient gender information from GEO.
 genders <- read.csv(here("data", "UM", "genders.csv"),
