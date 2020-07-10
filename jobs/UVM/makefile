@@ -27,10 +27,10 @@ de_bulkRNAseq_r := 1-0_diff_bulkRNAseq_data.R
 genef := tcga_bulk_gsymbol.rds
 
 deg := tcga_diffexp_genes.rds
-fpdegs := tcga_fp_diffexp_genes.rds
-tndegs := tcga_tn_diffexp_genes.rds
+fpdeg := tcga_fp_diffexp_genes.rds
+tndeg := tcga_tn_diffexp_genes.rds
 
-dea := $(addprefix ${mydir}, ${deg} ${fpdegs} ${tndegs})
+dea := $(addprefix ${mydir}, ${deg} ${fpdeg} ${tndeg})
 
 ncell := 200
 ngene := 140
@@ -57,8 +57,8 @@ ${mydir}/${sc_rdump}: ${mydir}/${sc_seurat} ${mydir}/${sc_condf} \
 		--condf ${sc_condf}\
 		--genef ${genef}\
 		--deg ${deg}\
-    --fpdeg ${fpdegs}\
-    --tndeg ${tndegs}\
+    --fpdeg ${fpdeg}\
+    --tndeg ${tndeg}\
 		--gfilteratio ${gfilteratio} \
     --ncell ${ncell} \
     --ngene ${ngene} \

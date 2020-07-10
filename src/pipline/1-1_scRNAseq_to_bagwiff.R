@@ -48,8 +48,8 @@ option_list <- list(
   ),
   make_option(
     c("--rdump"),
-    action="store_true",
-    default="FALSE"
+    action = "store_true",
+    default = "FALSE"
   ),
   make_option(
     c("--output"),
@@ -84,14 +84,14 @@ option_list <- list(
   make_option(
     c("--ncell"),
     action = "store",
-    type="integer",
-    default=200
+    type = "integer",
+    default = 200
   ),
   make_option(
     c("--ngene"),
     action = "store",
-    type="integer",
-    default=12
+    type = "integer",
+    default = 12
   )
 )
 
@@ -202,8 +202,9 @@ conds <- read.csv(here(mydatadir, mysubdir, args$condf),
   stringsAsFactors = FALSE, header = FALSE,
   row.names = 1,
   col.names = c("pid", "gender")
-)
-message("sRNAseq individual gender summay")
+  )
+
+message("sRNAseq conds")
 print(conds)
 
 batches <- gsub("_.*", "", colnames(cnt))
@@ -219,24 +220,29 @@ ncellpbatch <- args$ncell
 uniqbatches <- unique(batches)
 
 sampled_cells <- unique(batches) %>%
-  purrr::map_int(.f = function(batch) {
+  purrr::map_dfr(.f = function(batch) {
     cells <- which(batches == batch)
     sampled_rows <- myt$subsampling(cells, ncellpbatch)
-    names(sampled_rows) <- rep(batch, length(sampled_rows))
-    return(sampled_rows)
+    data.frame(rows = sampled_rows, nms = rep(batch, length(sampled_rows)))
   })
+cnt <- cnt[, sampled_cells$rows]
+colnames(cnt) <- sampled_cells$names
 
-cnt <- cnt[, sampled_cells]
-colnames(cnt) <- names(sampled_cells)
+message("after subsamlpling cells, conds")
+conds <- conds[sampled_cells$rows]
+table(conds)
+
+batches <- batches[sampled_cells$rows]
+table(batches)
 
 ## ** subsample genes
 ## keep deg sampled_deg <- myt$subsampling(deg, args$ngene)
 sampled_fpdeg <- myt$subsampling(fpdeg, args$ngene)
 sampled_tndeg <- myt$subsampling(tndeg, args$ngene)
-cnt <- cnt[c(deg, sampled_ndegs, sampled_tndeg), ]
+cnt <- cnt[c(deg, sampled_fpdeg, sampled_tndeg), ]
 
 ## * to bagwiff model
 myt$to_bagwiff(
-  cnt, batches, patient_conds,
+  cnt, batches, conds,
   here(mydatafir, mysubdir, args$output), args$rdump
 )
