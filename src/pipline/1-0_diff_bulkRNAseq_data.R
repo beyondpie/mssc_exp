@@ -38,95 +38,95 @@ args <- list(
   gene_filter_method = gene_filter_method,
   gene_qnt_cut_meanreads = gene_qnt_cut_meanreads
 )
-print(args)
+## print(args)
 message(str(args))
 
-query <- TCGAbiolinks::GDCquery(
+query <- tcgabiolinks::gdcquery(
   project = cancer_project,
-  data.category = "Transcriptome Profiling",
-  data.type = "Gene Expression Quantification",
-  workflow.type = "HTSeq - Counts"
+  data.category = "transcriptome profiling",
+  data.type = "gene expression quantification",
+  workflow.type = "htseq - counts"
 )
-sample_barcodes <- TCGAbiolinks::getResults(query, cols = c("cases"))
+sample_barcodes <- tcgabiolinks::getresults(query, cols = c("cases"))
 
 ## same as sample_barcodes
-data_tp <- TCGAbiolinks::TCGAquery_SampleTypes(
+data_tp <- tcgabiolinks::tcgaquery_sampletypes(
   barcode = sample_barcodes,
-  typesample = "TP"
+  typesample = "tp"
 )
 
 ## below is empty
-## data_nt <- TCGAbiolinks::TCGAquery_SampleTypes(
+## data_nt <- tcgabiolinks::tcgaquery_sampletypes(
 ## barcode = sample_barcodes,
-## typesample = "NT"
+## typesample = "nt"
 ## )
 
 ## * download data
-GDCdownload(query = query, directory = here(data_dir, subdir, "GDCdata"))
+gdcdownload(query = query, directory = here(data_dir, subdir, "gdcdata"))
 
-data_prep <- TCGAbiolinks::GDCprepare(
+data_prep <- tcgabiolinks::gdcprepare(
   query = query,
-  save = T, save.filename = "TCGA_HTSeq_Countds.rds",
-  directory = here(data_dir, subdir, "GDCdata")
+  save = t, save.filename = "tcga_htseq_countds.rds",
+  directory = here(data_dir, subdir, "gdcdata")
 )
 ## * save data
-saveRDS(data_prep, here(data_dir, subdir, "tcga_GDCprepare.rds"))
-## reload data: data_prep <- readRDS(here(data_dir, subdir, "tcga_GDCprepare.rds"))
-data_prep <- TCGAbiolinks::TCGAanalyze_Preprocessing(
+saverds(data_prep, here(data_dir, subdir, "tcga_gdcprepare.rds"))
+## reload data: data_prep <- readrds(here(data_dir, subdir, "tcga_gdcprepare.rds"))
+data_prep <- tcgabiolinks::tcgaanalyze_preprocessing(
   object = data_prep,
   cor.cut = 0.6
 )
-data_norm <- TCGAbiolinks::TCGAanalyze_Normalization(
-  tabDF = data_prep,
-  geneInfo = TCGAbiolinks::geneInfoHT,
-  method = "geneLength"
+data_norm <- tcgabiolinks::tcgaanalyze_normalization(
+  tabdf = data_prep,
+  geneinfo = tcgabiolinks::geneinfoht,
+  method = "genelength"
 )
 
 ## ** mapping ensemble to symbol
-message("Raw bulkRNAseq: ")
+message("raw bulkrnaseq: ")
 myt$print_sc(nrow(data_norm), ncol(data_norm),
-  row = "gene", plat = "bulkRNAseq"
+  row = "gene", plat = "bulkrnaseq"
 )
 
-ensembl2symbol_bulk <- AnnotationDbi::select(org.Hs.eg.db,
+ensembl2symbol_bulk <- annotationdbi::select(org.hs.eg.db,
   keys = rownames(data_norm),
-  column = "SYMBOL",
-  keytype = "ENSEMBL"
+  column = "symbol",
+  keytype = "ensembl"
 )
 ensembl2symbol_bulk <- ensembl2symbol_bulk[
-  !duplicated(ensembl2symbol_bulk$ENSEMBL),
+  !duplicated(ensembl2symbol_bulk$ensembl),
 ]
-kept_rows <- which(!is.na(ensembl2symbol_bulk$SYMBOL))
+kept_rows <- which(!is.na(ensembl2symbol_bulk$symbol))
 data_norm <- data_norm[kept_rows, ]
-rownames(data_norm) <- ensembl2symbol_bulk[kept_rows, "SYMBOL"]
+rownames(data_norm) <- ensembl2symbol_bulk[kept_rows, "symbol"]
 
-message("After mapping to SYMBOL: ")
+message("after mapping to symbol: ")
 myt$print_sc(nrow(data_norm), ncol(data_norm),
-  row = "gene", plat = "bulkRNAseq"
+  row = "gene", plat = "bulkrnaseq"
 )
 
-## ** remove MT genes
+## ** remove mt genes
 data_norm <- myt$rm_mt(data_norm)
 
 ## ** remove low-reads genes
-data_fit <- TCGAbiolinks::TCGAanalyze_Filtering(
-  tabDF = data_norm,
+data_fit <- tcgabiolinks::tcgaanalyze_filtering(
+  tabdf = data_norm,
   method = gene_filter_method,
   qnt.cut = gene_qnt_cut_meanreads
 )
 
 ## ** save considered genes.
-saveRDS(object = rownames(data_norm), file = here(
+saverds(object = rownames(data_norm), file = here(
   data_dir, subdir,
   genes_fnm
 ))
 
 ## * load meta data
-## TODO: use library of SummarizedExperiment
-## colData to get the sample information
+## todo: use library of summarizedexperiment
+## coldata to get the sample information
 meta_data <- data.table::fread(here(
   data_dir, "tcga_patient",
-  "clinical_PANCAN_patient_with_followup.tsv"
+  "clinical_pancan_patient_with_followup.tsv"
 ))
 
 simple_barcodes <- substring(colnames(data_fit), 1, 12)
@@ -137,14 +137,14 @@ the_meta_data <- meta_data[
 message(stringr::str_glue("{cancer_project} patient genders: "))
 table(the_meta_data)
 
-dea <- TCGAbiolinks::TCGAanalyze_DEA(
-  mat1 = data_fit[, which(the_meta_data == "FEMALE")],
-  mat2 = data_fit[, which(the_meta_data == "MALE")],
+dea <- tcgabiolinks::tcgaanalyze_dea(
+  mat1 = data_fit[, which(the_meta_data == "female")],
+  mat2 = data_fit[, which(the_meta_data == "male")],
   pipeline = de_pipeline,
-  Cond1type = "FEMALE",
-  Cond2type = "MALE",
+  cond1type = "female",
+  cond2type = "male",
   fdr.cut = de_fdr_init_cut,
-  logFC.cut = de_logfc_init_cut,
+  logfc.cut = de_logfc_init_cut,
   method = de_method
 )
 dea <- dea[order(dea$PValue), ]

@@ -100,7 +100,7 @@ args <- option_list %>%
   parse_args()
 
 message("load arguments: ")
-print(args)
+## print(args)
 message(str(args))
 
 mydatadir <- args$data_dir
@@ -237,11 +237,12 @@ table(batches)
 
 ## ** subsample genes
 ## keep deg sampled_deg <- myt$subsampling(deg, args$ngene)
-sampled_fpdeg <- myt$subsampling(fpdeg, args$ngene)
-sampled_tndeg <- myt$subsampling(tndeg, args$ngene)
-cnt <- cnt[c(deg, sampled_fpdeg, sampled_tndeg), ]
+sampled_fpdeg <- myt$subsampling(ovlp_fpdeg, args$ngene)
+sampled_tndeg <- myt$subsampling(ovlp_tndeg, args$ngene)
+sampled_dea <- union(ovlp_deg,union(sampled_fpdeg, sampled_tndeg))
+cnt <- cnt[sampled_dea, ]
 message("Finally data size:")
-myt$print_sc(nrow(cnt), ncol(cnt), row = "cell")
+myt$print_sc(nrow(cnt), ncol(cnt), row = "gene")
 
 ## * to bagwiff model
 myt$to_bagwiff(
