@@ -23,37 +23,47 @@ option_list <- list(
     c("--sc_file"),
     action = "store",
     type = "character",
-    default = "test.rds"
+    default = "UVM_GSE139829_harmony.rds"
   ),
   make_option(
     c("--condf"),
     action = "store",
     type = "character",
-    default = "gender.csv"
+    default = "genders.csv"
   ),
   make_option(
     c("--celltype"),
     action = "store",
     type = "character",
-    default = "malignant"
+    default = "Malignant"
   ),
   make_option(
     c("--genef"),
     action = "store",
     type = "character",
-    default = "mygenes.rds"
+    default = "tcga_bulk_gsymbol.rds"
   ),
   make_option(
     c("--output"),
     action = "store",
     type = "character",
-    default = "out.rds"
+    default = "UVM_scRNAseq.RData"
+  ),
+  make_option(
+    c("--deg"),
+    action = "store",
+    type = "character",
+    default = "tcga_diffep_genes.rds"
   )
 )
 
 args <- option_list %>%
   OptionParser(option_list = .) %>%
   parse_args()
+
+message("load arguments: ")
+print(args)
+message(str(args))
 
 mydatadir <- args$data_dir
 mysubdir <- args$sub
@@ -81,6 +91,7 @@ if (ne > 0) {
 }
 
 ## *** remove mitochodira genes
+cnt <- myt$rm_mt(cnt)
 mts <- grep(pattern = "^MT-", x = rownames(cnt), value = FALSE)
 nmts <- length(mts)
 if (nmts > 1) {
@@ -131,19 +142,28 @@ print(genders)
 
 ## * transform data for gene differential expressed analysis
 ## ** load the genes considered in TCGA bulkRNAseq.
-ensembl2symbol_bulk <- readRDS(here(
+bulk_gsymbol <- readRDS(here(
   mydatadir, mysubdir,
   args$genef
 ))
+nbulkgenes <- length(bulk_gsymbol)
+message(stringr::str_glue("number of bulk genes: {nbulkgenes}"))
+
 ## ** to bagwiff model
 ## bagwiff: modeling batch effects on gene-wise level
 the_cell <- args$celltype
 gsymbols <- rownames(cnt)
 
 Xcg <- t(as.matrix(cnt[
-  gsymbols %in% ensembl2symbol_bulk$SYMBOL,
+  gsymbols %in% bulk_gsymbol,
   which(cellanno == the_cell)
 ]))
+
+## *** check differential expressed genes overlap
+known_degs <- readRDS(here(mydatadir, mysubdir, args$deg))
+num_ovlp <- length(intersect(known_degs$genesymbol, colnames(Xcg)))
+message(stringr::str_glue("num of known DE genes: {nrow(known_degs)}"))
+message(stringr::str_glue("num of DE genes left in sc: {num_ovlp}"))
 
 message("After choosing cell type ", the_cell, " and genes in bulk")
 myt$print_sc(nrow(Xcg), ncol(Xcg), row = "cell")
