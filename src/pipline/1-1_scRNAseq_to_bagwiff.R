@@ -1,3 +1,5 @@
+## bagwiff: modeling batch effects on gene-wise level
+
 options(error = traceback)
 options(warn = -1)
 suppressPackageStartupMessages(library(here))
@@ -61,6 +63,12 @@ option_list <- list(
     action = "store",
     type = "double",
     default = 0.1
+  ),
+  make_option(
+    c("--ncell"),
+    action = "store",
+    type="integer",
+    default=200
   )
 )
 
@@ -157,46 +165,38 @@ message("After filtering genes")
 myt$print_sc(nrow(cnt), ncol(cnt), row = "gene")
 
 ## ** load patient gender information from GEO.
-genders <- read.csv(here(mydatadir, mysubdir, args$condf),
+conds <- read.csv(here(mydatadir, mysubdir, args$condf),
   stringsAsFactors = FALSE, header = FALSE,
   row.names = 1,
   col.names = c("pid", "gender")
 )
 message("sRNAseq individual gender summay")
-print(genders)
+print(conds)
 
-patients <- gsub("_.*", "", colnames(cnt))
-message("Cells per patients")
-table(patients)
+batches <- gsub("_.*", "", colnames(cnt))
+table(batches)
 
-patient_genders <- genders[patients, 1]
-message("cells in case and control")
-table(patient_genders)
+conds <- conds[batches, 1]
+table(conds)
 
+## * SubSampling
+## ** subsample cells
+ncellpbatch <- args$ncell
+uniqbatches <- unique(batches)
+
+sampled_cells <- unique(batches) %>%
+  purrr::map_int(.f = function(batch) {
+    cells <- which(batches == batch)
+    sampled_rows <- myt$subsampling(cells, ncellpbatch)
+    names(sampled_rows) <- rep(batch, length(sampled_rows))
+    return(sampled_rows)
+  })
+
+cnt <- cnt[, sampled_cells]
+colnames(cnt) <- names(sampled_cells)
 
 ## * to bagwiff model
-## bagwiff: modeling batch effects on gene-wise level
-Xcg <- t(as.matrix(cnt))
-XInd <- myt$to_onehot_matrix(patients)
-XCond <- myt$to_onehot_matrix(patient_genders)
-
-N <- nrow(XCond)
-J <- ncol(XCond)
-K <- ncol(XInd)
-G <- ncol(Xcg)
-S <- rowSums(Xcg)
-
-## bagmiff mdel
-## bagmiff: modeling batch effects on gene-module level
-## add gene module infomration.
-## a trivial one
-P <- 1L
-B <- matrix(1:G, nrow = G, ncol = P)
-
-## * use pystan to transform.
-Xcg <- as.data.frame(Xcg)
-XInd <- as.data.frame(XInd)
-XCond <- as.data.frame(XCond)
-save(N, J, K, G, S, P, B, XInd, XCond, Xcg,
-  file = here(mydatadir, mysubdir, args$output)
-)
+## myt$to_bagwiff(
+##   cnt, batches, patient_conds,
+##   here(mydatafir, mysubdir, args$output)
+## )

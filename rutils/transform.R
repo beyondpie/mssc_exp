@@ -39,3 +39,53 @@ rm_mt <- function(seqdata) {
   }
   return(seqdata)
 }
+
+to_bagwiff <- function(cnt_gbc, batch, conds, outf) {
+  ## bagwiff: modeling batch effects on gene-wise level
+  ncells <- ncol(cnt_gbc)
+  if (ncells != length(batch)) {
+    error(
+      stringr::str_glue(
+        "num of cell not match: cnt_gbc({ncells}); batch ({length(batch)})"
+      )
+    )
+  }
+  if (ncells != length(conds)) {
+    error(
+      stringr::str_glue(
+        "num of cell not match: cnt_gbc({ncells}); conds ({length(conds)})"
+      )
+    )
+  }
+  Xcg <- t(as.matrix(cnt_gbc))
+  XInd <- to_onehot_matrix(batch)
+  XCond <- to_onehot_matrix(conds)
+  N <- nrow(XCond)
+  J <- ncol(XCond)
+  K <- ncol(XInd)
+  G <- ncol(Xcg)
+  S <- rowSums(Xcg)
+
+  ## bagmiff mdel
+  ## bagmiff: modeling batch effects on gene-module level
+  ## add gene module infomration.
+  ## a trivial one
+  P <- 1L
+  B <- matrix(1:G, nrow = G, ncol = P)
+  ## * for laterr usage of pystan
+  Xcg <- as.data.frame(Xcg)
+  XInd <- as.data.frame(XInd)
+  XCond <- as.data.frame(XCond)
+  save(N, J, K, G, S, P, B, XInd, XCond, Xcg, file = outf)
+}
+
+subsampling <- function(myarray, size, replace=FALSE) {
+  if (length(myarray) <= size) {
+    return(myarray)
+  } else {
+    return(sample(myarray, size=size, replace=replace))
+  }
+}
+
+
+
