@@ -240,9 +240,11 @@ table(batches)
 sampled_fpdeg <- myt$subsampling(fpdeg, args$ngene)
 sampled_tndeg <- myt$subsampling(tndeg, args$ngene)
 cnt <- cnt[c(deg, sampled_fpdeg, sampled_tndeg), ]
+message("Finally data size:")
+myt$print_sc(nrow(cnt), ncol(cnt), row = "cell")
 
 ## * to bagwiff model
 myt$to_bagwiff(
   cnt, batches, conds,
-  here(mydatafir, mysubdir, args$output), args$rdump
+  here(mydatafir, mysubdir, args$output, args$rdump)
 )
