@@ -1,3 +1,4 @@
+options(error = traceback)
 suppressPackageStartupMessages(library(TCGAbiolinks))
 suppressPackageStartupMessages(library(org.Hs.eg.db))
 suppressPackageStartupMessages(library(data.table))
@@ -20,9 +21,13 @@ gene_qnt_cut_meanreads <- 0.1
 
 de_pipeline <- "edgeR"
 de_method <- "glmLRT"
-de_fdr_cut <- 0.5
+de_fdr_init_cut <- 0.7
+de_fdr_cut <- 0.05
+de_logfc_init_cut <- 0.1
 de_logfc_cut <- 1
 de_outfnm <- "tcga_diffexp_genes.rds"
+fpde_outfnm <- "tcga_fp_diffexp_genes.rds"
+tnde_outfnm <- "tcga_tn_diffexp_genes.rds"
 
 message("bulkRNAseq configs: ")
 args <- list(
@@ -30,7 +35,7 @@ args <- list(
   de_fdr_cut = de_fdr_cut, de_logfc_cut = de_logfc_cut,
   de_outfnm = de_outfnm,
   cancer = cancer_project, genes_fnm = genes_fnm,
-  gene_filter_method=gene_filter_method,
+  gene_filter_method = gene_filter_method,
   gene_qnt_cut_meanreads = gene_qnt_cut_meanreads
 )
 print(args)
@@ -132,21 +137,54 @@ the_meta_data <- meta_data[
 message(stringr::str_glue("{cancer_project} patient genders: "))
 table(the_meta_data)
 
-the_degs <- TCGAbiolinks::TCGAanalyze_DEA(
+dea <- TCGAbiolinks::TCGAanalyze_DEA(
   mat1 = data_fit[, which(the_meta_data == "FEMALE")],
   mat2 = data_fit[, which(the_meta_data == "MALE")],
   pipeline = de_pipeline,
   Cond1type = "FEMALE",
   Cond2type = "MALE",
-  fdr.cut = de_fdr_cut,
-  logFC.cut = de_logfc_cut,
+  fdr.cut = de_fdr_init_cut,
+  logFC.cut = de_logfc_init_cut,
   method = de_method
 )
+dea <- dea[order(dea$PValue), ]
+dea$genesymbol <- rownames(dea)
+message(
+  stringr::str_glue(
+    "init fdr({de_fdr_init_cut}) ",
+    " logfc({de_logfc_init_cut}): ",
+    "num of genes({nrow(dea)})"
+  )
+)
 
-the_degs <- the_degs[order(the_degs$PValue), ]
-the_degs$genesymbol <- rownames(the_degs)
+degs <- dea[dea$FDR < de_fdr_cut, ]
+degs <- degs[abs(degs$logFC) > de_fdr_cut, ]
+
+message(
+  stringr::str_glue(
+    "fdr({de_fdr_cut}) and logfc({de_logfc_cut}): num of genes({nrow(degs)})"
+  )
+)
+saveRDS(
+  object = degs, file =
+    here(data_dir, subdir, de_outfnm)
+)
+
+nondegs <- dea[dea$FDR > de_fdr_cut, ]
+nondegs <- nondegs[order(nondegs$PValue), ]
+
+fp_degs <- nondegs[seq_len(2 * nrow(degs)), ]
+
+tn_from <- nrow(degs) + 100
+tn_to <- tn_from + 2 * nrow(degs)
+tn_degs <- nondegs[seq(tn_from, tn_to), ]
 
 saveRDS(
-  object = the_degs, file =
-    here(data_dir, subdir, de_outfnm)
+  object = fp_degs, file =
+    here(data_dir, subdir, fpde_outfnm)
+)
+
+saveRDS(
+  object = tn_degs, file =
+    here(data_dir, subdir, tnde_outfnm)
 )

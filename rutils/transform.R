@@ -40,7 +40,7 @@ rm_mt <- function(seqdata) {
   return(seqdata)
 }
 
-to_bagwiff <- function(cnt_gbc, batch, conds, outf) {
+to_bagwiff <- function(cnt_gbc, batch, conds, outf, rdump = FALSE) {
   ## bagwiff: modeling batch effects on gene-wise level
   ncells <- ncol(cnt_gbc)
   if (ncells != length(batch)) {
@@ -76,16 +76,28 @@ to_bagwiff <- function(cnt_gbc, batch, conds, outf) {
   Xcg <- as.data.frame(Xcg)
   XInd <- as.data.frame(XInd)
   XCond <- as.data.frame(XCond)
-  save(N, J, K, G, S, P, B, XInd, XCond, Xcg, file = outf)
-}
-
-subsampling <- function(myarray, size, replace=FALSE) {
-  if (length(myarray) <= size) {
-    return(myarray)
-  } else {
-    return(sample(myarray, size=size, replace=replace))
+  if (rdump) {
+    rstan::rdump(c(
+      "N", "J", "K", "G", "S", "P", "B",
+      "XCond", "Xcond", "Xcg"
+    ), file = outf)
+  }
+  else {
+    save(N, J, K, G, S, P, B, XInd, XCond, Xcg, file = outf)
   }
 }
 
+subsampling <- function(myarray, size, replace = FALSE) {
+  if (length(myarray) <= size) {
+    return(myarray)
+  } else {
+    return(sample(myarray, size = size, replace = replace))
+  }
+}
 
-
+stat_geneset <- function(pool, geneset) {
+  ovlp <- intersect(pool, geneset)
+  message(str_glue("num of geneset: {length(geneset)}"))
+  message(str_glue("num in pool: {length(ovlp)}"))
+  return(ovlp)
+}

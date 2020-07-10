@@ -47,6 +47,11 @@ option_list <- list(
     default = "tcga_bulk_gsymbol.rds"
   ),
   make_option(
+    c("--rdump"),
+    action="store_true",
+    default="FALSE"
+  ),
+  make_option(
     c("--output"),
     action = "store",
     type = "character",
@@ -59,6 +64,18 @@ option_list <- list(
     default = "tcga_diffep_genes.rds"
   ),
   make_option(
+    c("--fpdeg"),
+    action = "store",
+    type = "character",
+    default = "tcga_fp_diffep_genes.rds"
+  ),
+  make_option(
+    c("--tndeg"),
+    action = "store",
+    type = "character",
+    default = "tcga_tn_diffep_genes.rds"
+  ),
+  make_option(
     c("--gfilteratio"),
     action = "store",
     type = "double",
@@ -69,6 +86,12 @@ option_list <- list(
     action = "store",
     type="integer",
     default=200
+  ),
+  make_option(
+    c("--ngene"),
+    action = "store",
+    type="integer",
+    default=12
   )
 )
 
@@ -142,10 +165,20 @@ nfgenes <- length(which(ncells < low_ncells))
 message(str_glue("genes expressed in at most {gfilteratio} cells: {nfgenes}"))
 
 ## *** check differential expressed genes overlap
-known_degs <- readRDS(here(mydatadir, mysubdir, args$deg))
-ovlp_degs <- intersect(rownames(cnt), known_degs$genesymbol)
-message(str_glue("num of known DE genes: {nrow(known_degs)}"))
-message(str_glue("num of DE genes left in sc: {length(ovlp_degs)}"))
+message("positve deg:")
+deg <- readRDS(here(mydatadir, mysubdir, args$deg))
+ovlp_deg <- myt$stat_geneset(rownames(cnt), deg$genesymbol)
+
+message("false posive deg:")
+fpdeg <- readRDS(here(mydatadir, mysubdir, args$fpdeg))
+ovlp_fpdeg <- myt$stat_geneset(rownames(cnt), fpdeg$genesymbol)
+
+message("true negative deg:")
+tndeg <- readRDS(here(mydatadir, mysubdir, args$tndeg))
+ovlp_tndeg <- intersect(rownames(cnt), tndeg$genesymbol)
+
+nondeg <- union(ovlp_fpdeg, ovlp_tndeg)
+dea <- union(ovlp_deg, nondeg)
 
 ## *** load the genes considered in TCGA bulkRNAseq.
 bulk_gsymbol <- readRDS(here(
@@ -160,7 +193,7 @@ message(
 
 ## *** finally filter the genes
 high_quality_genes <- rownames(cnt)[which(ncells >= low_ncells)]
-cnt <- cnt[union(union(high_quality_genes, ovlp_degs), ovlp_scbulk), ]
+cnt <- cnt[union(union(high_quality_genes, dea), ovlp_scbulk), ]
 message("After filtering genes")
 myt$print_sc(nrow(cnt), ncol(cnt), row = "gene")
 
@@ -180,6 +213,7 @@ conds <- conds[batches, 1]
 table(conds)
 
 ## * SubSampling
+## TODO: save subsampled Rdata and the de/nde info.
 ## ** subsample cells
 ncellpbatch <- args$ncell
 uniqbatches <- unique(batches)
@@ -195,8 +229,14 @@ sampled_cells <- unique(batches) %>%
 cnt <- cnt[, sampled_cells]
 colnames(cnt) <- names(sampled_cells)
 
+## ** subsample genes
+## keep deg sampled_deg <- myt$subsampling(deg, args$ngene)
+sampled_fpdeg <- myt$subsampling(fpdeg, args$ngene)
+sampled_tndeg <- myt$subsampling(tndeg, args$ngene)
+cnt <- cnt[c(deg, sampled_ndegs, sampled_tndeg), ]
+
 ## * to bagwiff model
-## myt$to_bagwiff(
-##   cnt, batches, patient_conds,
-##   here(mydatafir, mysubdir, args$output)
-## )
+myt$to_bagwiff(
+  cnt, batches, patient_conds,
+  here(mydatafir, mysubdir, args$output), args$rdump
+)

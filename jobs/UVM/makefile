@@ -4,8 +4,8 @@
 # it can be defined outside
 root ?= /Users/beyondpie/git-recipes/sDESeq
 
-.PHONY: bagwiff_data rm_bagwiff_data compile sample combchains vi \
-        test_filter debulk rmbulk
+.PHONY: pybagwiff_data rm_bagwiff_data compile sample combchains vi \
+        test_filter debulk rmbulk rbagwiff_data
 
 local_data_dir := data
 sub := UM
@@ -25,22 +25,47 @@ sc_condf := genders.csv
 
 de_bulkRNAseq_r := 1-0_diff_bulkRNAseq_data.R
 genef := tcga_bulk_gsymbol.rds
+
 deg := tcga_diffexp_genes.rds
+fpdegs := tcga_fp_diffexp_genes.rds
+tndegs := tcga_tn_diffexp_genes.rds
 
+dea := $(addprefix ${mydir}, ${deg} ${fpdegs} ${tndegs})
 
+ncell := 200
+ngene := 140
 
-sc_rdata := UVM_scRNAseq.RData
-sc_rdump := UVM_scRNAseq.rdump
+sc_rdata := UVM_scRNAseq_c${ncell}g${ngene}.RData
+sc_pydump := UVM_scRNAseqpy_c${ncell}g${ngene}.rdump
+sc_rdump := UVM_scRNAseq_c${ncell}g${ngene}.rdump
 
-
-${mydir}/${genef} ${mydir}/${deg} &:
+${mydir}/${genef} ${dea} &:
 	@Rscript ${pipline_dir}/${de_bulkRNAseq_r}
 
-debulk : ${mydir}/${genef} ${mydir}/${deg}
-
+debulk : ${mydir}/${genef} ${dea}
 rmbulk :
-	-rm ${mydir}/${genef} ${mydir}/${deg}
+	-rm ${mydir}/${genef} ${dea}
 	-rm *.png
+
+${mydir}/${sc_rdump}: ${mydir}/${sc_seurat} ${mydir}/${sc_condf} \
+                      ${mydir}/${genef} ${dea}
+	@Rscript ${pipline_dir}/${bagwiff_r} \
+    --data_dir ${local_data_dir}\
+		--sub ${sub}\
+		--celltype ${cell}\
+		--sc_file ${sc_seurat}\
+		--condf ${sc_condf}\
+		--genef ${genef}\
+		--deg ${deg}\
+    --fpdeg ${fpdegs}\
+    --tndeg ${tndegs}\
+		--gfilteratio ${gfilteratio} \
+    --ncell ${ncell} \
+    --ngene ${ngene} \
+    --rdump \
+		--output $(notdir $@)
+
+rbagwiff_data: ${mydir}/${sc_rdump}
 
 ${mydir}/${sc_rdata}: ${mydir}/${sc_seurat} ${mydir}/${sc_condf} \
                       ${mydir}/${genef} ${mydir}/${deg}
@@ -53,23 +78,25 @@ ${mydir}/${sc_rdata}: ${mydir}/${sc_seurat} ${mydir}/${sc_condf} \
 		--genef ${genef}\
 		--deg ${deg}\
 		--gfilteratio ${gfilteratio} \
-		--output ${sc_rdata}
+    --ncell ${ncell} \
+    --ngene ${ngene} \
+		--output $(notdir $@)
 
 test_filter: ${mydir}/${sc_rdata}
 
-${mydir}/${sc_rdump}: ${mydir}/${sc_rdata}
+${mydir}/${sc_pyrump}: ${mydir}/${sc_rdata}
 	@python ${pipline_dir}/${bagwiff_py} \
     --data_dir ${local_data_dir} \
 		--sub ${sub} \
 		--infl ${sc_rdata}\
-		--outfl ${sc_rdump}
+		--outfl $(notdir $@)
 
 
-bagwiff_data: ${mydir}/${sc_rdata} ${mydir}/${sc_rdump}
+pybagwiff_data: ${mydir}/${sc_rdata} ${mydir}/${sc_pydump}
 
 rm_bagwiff_data:
 	-rm ${mydir}/${sc_rdata}
-	-rm ${mydir}/${sc_rdump}
+	-rm ${mydir}/*.rdump
 
 
 # * stan process
