@@ -11,10 +11,12 @@ myt <- modules::import("transform")
 
 ## * configs
 cancer_project <- "TCGA-UVM"
-
 data_dir <- "data"
 subdir <- "UM"
+
 genes_fnm <- "tcga_bulk_gsymbol.rds"
+gene_filter_method <- "quantile"
+gene_qnt_cut_meanreads <- 0.1
 
 de_pipeline <- "edgeR"
 de_method <- "glmLRT"
@@ -27,7 +29,9 @@ args <- list(
   de_pipeline = de_pipeline, de_method = de_method,
   de_fdr_cut = de_fdr_cut, de_logfc_cut = de_logfc_cut,
   de_outfnm = de_outfnm,
-  cancer = cancer_project, genes_fnm = genes_fnm
+  cancer = cancer_project, genes_fnm = genes_fnm,
+  gene_filter_method=gene_filter_method,
+  gene_qnt_cut_meanreads = gene_qnt_cut_meanreads
 )
 print(args)
 message(str(args))
@@ -62,9 +66,7 @@ data_prep <- TCGAbiolinks::GDCprepare(
 )
 ## * save data
 saveRDS(data_prep, here(data_dir, subdir, "tcga_GDCprepare.rds"))
-
-## * reload data
-data_prep <- readRDS(here(data_dir, subdir, "tcga_GDCprepare.rds"))
+## reload data: data_prep <- readRDS(here(data_dir, subdir, "tcga_GDCprepare.rds"))
 data_prep <- TCGAbiolinks::TCGAanalyze_Preprocessing(
   object = data_prep,
   cor.cut = 0.6
@@ -104,8 +106,8 @@ data_norm <- myt$rm_mt(data_norm)
 ## ** remove low-reads genes
 data_fit <- TCGAbiolinks::TCGAanalyze_Filtering(
   tabDF = data_norm,
-  method = "quantile",
-  qnt.cut = 0.1
+  method = gene_filter_method,
+  qnt.cut = gene_qnt_cut_meanreads
 )
 
 ## ** save considered genes.

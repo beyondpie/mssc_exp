@@ -19,6 +19,7 @@ pipline_dir := ${root}/src/pipline
 bagwiff_r := 1-1_scRNAseq_to_bagwiff.R
 bagwiff_py := 1-2_scRNAseq_to_bagwiff.py
 
+gfilteratio := 0.1
 sc_seurat := UVM_GSE139829_harmony.rds
 sc_condf := genders.csv
 
@@ -43,21 +44,25 @@ rmbulk :
 
 ${mydir}/${sc_rdata}: ${mydir}/${sc_seurat} ${mydir}/${sc_condf} \
                       ${mydir}/${genef} ${mydir}/${deg}
-	@Rscript ${pipline_dir}/${bagwiff_r} --data_dir ${local_data_dir}\
-                                      --sub ${sub}\
-																			--celltype ${cell}\
-																			--sc_file ${sc_seurat}\
-																			--condf ${sc_condf}\
-																			--genef ${genef}\
-                                      --deg ${deg}\
-                                      --output ${sc_rdata}
+	@Rscript ${pipline_dir}/${bagwiff_r} \
+    --data_dir ${local_data_dir}\
+		--sub ${sub}\
+		--celltype ${cell}\
+		--sc_file ${sc_seurat}\
+		--condf ${sc_condf}\
+		--genef ${genef}\
+		--deg ${deg}\
+		--gfilteratio ${gfilteratio} \
+		--output ${sc_rdata}
+
 test_filter: ${mydir}/${sc_rdata}
 
 ${mydir}/${sc_rdump}: ${mydir}/${sc_rdata}
-	@python ${pipline_dir}/${bagwiff_py} --data_dir ${local_data_dir} \
-                                      --sub ${sub} \
-                                      --infl ${sc_rdata}\
-                                      --outfl ${sc_rdump}
+	@python ${pipline_dir}/${bagwiff_py} \
+    --data_dir ${local_data_dir} \
+		--sub ${sub} \
+		--infl ${sc_rdata}\
+		--outfl ${sc_rdump}
 
 
 bagwiff_data: ${mydir}/${sc_rdata} ${mydir}/${sc_rdump}
