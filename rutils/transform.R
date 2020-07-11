@@ -72,17 +72,16 @@ to_bagwiff <- function(cnt_gbc, batch, conds, outf, rdump = FALSE) {
   ## a trivial one
   P <- 1L
   B <- matrix(1:G, nrow = G, ncol = P)
-  ## * for laterr usage of pystan
-  Xcg <- as.data.frame(Xcg)
-  XInd <- as.data.frame(XInd)
-  XCond <- as.data.frame(XCond)
   if (rdump) {
-    rstan::rdump(c(
+    rstan::stan_rdump(c(
       "N", "J", "K", "G", "S", "P", "B",
       "XCond", "Xcond", "Xcg"
     ), file = outf)
   }
   else {
+    Xcg <- as.data.frame(Xcg)
+    XInd <- as.data.frame(XInd)
+    XCond <- as.data.frame(XCond)
     save(N, J, K, G, S, P, B, XInd, XCond, Xcg, file = outf)
   }
 }
@@ -97,7 +96,7 @@ subsampling <- function(myarray, size, replace = FALSE) {
 
 stat_geneset <- function(pool, geneset) {
   ovlp <- intersect(pool, geneset)
-  message(str_glue("num of geneset: {length(geneset)}"))
-  message(str_glue("num in pool: {length(ovlp)}"))
+  message(stringr::str_glue("num of geneset: {length(geneset)}"))
+  message(stringr::str_glue("num in pool: {length(ovlp)}"))
   return(ovlp)
 }

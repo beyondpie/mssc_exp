@@ -5,7 +5,7 @@
 root ?= /Users/beyondpie/git-recipes/sDESeq
 
 .PHONY: pybagwiff_data rm_bagwiff_data compile sample combchains vi \
-        test_filter debulk rmbulk rbagwiff_data
+        test_filter debulk rmbulk rdumpbagwiff
 
 local_data_dir := data
 sub := UM
@@ -16,6 +16,7 @@ mydir := ${root}/${local_data_dir}/${sub}
 
 # * prepare stan data
 pipline_dir := ${root}/src/pipline
+de_bulkRNAseq_r := 1-0_diff_bulkRNAseq_data.R
 bagwiff_r := 1-1_scRNAseq_to_bagwiff.R
 bagwiff_py := 1-2_scRNAseq_to_bagwiff.py
 
@@ -23,9 +24,7 @@ gfilteratio := 0.1
 sc_seurat := UVM_GSE139829_harmony.rds
 sc_condf := genders.csv
 
-de_bulkRNAseq_r := 1-0_diff_bulkRNAseq_data.R
 genef := tcga_bulk_gsymbol.rds
-
 deg := tcga_diffexp_genes.rds
 fpdeg := tcga_fp_diffexp_genes.rds
 tndeg := tcga_tn_diffexp_genes.rds
@@ -39,16 +38,15 @@ sc_rdata := UVM_scRNAseq_c${ncell}g${ngene}.RData
 sc_pydump := UVM_scRNAseqpy_c${ncell}g${ngene}.rdump
 sc_rdump := UVM_scRNAseq_c${ncell}g${ngene}.rdump
 
-${mydir}/${genef} ${dea} &:
-	@Rscript ${pipline_dir}/${de_bulkRNAseq_r}
+${mydir}/${genef} ${dea} &: ${pipline_dir}/${de_bulkRNAseq_r}
+	@Rscript $<
 
 debulk : ${mydir}/${genef} ${dea}
 rmbulk :
 	-rm ${mydir}/${genef} ${dea}
 	-rm *.png
 
-${mydir}/${sc_rdump}: ${mydir}/${sc_seurat} ${mydir}/${sc_condf} \
-                      ${mydir}/${genef} ${dea}
+${mydir}/${sc_rdump}: debulk
 	@Rscript ${pipline_dir}/${bagwiff_r} \
     --data_dir ${local_data_dir}\
 		--sub ${sub}\
@@ -65,7 +63,7 @@ ${mydir}/${sc_rdump}: ${mydir}/${sc_seurat} ${mydir}/${sc_condf} \
     --rdump \
 		--output $(notdir $@)
 
-rbagwiff_data: ${mydir}/${sc_rdump}
+rdumpbagwiff: ${mydir}/${sc_rdump}
 
 ${mydir}/${sc_rdata}: ${mydir}/${sc_seurat} ${mydir}/${sc_condf} \
                       ${mydir}/${genef} ${mydir}/${deg}

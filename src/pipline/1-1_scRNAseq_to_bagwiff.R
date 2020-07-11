@@ -61,19 +61,19 @@ option_list <- list(
     c("--deg"),
     action = "store",
     type = "character",
-    default = "tcga_diffep_genes.rds"
+    default = "tcga_diffexp_genes.rds"
   ),
   make_option(
     c("--fpdeg"),
     action = "store",
     type = "character",
-    default = "tcga_fp_diffep_genes.rds"
+    default = "tcga_fp_diffexp_genes.rds"
   ),
   make_option(
     c("--tndeg"),
     action = "store",
     type = "character",
-    default = "tcga_tn_diffep_genes.rds"
+    default = "tcga_tn_diffexp_genes.rds"
   ),
   make_option(
     c("--gfilteratio"),
@@ -175,7 +175,7 @@ ovlp_fpdeg <- myt$stat_geneset(rownames(cnt), fpdeg$genesymbol)
 
 message("true negative deg:")
 tndeg <- readRDS(here(mydatadir, mysubdir, args$tndeg))
-ovlp_tndeg <- intersect(rownames(cnt), tndeg$genesymbol)
+ovlp_tndeg <- myt$stat_geneset(rownames(cnt), tndeg$genesymbol)
 
 nondeg <- union(ovlp_fpdeg, ovlp_tndeg)
 dea <- union(ovlp_deg, nondeg)
@@ -202,7 +202,7 @@ conds <- read.csv(here(mydatadir, mysubdir, args$condf),
   stringsAsFactors = FALSE, header = FALSE,
   row.names = 1,
   col.names = c("pid", "gender")
-  )
+)
 
 message("sRNAseq conds")
 print(conds)
@@ -214,7 +214,6 @@ conds <- conds[batches, 1]
 table(conds)
 
 ## * SubSampling
-## TODO: save subsampled Rdata and the de/nde info.
 ## ** subsample cells
 ncellpbatch <- args$ncell
 uniqbatches <- unique(batches)
@@ -239,13 +238,19 @@ table(batches)
 ## keep deg sampled_deg <- myt$subsampling(deg, args$ngene)
 sampled_fpdeg <- myt$subsampling(ovlp_fpdeg, args$ngene)
 sampled_tndeg <- myt$subsampling(ovlp_tndeg, args$ngene)
-sampled_dea <- union(ovlp_deg,union(sampled_fpdeg, sampled_tndeg))
+sampled_dea <- union(ovlp_deg, union(sampled_fpdeg, sampled_tndeg))
 cnt <- cnt[sampled_dea, ]
 message("Finally data size:")
 myt$print_sc(nrow(cnt), ncol(cnt), row = "gene")
 
+## ** save subsampled data
+saveRDS(
+  list(cnt = cnt, batches = batches, conds = conds),
+  here(mydatadir, mysubdir, "sampled_scRNAseq_summary.rds")
+)
 ## * to bagwiff model
 myt$to_bagwiff(
   cnt, batches, conds,
-  here(mydatafir, mysubdir, args$output, args$rdump)
+  here(mydatadir, mysubdir, args$output),
+  args$rdump
 )
