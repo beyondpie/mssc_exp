@@ -33,15 +33,15 @@ sc_rdata := UVM_scRNAseq_c${ncell}g${ngene}.RData
 sc_pydump := UVM_scRNAseqpy_c${ncell}g${ngene}.rdump
 sc_rdump := UVM_scRNAseq_c${ncell}g${ngene}.rdump
 
-${mydir}/${genef} ${dea} &: ${pipline_dir}/${de_bulkRNAseq_r}
-	@Rscript $<
+${mydir}/${genef} ${dea} &: 
+	@Rscript ${pipline_dir}/${de_bulkRNAseq_r}
 
 debulk : ${mydir}/${genef} ${dea}
 rmbulk :
 	-rm ${mydir}/${genef} ${dea}
 	-rm *.png
 
-${mydir}/${sc_rdump}: ${pipline_dir}/${bagwiff_r} ${mydir}/${genef} ${dea}
+${mydir}/${sc_rdump}: ${mydir}/${genef} ${dea}
 	@Rscript ${pipline_dir}/${bagwiff_r} \
     --data_dir ${local_data_dir}\
 		--sub ${sub}\
