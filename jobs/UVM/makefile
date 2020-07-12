@@ -3,10 +3,12 @@
 # use absolute path for project root dir
 # it can be defined outside
 root ?= /home/labszu/git-recipes/scRNAseqDEA
+.PHONY: pybagwiff_data rm_bagwiff_data compile sample combchains vi \
+        test_filter debulk rmbulk rdumpbagwiff
 sub := UM
 cell := Malignant
-
 curdir := $(shell pwd)
+local_data_dir := data
 mydir := ${root}/${local_data_dir}/${sub}
 
 # * prepare stan data
