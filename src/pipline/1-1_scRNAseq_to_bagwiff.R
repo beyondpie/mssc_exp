@@ -1,10 +1,13 @@
-## options(error = traceback)
+## bagwiff: modeling batch effects on gene-wise level
+
+options(error = traceback)
 options(warn = -1)
 suppressPackageStartupMessages(library(here))
 suppressPackageStartupMessages(library(tidyverse))
 library(Seurat)
 library(optparse)
 suppressPackageStartupMessages(library(Matrix))
+import::from(stringr, str_glue)
 
 option_list <- list(
   make_option(
@@ -44,6 +47,11 @@ option_list <- list(
     default = "tcga_bulk_gsymbol.rds"
   ),
   make_option(
+    c("--rdump"),
+    action = "store_true",
+    default = "FALSE"
+  ),
+  make_option(
     c("--output"),
     action = "store",
     type = "character",
@@ -53,7 +61,37 @@ option_list <- list(
     c("--deg"),
     action = "store",
     type = "character",
-    default = "tcga_diffep_genes.rds"
+    default = "tcga_diffexp_genes.rds"
+  ),
+  make_option(
+    c("--fpdeg"),
+    action = "store",
+    type = "character",
+    default = "tcga_fp_diffexp_genes.rds"
+  ),
+  make_option(
+    c("--tndeg"),
+    action = "store",
+    type = "character",
+    default = "tcga_tn_diffexp_genes.rds"
+  ),
+  make_option(
+    c("--gfilteratio"),
+    action = "store",
+    type = "double",
+    default = 0.1
+  ),
+  make_option(
+    c("--ncell"),
+    action = "store",
+    type = "integer",
+    default = 200
+  ),
+  make_option(
+    c("--ngene"),
+    action = "store",
+    type = "integer",
+    default = 12
   )
 )
 
@@ -62,27 +100,26 @@ args <- option_list %>%
   parse_args()
 
 message("load arguments: ")
-print(args)
+## print(args)
 message(str(args))
 
 mydatadir <- args$data_dir
 mysubdir <- args$sub
-
+gfilteratio <- args$gfilteratio
 ## * load util functions.
 options("import.path" = here("rutils"))
 myt <- modules::import("transform")
 
-## * re-annotate the cell clusters
-## ** reload data.
+## * load data
 luvm_seurat <- readRDS(here(mydatadir, mysubdir, args$sc_file))
-cellanno <- luvm_seurat@meta.data$assign.level3_anno
 
 ## [9232,79105]
 cnt <- floor(luvm_seurat@assays$RNA@counts)
 message("Raw data:")
 myt$print_sc(nrow(cnt), ncol(cnt), row = "gene")
-## ** filtering scRNAseq
-## *** remove ERCC related pseudo genes
+
+## * filtering scRNAseq
+## ** remove ERCC related pseudo genes
 erccs <- grep(pattern = "^ERCC-", x = rownames(cnt), value = FALSE)
 ne <- length(erccs)
 if (ne > 0) {
@@ -90,23 +127,12 @@ if (ne > 0) {
   cnt <- cnt[-ercc, ]
 }
 
-## *** remove mitochodira genes
+## ** remove mitochodira genes
 cnt <- myt$rm_mt(cnt)
-mts <- grep(pattern = "^MT-", x = rownames(cnt), value = FALSE)
-nmts <- length(mts)
-if (nmts > 1) {
-  message(str_glue("num of MT genes: {nmts}"))
-  mtratios <- colSums(cnt[mts, ]) / colSums(cnt)
-  ## num of high ratio of mitochotria reads
-  nhmt <- length(which(mtratios > 0.2))
-  if (nhmt > 0) {
-    message(str_glue("num of cells with at least 20% mt reads: {nhmt}"))
-    ## cnt <- cnt[, mtratios <= 0.2]
-  }
-  cnt <- cnt[-mts, ]
-}
 
-## *** remove cells with too low/high-reads and genes seldomly expressed
+## ** filtering cells
+
+## *** remove cells with too low/high-reads
 ncnts <- colSums(cnt)
 ncells <- rowSums(cnt)
 
@@ -117,88 +143,119 @@ message(str_glue("cells with reads below 2.5% ({low_ncnts}): {nlcnt}"))
 up_ncnts <- quantile(ncnts, 0.975)
 nucnt <- length(which(ncnts > up_ncnts))
 message(str_glue("cells with reads above 97.5% ({up_ncnts}): {nucnt}"))
-
 kept_cells <- (ncnts >= low_ncnts) & (ncnts <= up_ncnts)
 cnt <- cnt[, kept_cells]
-cellanno <- cellanno[kept_cells]
-
-low_ncells <- 0.1 * ncol(cnt)
-## number of filtered genes
-nfgenes <- length(which(ncells < low_ncells))
-message(str_glue("genes expressed in at most 0.1 cells: {nfgenes}"))
-cnt <- cnt[ncells >= low_ncells, ]
-
-message("After filtering: ")
+message("After filtering low-quality cells: ")
 myt$print_sc(nrow(cnt), ncol(cnt), row = "gene")
 
-## ** load patient gender information from GEO.
-genders <- read.csv(here(mydatadir, mysubdir, args$condf),
-  stringsAsFactors = FALSE, header = FALSE,
-  row.names = 1,
-  col.names = c("pid", "gender")
-)
-message("sRNAseq individual gender summay")
-print(genders)
+## *** select the cell type
+cellanno <- luvm_seurat@meta.data$assign.level3_anno
+cellanno <- cellanno[kept_cells]
+the_cell <- args$celltype
+cnt <- cnt[, which(cellanno == the_cell)]
+message(str_glue("After choosing cell type {the_cell}"))
+myt$print_sc(nrow(cnt), ncol(cnt), row = "gene")
+## [MAJOR]: get the total numebr of count for all the genes.
+totcntpcell <- colSums(cnt)
+## ** filtering genes
 
-## * transform data for gene differential expressed analysis
-## ** load the genes considered in TCGA bulkRNAseq.
+## *** low-quality genes
+low_ncells <- gfilteratio * ncol(cnt)
+## number of filtered genes
+nfgenes <- length(which(ncells < low_ncells))
+message(str_glue("genes expressed in at most {gfilteratio} cells: {nfgenes}"))
+
+## *** check differential expressed genes overlap
+message("positve deg:")
+deg <- readRDS(here(mydatadir, mysubdir, args$deg))
+ovlp_deg <- myt$stat_geneset(rownames(cnt), deg$genesymbol)
+
+message("false posive deg:")
+fpdeg <- readRDS(here(mydatadir, mysubdir, args$fpdeg))
+ovlp_fpdeg <- myt$stat_geneset(rownames(cnt), fpdeg$genesymbol)
+
+message("true negative deg:")
+tndeg <- readRDS(here(mydatadir, mysubdir, args$tndeg))
+ovlp_tndeg <- myt$stat_geneset(rownames(cnt), tndeg$genesymbol)
+
+nondeg <- union(ovlp_fpdeg, ovlp_tndeg)
+dea <- union(ovlp_deg, nondeg)
+
+## *** load the genes considered in TCGA bulkRNAseq.
 bulk_gsymbol <- readRDS(here(
   mydatadir, mysubdir,
   args$genef
 ))
-nbulkgenes <- length(bulk_gsymbol)
-message(stringr::str_glue("number of bulk genes: {nbulkgenes}"))
-
-## ** to bagwiff model
-## bagwiff: modeling batch effects on gene-wise level
-the_cell <- args$celltype
-gsymbols <- rownames(cnt)
-
-Xcg <- t(as.matrix(cnt[
-  gsymbols %in% bulk_gsymbol,
-  which(cellanno == the_cell)
-]))
-
-## *** check differential expressed genes overlap
-known_degs <- readRDS(here(mydatadir, mysubdir, args$deg))
-num_ovlp <- length(intersect(known_degs$genesymbol, colnames(Xcg)))
-message(stringr::str_glue("num of known DE genes: {nrow(known_degs)}"))
-message(stringr::str_glue("num of DE genes left in sc: {num_ovlp}"))
-
-message("After choosing cell type ", the_cell, " and genes in bulk")
-myt$print_sc(nrow(Xcg), ncol(Xcg), row = "cell")
-
-## label patient ids for x_cg
-patients <- gsub("_.*", "", rownames(Xcg))
-message("Cells per patients")
-table(patients)
-
-patient_genders <- genders[patients, 1]
-message("cells in case and control")
-table(patient_genders)
-
-## *** Subsampling the data
-
-XInd <- myt$to_onehot_matrix(patients)
-XCond <- myt$to_onehot_matrix(patient_genders)
-
-N <- nrow(XCond)
-J <- ncol(XCond)
-K <- ncol(XInd)
-G <- ncol(Xcg)
-
-S <- rowSums(Xcg)
-## ** to bagmiff mdel
-## bagmiff: modeling batch effects on gene-module level
-## add gene module infomration.
-
-## a trivial one
-P <- 1L
-B <- matrix(1:G, nrow = G, ncol = P)
-## * use pystan to transform.
-Xcg <- as.data.frame(Xcg)
-XInd <- as.data.frame(XInd)
-XCond <- as.data.frame(XCond)
-save(N, J, K, G, S, P, B, XInd, XCond, Xcg,
-  file = here(mydatadir, mysubdir, args$output)
+message(str_glue("number of bulk genes: {length(bulk_gsymbol)}"))
+ovlp_scbulk <- intersect(rownames(cnt), bulk_gsymbol)
+message(
+  str_glue("number of overlap between sc and bulk:{length(ovlp_scbulk)}")
 )
+
+## *** finally filter the genes
+high_quality_genes <- rownames(cnt)[which(ncells >= low_ncells)]
+cnt <- cnt[union(union(high_quality_genes, dea), ovlp_scbulk), ]
+message("After filtering genes")
+myt$print_sc(nrow(cnt), ncol(cnt), row = "gene")
+
+## ** load patient gender information from GEO.
+conds <- read.csv(here(mydatadir, mysubdir, args$condf),
+  stringsAsFactors = FALSE, header = FALSE,
+  row.names = 1,
+  col.names = c("pid", "gender")
+)
+
+message("sRNAseq conds")
+print(conds)
+
+batches <- gsub("_.*", "", colnames(cnt))
+table(batches)
+
+conds <- conds[batches, 1]
+table(conds)
+
+## * SubSampling
+## ** subsample cells
+ncellpbatch <- args$ncell
+uniqbatches <- unique(batches)
+
+sampled_cells <- unique(batches) %>%
+  purrr::map_dfr(.f = function(batch) {
+    cells <- which(batches == batch)
+    sampled_rows <- myt$subsampling(cells, ncellpbatch)
+    data.frame(rows = sampled_rows, nms = rep(batch, length(sampled_rows)))
+  })
+cnt <- cnt[, sampled_cells$rows]
+colnames(cnt) <- sampled_cells$names
+
+totcntpcell <- totcntpcell[sampled_cells$rows]
+names(totcntpcell) <- sampled_cells$names
+
+message("after subsamlpling cells, conds")
+conds <- conds[sampled_cells$rows]
+table(conds)
+
+batches <- batches[sampled_cells$rows]
+table(batches)
+
+## ** subsample genes
+## keep deg sampled_deg <- myt$subsampling(deg, args$ngene)
+sampled_fpdeg <- myt$subsampling(ovlp_fpdeg, args$ngene)
+sampled_tndeg <- myt$subsampling(ovlp_tndeg, args$ngene)
+sampled_dea <- union(ovlp_deg, union(sampled_fpdeg, sampled_tndeg))
+cnt <- cnt[sampled_dea, ]
+message("Finally data size:")
+myt$print_sc(nrow(cnt), ncol(cnt), row = "gene")
+
+## ** save subsampled data
+saveRDS(
+  list(cnt = cnt, batches = batches, conds = conds, totcntpcell=totcntpcell),
+  here(mydatadir, mysubdir, "sampled_scRNAseq_summary.rds")
+)
+## * to bagwiff model
+myt$to_bagwiff(
+  cnt, batches, conds, totcntpcell,
+  here(mydatadir, mysubdir, args$output),
+  args$rdump
+  )
+

@@ -39,3 +39,66 @@ rm_mt <- function(seqdata) {
   }
   return(seqdata)
 }
+
+to_bagwiff <- function(cnt_gbc, batch, conds, totcntpcell,outf, rdump = FALSE) {
+  ## bagwiff: modeling batch effects on gene-wise level
+  ncells <- ncol(cnt_gbc)
+  if (ncells != length(batch)) {
+    error(
+      stringr::str_glue(
+        "num of cell not match: cnt_gbc({ncells}); batch ({length(batch)})"
+      )
+    )
+  }
+  if (ncells != length(conds)) {
+    error(
+      stringr::str_glue(
+        "num of cell not match: cnt_gbc({ncells}); conds ({length(conds)})"
+      )
+    )
+  }
+  Xcg <- t(as.matrix(cnt_gbc))
+  XInd <- to_onehot_matrix(batch)
+  XCond <- to_onehot_matrix(conds)
+  N <- nrow(XCond)
+  J <- ncol(XCond)
+  K <- ncol(XInd)
+  G <- ncol(Xcg)
+
+  ## S <- rowSums(Xcg)
+  S <- totcntpcell
+
+  ## bagmiff mdel
+  ## bagmiff: modeling batch effects on gene-module level
+  ## add gene module infomration.
+  ## a trivial one
+  P <- 1L
+  B <- matrix(1:G, nrow = G, ncol = P)
+  if (rdump) {
+    rstan::stan_rdump(c(
+      "N", "J", "K", "G", "S", "P", "B",
+      "XCond", "XInd", "Xcg"
+    ), file = outf)
+  }
+  else {
+    Xcg <- as.data.frame(Xcg)
+    XInd <- as.data.frame(XInd)
+    XCond <- as.data.frame(XCond)
+    save(N, J, K, G, S, P, B, XInd, XCond, Xcg, file = outf)
+  }
+}
+
+subsampling <- function(myarray, size, replace = FALSE) {
+  if (length(myarray) <= size) {
+    return(myarray)
+  } else {
+    return(sample(myarray, size = size, replace = replace))
+  }
+}
+
+stat_geneset <- function(pool, geneset) {
+  ovlp <- intersect(pool, geneset)
+  message(stringr::str_glue("num of geneset: {length(geneset)}"))
+  message(stringr::str_glue("num in pool: {length(ovlp)}"))
+  return(ovlp)
+}
