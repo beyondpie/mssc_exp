@@ -2,12 +2,7 @@
 # plz use gmake
 # use absolute path for project root dir
 # it can be defined outside
-root ?= /Users/beyondpie/git-recipes/sDESeq
-
-.PHONY: pybagwiff_data rm_bagwiff_data compile sample combchains vi \
-        test_filter debulk rmbulk rdumpbagwiff
-
-local_data_dir := data
+root ?= /home/labszu/git-recipes/scRNAseqDEA
 sub := UM
 cell := Malignant
 
