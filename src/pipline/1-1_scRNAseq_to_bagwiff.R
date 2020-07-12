@@ -155,7 +155,8 @@ the_cell <- args$celltype
 cnt <- cnt[, which(cellanno == the_cell)]
 message(str_glue("After choosing cell type {the_cell}"))
 myt$print_sc(nrow(cnt), ncol(cnt), row = "gene")
-
+## [MAJOR]: get the total numebr of count for all the genes.
+totcntpcell <- colSums(cnt)
 ## ** filtering genes
 
 ## *** low-quality genes
@@ -227,6 +228,9 @@ sampled_cells <- unique(batches) %>%
 cnt <- cnt[, sampled_cells$rows]
 colnames(cnt) <- sampled_cells$names
 
+totcntpcell <- totcntpcell[sampled_cells$rows]
+names(totcntpcell) <- sampled_cells$names
+
 message("after subsamlpling cells, conds")
 conds <- conds[sampled_cells$rows]
 table(conds)
@@ -245,12 +249,13 @@ myt$print_sc(nrow(cnt), ncol(cnt), row = "gene")
 
 ## ** save subsampled data
 saveRDS(
-  list(cnt = cnt, batches = batches, conds = conds),
+  list(cnt = cnt, batches = batches, conds = conds, totcntpcell=totcntpcell),
   here(mydatadir, mysubdir, "sampled_scRNAseq_summary.rds")
 )
 ## * to bagwiff model
 myt$to_bagwiff(
-  cnt, batches, conds,
+  cnt, batches, conds, totcntpcell,
   here(mydatadir, mysubdir, args$output),
   args$rdump
-)
+  )
+

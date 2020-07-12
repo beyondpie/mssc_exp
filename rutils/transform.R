@@ -40,7 +40,7 @@ rm_mt <- function(seqdata) {
   return(seqdata)
 }
 
-to_bagwiff <- function(cnt_gbc, batch, conds, outf, rdump = FALSE) {
+to_bagwiff <- function(cnt_gbc, batch, conds, totcntpcell,outf, rdump = FALSE) {
   ## bagwiff: modeling batch effects on gene-wise level
   ncells <- ncol(cnt_gbc)
   if (ncells != length(batch)) {
@@ -64,7 +64,9 @@ to_bagwiff <- function(cnt_gbc, batch, conds, outf, rdump = FALSE) {
   J <- ncol(XCond)
   K <- ncol(XInd)
   G <- ncol(Xcg)
-  S <- rowSums(Xcg)
+
+  ## S <- rowSums(Xcg)
+  S <- totcntpcell
 
   ## bagmiff mdel
   ## bagmiff: modeling batch effects on gene-module level
@@ -75,7 +77,7 @@ to_bagwiff <- function(cnt_gbc, batch, conds, outf, rdump = FALSE) {
   if (rdump) {
     rstan::stan_rdump(c(
       "N", "J", "K", "G", "S", "P", "B",
-      "XCond", "Xcond", "Xcg"
+      "XCond", "XInd", "Xcg"
     ), file = outf)
   }
   else {

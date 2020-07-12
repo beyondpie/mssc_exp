@@ -29,7 +29,7 @@ deg := tcga_diffexp_genes.rds
 fpdeg := tcga_fp_diffexp_genes.rds
 tndeg := tcga_tn_diffexp_genes.rds
 
-dea := $(addprefix ${mydir}, ${deg} ${fpdeg} ${tndeg})
+dea := $(addprefix ${mydir}/, ${deg} ${fpdeg} ${tndeg})
 
 ncell := 200
 ngene := 140
@@ -38,15 +38,15 @@ sc_rdata := UVM_scRNAseq_c${ncell}g${ngene}.RData
 sc_pydump := UVM_scRNAseqpy_c${ncell}g${ngene}.rdump
 sc_rdump := UVM_scRNAseq_c${ncell}g${ngene}.rdump
 
-${mydir}/${genef} ${dea} &:
-	@Rscript ${pipline_dir}/${de_bulkRNAseq_r}
+${mydir}/${genef} ${dea} &: ${pipline_dir}/${de_bulkRNAseq_r}
+	@Rscript $<
 
 debulk : ${mydir}/${genef} ${dea}
 rmbulk :
 	-rm ${mydir}/${genef} ${dea}
 	-rm *.png
 
-${mydir}/${sc_rdump}: ${mydir}/${genef} ${dea}
+${mydir}/${sc_rdump}: ${pipline_dir}/${bagwiff_r} ${mydir}/${genef} ${dea}
 	@Rscript ${pipline_dir}/${bagwiff_r} \
     --data_dir ${local_data_dir}\
 		--sub ${sub}\
