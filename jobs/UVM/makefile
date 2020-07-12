@@ -9,7 +9,9 @@ sub := UM
 cell := Malignant
 curdir := $(shell pwd)
 local_data_dir := data
+exps := exps
 mydir := ${root}/${local_data_dir}/${sub}
+stanoutdir := ${root}/${exps}/${sub}/stan
 
 # * prepare stan data
 pipline_dir := ${root}/src/pipline
@@ -103,9 +105,8 @@ mc := mc
 cpc := cpc
 vi := vi
 
-result_dir := ${mydir}/stan
-mcdir := ${result_dir}/${mc}
-vidir := ${result_dir}/${vi}
+mcdir := ${stanoutdir}/${mc}
+vidir := ${stanoutdir}/${vi}
 
 MODEL ?= v1-1
 model_bin := ${curdir}/${MODEL}
