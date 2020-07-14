@@ -18,6 +18,15 @@ options("import.path" = here("rutils"))
 myt <- modules::import("transform")
 
 ## * load genes information
+data_dir <- "data"
+subdir <- "UM"
+
+de_outfnm <- "tcga_diffexp_genes.rds"
+fpde_outfnm <- "tcga_fp_diffexp_genes.rds"
+tnde_outfnm <- "tcga_tn_diffexp_genes.rds"
+
+scRNAseq_sumfnm <- "sampled_scRNAseq_summary.rds"
+
 
 ## * utils for gettign rstan results
 load_stan_vi <- function(path) {
