@@ -83,3 +83,5 @@ vignettes/*.pdf
 /quick/ref/
 /ref/small_model/ref/
 /jobs/UVM/v1-1
+/exps
+/jobs/UVM/PreprocessingOutput.png
