@@ -10,7 +10,7 @@ library(data.table)
 suppressPackageStartupMessages(library(Matrix))
 suppressPackageStartupMessages(library(tidyverse))
 
-suppressPackageStartupMessages(import::from(here::here))
+suppressPackageStartupMessages(import::from(here,here))
 import::from(optparse, make_option, OptionParser, parse_args)
 import::from(stringr, str_glue)
 
@@ -25,7 +25,17 @@ de_outfnm <- "tcga_diffexp_genes.rds"
 fpde_outfnm <- "tcga_fp_diffexp_genes.rds"
 tnde_outfnm <- "tcga_tn_diffexp_genes.rds"
 
+deg <- readRDS(here(data_dir, subdir, de_outfnm))
+fpdeg <- readRDS(here(data_dir, subdir, fpde_outfnm))
+tndeg <- readRDS(here(data_dir, subdir, tnde_outfnm))
+
 scRNAseq_sumfnm <- "sampled_scRNAseq_summary.rds"
+sc_data_list <- readRDS(here(data_dir, subdir, scRNAseq_sumfnm))
+sc_genes <- rownames(sc_data_list$cnt)
+
+## ** retrieve de/nonde-related genes
+deg <- myt$stat_geneset(sc_genes, deg)
+fpdeg <- 
 
 
 ## * utils for gettign rstan results
@@ -49,8 +59,8 @@ get_ctrlmnscase_par <- function(mystanfit, par="MuCond") {
 
 ## point relative to regions
 mypntrela2rgn <- function(myintvals, myprobs = c(0.025, 0.975), pnt=0.0) {
-  q <- as.data.frame(apply(myintvals, 2, quantile, probs=myprobs))
-  apply(q, 2, myt$pntrela2rgn, pnt=pnt)
+  q <- as.data.frame(apply(myintvals, 2, quantile, probs = myprobs))
+  apply(q, 2, myt$pntrela2rgn, pnt = pnt)
 }
 
 

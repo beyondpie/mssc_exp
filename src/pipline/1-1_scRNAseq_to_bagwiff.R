@@ -249,9 +249,10 @@ myt$print_sc(nrow(cnt), ncol(cnt), row = "gene")
 
 ## ** save subsampled data
 saveRDS(
-  list(cnt = cnt, batches = batches, conds = conds, totcntpcell=totcntpcell),
+  list(cnt = cnt, batches = batches, conds = conds, totcntpcell = totcntpcell),
   here(mydatadir, mysubdir, "sampled_scRNAseq_summary.rds")
 )
+
 ## * to bagwiff model
 myt$to_bagwiff(
   cnt, batches, conds, totcntpcell,
