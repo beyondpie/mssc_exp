@@ -46,9 +46,9 @@ sc_data_list <- readRDS(here(data_dir, subdir, scdata_sumfnm))
 sc_genes <- rownames(sc_data_list$cnt)
 
 ## * retrieve de/nonde-related genes
-deg <- myt$stat_geneset(sc_genes, deg)
-fpdeg <- myt$stat_geneset(sc_genes, fpdeg)
-tndeg <- myt$stat_geneset(sc_genes, tndeg)
+deg <- myt$stat_geneset(sc_genes, deg$genesymbol)
+fpdeg <- myt$stat_geneset(sc_genes, fpdeg$genesymbol)
+tndeg <- myt$stat_geneset(sc_genes, tndeg$genesymbol)
 
 
 ## * utils for gettign rstan results
@@ -88,10 +88,10 @@ mystanvifit <- load_stan_vi(here(
 ))
 
 ## ** mcfit
-mystanmcfit <- load_stan_mc(here(
-  exp_dir, exp_sub_dir,
-  stan_dir, mc_dir
-), mcprefix)
+## mystanmcfit <- load_stan_mc(here(
+##   exp_dir, exp_sub_dir,
+##   stan_dir, mc_dir
+## ), mcprefix)
 
 ## ** performance analyze
 mystanfit <- mystanvifit
