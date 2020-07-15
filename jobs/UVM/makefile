@@ -1,9 +1,9 @@
 #!make
 # use gmake
 
-# root ?= /home/labszu/git-recipes/scRNAseqDEA
-root ?= /Users/beyondpie/git-recipes/sDESeq
-.PHONY: pybagwiff_data rm_bagwiff_data compile sample combchains vi \
+root ?= /home/labszu/git-recipes/scRNAseqDEA
+# root ?= /Users/beyondpie/git-recipes/sDESeq
+.PHONY: install pybagwiff_data rm_bagwiff_data compile sample combchains vi \
         test_filter debulk rmbulk rdumpbagwiff \
         visum
 sub := UM
