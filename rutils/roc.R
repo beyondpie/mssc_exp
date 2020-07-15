@@ -42,5 +42,6 @@ f1 <- function(tp, fp, tn, fn) {
 
 mcc <- function(tp, fp, tn, fn) {
   ## * Matthew correlation coefficient
-  return((tp * tn - fp * fn) / sqrt((tp + fp) * (tp + fn) * (tn + fp) * (tn + fn)))
+  return((tp * tn - fp * fn) /
+         sqrt((tp + fp) * (tp + fn) * (tn + fp) * (tn + fn)))
 }

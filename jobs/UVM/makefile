@@ -2,9 +2,11 @@
 # plz use gmake
 # use absolute path for project root dir
 # it can be defined outside
-root ?= /home/labszu/git-recipes/scRNAseqDEA
+# root ?= /home/labszu/git-recipes/scRNAseqDEA
+root ?= /Users/beyondpie/git-recipes/sDESeq
 .PHONY: pybagwiff_data rm_bagwiff_data compile sample combchains vi \
-        test_filter debulk rmbulk rdumpbagwiff
+        test_filter debulk rmbulk rdumpbagwiff \
+        visum
 sub := UM
 cell := Malignant
 curdir := $(shell pwd)
@@ -135,6 +137,10 @@ combchains: ${cmdstan_dir}/${cpc}.sh ${onemcresult}
 vi: ${cmdstan_dir}/${vi}.sh ${model_bin} ${mybagwiffdata}
 	-mkdir -p ${vidir}
 	$^ ${vidir}
+
+stan_analyzer := 2-1_stan_vi_analyzer.R
+visum:
+	Rscript ${pipline_dir}/${stan_analyzer}
 
 clean:
 	-rm ${curdir}/*.d ${curdir}/*.hpp ${curdir}/*.o
