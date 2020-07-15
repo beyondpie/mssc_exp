@@ -6,7 +6,7 @@ library(rstan)
 library(ggplot2)
 library(bayesplot)
 library(data.table)
-library(pROC)
+## suppressPackageStartupMessages(library(pROC))
 
 suppressPackageStartupMessages(library(Matrix))
 suppressPackageStartupMessages(library(tidyverse))
@@ -49,7 +49,6 @@ sc_genes <- rownames(sc_data_list$cnt)
 deg <- myt$stat_geneset(sc_genes, deg)
 fpdeg <- myt$stat_geneset(sc_genes, fpdeg)
 tndeg <- myt$stat_geneset(sc_genes, tndeg)
-
 
 
 ## * utils for gettign rstan results
@@ -103,10 +102,10 @@ zerorela2dmucond <- mypntrela2rgn(dmucond, myprobs = c(0.025, 0.975), pnt = 0.0)
 pred_deg <- sc_genes[zerorela2dmucond != 0]
 pred_ndeg <- setdiff(sc_genes, pred_deg)
 
-pred_tpg <- intersect(pred_deg, tpdeg)
+pred_tpg <- intersect(pred_deg, deg)
 pred_tng <- intersect(pred_ndeg, tndeg)
-pred_fpg <- setdiff(pred_deg, tpdeg)
-pred_fng <- setdiff(pred_ndeg, tndep)
+pred_fpg <- setdiff(pred_deg, deg)
+pred_fng <- setdiff(pred_ndeg, tndeg)
 
 tp <- length(pred_tpg)
 tn <- length(pred_tng)
