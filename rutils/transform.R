@@ -107,8 +107,7 @@ stat_geneset <- function(pool, geneset) {
 draw_invgamma <- function(alpha, rate = 1 / alpha, from = 0.0001, to = 20) {
   ggplot2::theme_set(ggplot2::theme_bw())
   x <- seq(from, to, 0.01)
-  ggplot2::qplot(x, invgamma::dinvgamma(x, alpha, rate),
-                 ggplot2::geom = "line")
+  ggplot2::qplot(x, invgamma::dinvgamma(x, alpha, rate), geom = "line")
 }
 
 ## point relative to the region
