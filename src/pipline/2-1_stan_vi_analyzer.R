@@ -34,9 +34,7 @@ exp_dir <- "exps"
 exp_sub_dir <- "UM"
 stan_dir <- "stan"
 mc_dir <- "mc"
-mcprefix <- "v1-1_chain_"
 vi_dir <- "vi"
-vifnm <- "v1-1.csv"
 
 ## * load genes information
 deg <- readRDS(here(data_dir, subdir, de_outfnm))
@@ -79,45 +77,47 @@ mypntrela2rgn <- function(myintvals, myprobs = c(0.025, 0.975), pnt = 0.0) {
   apply(q, 2, myt$pntrela2rgn, pnt = pnt)
 }
 
+## Bayesin posterial quatile evaluation
+bayesqtlevl <- function(modelnm="v1-1", method = "vi", par = "MuCond",
+                        myprobs = c(0.025, 0.975), pnt = 0.0) {
+  if (method == "vi") {
+    vifnm <- paste0(modelnm, ".csv")
+    mystanfit <- load_stan_vi(here(exp_dir, exp_sub_dir,
+                                   stan_dir, vi_dir, vifnm))
+  }
+  if (method == "mc") {
+    mcprefix <- paste0(modelnm, "_chain_")
+    mystanfit <- load_stan_mc(dirpath = here(exp_dir,
+                                             exp_sub_dir, stan_dir, mc_dir),
+                              modelnm = mcprefix)
+  }
+  ## dmucond: delta mucond
+  dmucond <- get_ctrlmnscase_par(mystanfit = mystanfit, par = par)
+  zerorela2dmucond <- mypntrela2rgn(dmucond, myprobs = myprobs, pnt = pnt)
+  pred_deg <- sc_genes[zerorela2dmucond != 0]
+  pred_ndeg <- setdiff(sc_genes, pred_deg)
+
+  pred_tpg <- intersect(pred_deg, deg)
+  pred_tng <- intersect(pred_ndeg, tndeg)
+  pred_fpg <- setdiff(pred_deg, deg)
+  pred_fng <- setdiff(pred_ndeg, tndeg)
+
+  tp <- length(pred_tpg)
+  tn <- length(pred_tng)
+  fp <- length(pred_fpg)
+  fn <- length(pred_fng)
+
+  tpr <- myroc$tpr(tp, fp, tn, fn)
+  fpr <- myroc$fpr(tp, fp, tn, fn)
+  fdr <- myroc$fdr(tp, fp, tn, fn)
+  f1 <- myroc$f1(tp, fp, tn, fn)
+  message(str_glue("model {modelnm} with method {method}"))
+  message(str_glue("parameter: {par}"))
+  message(str_glue("Bayesian quantile: ({myprobs[1]}, {myprobs[2]})"))
+  message(str_glue("TPR({tpr}), FPR({fpr}), FDR({fdr}). F1({f1})"))
+}
 
 ## * main
-## ** vifit
-mystanvifit <- load_stan_vi(here(
-  exp_dir, exp_sub_dir,
-  stan_dir, vi_dir, vifnm
-))
-
-## ** mcfit
-## mystanmcfit <- load_stan_mc(here(
-##   exp_dir, exp_sub_dir,
-##   stan_dir, mc_dir
-## ), mcprefix)
-
 ## ** performance analyze
-mystanfit <- mystanvifit
-
-## dmucond: delta mucond
-dmucond <- get_ctrlmnscase_par(mystanfit, par = "MuCond")
-zerorela2dmucond <- mypntrela2rgn(dmucond, myprobs = c(0.025, 0.975), pnt = 0.0)
-pred_deg <- sc_genes[zerorela2dmucond != 0]
-pred_ndeg <- setdiff(sc_genes, pred_deg)
-
-pred_tpg <- intersect(pred_deg, deg)
-pred_tng <- intersect(pred_ndeg, tndeg)
-pred_fpg <- setdiff(pred_deg, deg)
-pred_fng <- setdiff(pred_ndeg, tndeg)
-
-tp <- length(pred_tpg)
-tn <- length(pred_tng)
-fp <- length(pred_fpg)
-fn <- length(pred_fng)
-
-myevals <- c(
-  myroc$tpr(tp, fp, tn, fn),
-  myroc$fpr(tp, fp, tn, fn),
-  myroc$fdr(tp, fp, tn, fn),
-  myroc$f1(tp, fp, tn, fn)
-)
-
-names(myevals) <- c("TPR", "FPR", "FDR", "F1")
-message(str(myevals))
+bayesqtlevl("v1-1", "vi", myrobs = (0.025, 0.975))
+bayesqtlevl("v1-1", "vi", myrobs = (0.05, 0.95))
