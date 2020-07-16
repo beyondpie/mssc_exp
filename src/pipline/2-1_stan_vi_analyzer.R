@@ -124,5 +124,6 @@ bayesqtlevl <- function(modelnm = "v1-1", method = "vi", par = "MuCond",
 
 ## * main
 ## ** performance analyze
+bayesqtlevl("v1-1", "vi", myprobs = c(0.01, 0.99))
 bayesqtlevl("v1-1", "vi", myprobs = c(0.025, 0.975))
 bayesqtlevl("v1-1", "vi", myprobs = c(0.05, 0.95))
