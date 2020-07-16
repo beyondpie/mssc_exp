@@ -1,12 +1,11 @@
 options(error = traceback)
 options(warn = -1)
 
-library(Seurat)
-library(rstan)
-library(ggplot2)
-library(bayesplot)
-library(data.table)
-## suppressPackageStartupMessages(library(pROC))
+suppressPackageStartupMessages(library(Seurat))
+suppressPackageStartupMessages(library(rstan))
+suppressPackageStartupMessages(library(ggplot2))
+suppressPackageStartupMessages(library(bayesplot))
+suppressPackageStartupMessages(library(data.table))
 
 suppressPackageStartupMessages(library(Matrix))
 suppressPackageStartupMessages(library(tidyverse))
@@ -119,5 +118,5 @@ bayesqtlevl <- function(modelnm="v1-1", method = "vi", par = "MuCond",
 
 ## * main
 ## ** performance analyze
-bayesqtlevl("v1-1", "vi", myrobs = (0.025, 0.975))
-bayesqtlevl("v1-1", "vi", myrobs = (0.05, 0.95))
+bayesqtlevl("v1-1", "vi", myprobs = (0.025, 0.975))
+bayesqtlevl("v1-1", "vi", myprobs = (0.05, 0.95))
