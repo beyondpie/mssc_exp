@@ -77,18 +77,24 @@ mypntrela2rgn <- function(myintvals, myprobs = c(0.025, 0.975), pnt = 0.0) {
 }
 
 ## Bayesin posterial quatile evaluation
-bayesqtlevl <- function(modelnm="v1-1", method = "vi", par = "MuCond",
+bayesqtlevl <- function(modelnm = "v1-1", method = "vi", par = "MuCond",
                         myprobs = c(0.025, 0.975), pnt = 0.0) {
   if (method == "vi") {
     vifnm <- paste0(modelnm, ".csv")
-    mystanfit <- load_stan_vi(here(exp_dir, exp_sub_dir,
-                                   stan_dir, vi_dir, vifnm))
+    mystanfit <- load_stan_vi(here(
+      exp_dir, exp_sub_dir,
+      stan_dir, vi_dir, vifnm
+    ))
   }
   if (method == "mc") {
     mcprefix <- paste0(modelnm, "_chain_")
-    mystanfit <- load_stan_mc(dirpath = here(exp_dir,
-                                             exp_sub_dir, stan_dir, mc_dir),
-                              modelnm = mcprefix)
+    mystanfit <- load_stan_mc(
+      dirpath = here(
+        exp_dir,
+        exp_sub_dir, stan_dir, mc_dir
+      ),
+      modelnm = mcprefix
+    )
   }
   ## dmucond: delta mucond
   dmucond <- get_ctrlmnscase_par(mystanfit = mystanfit, par = par)
@@ -118,5 +124,5 @@ bayesqtlevl <- function(modelnm="v1-1", method = "vi", par = "MuCond",
 
 ## * main
 ## ** performance analyze
-bayesqtlevl("v1-1", "vi", myprobs = (0.025, 0.975))
-bayesqtlevl("v1-1", "vi", myprobs = (0.05, 0.95))
+bayesqtlevl("v1-1", "vi", myprobs = c(0.025, 0.975))
+bayesqtlevl("v1-1", "vi", myprobs = c(0.05, 0.95))
