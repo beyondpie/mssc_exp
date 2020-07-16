@@ -112,14 +112,16 @@ bayesqtlevl <- function(modelnm = "v1-1", method = "vi", par = "MuCond",
   fp <- length(pred_fpg)
   fn <- length(pred_fng)
 
-  tpr <- myroc$tpr(tp, fp, tn, fn)
-  fpr <- myroc$fpr(tp, fp, tn, fn)
-  fdr <- myroc$fdr(tp, fp, tn, fn)
-  f1 <- myroc$f1(tp, fp, tn, fn)
+  tpr <- myt$fmtflt(myroc$tpr(tp, fp, tn, fn))
+  fpr <- myt$fmtflt(myroc$fpr(tp, fp, tn, fn))
+  fdr <- myt$fmtflt(myroc$fdr(tp, fp, tn, fn))
+  f1 <- myt$fmtflt(myroc$f1(tp, fp, tn, fn))
+
   message(str_glue("model {modelnm} with method {method}"))
   message(str_glue("parameter: {par}"))
   message(str_glue("Bayesian quantile: ({myprobs[1]}, {myprobs[2]})"))
   message(str_glue("TPR({tpr}), FPR({fpr}), FDR({fdr}). F1({f1})"))
+  message(str_glue("TP({tp}), FP({fp}), TN({tn}), FN({fn})"))
 }
 
 ## * main

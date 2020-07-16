@@ -123,3 +123,7 @@ pntrela2rgn <- function(rgn = c(0.0, 1.0), pnt = 0.0) {
   return(post)
 }
 
+## format float
+fmtflt <- function(f, nsmall = 3) {
+  return(format(round(f, nsmall), nsmall = nsmall))
+}
