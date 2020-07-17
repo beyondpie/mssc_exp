@@ -1,3 +1,4 @@
+
 to_onehot_matrix <- function(str_vec) {
   as.matrix(mltools::one_hot(data.table::data.table(as.factor(str_vec))))
 }
@@ -101,4 +102,28 @@ stat_geneset <- function(pool, geneset) {
   message(stringr::str_glue("num of geneset: {length(geneset)}"))
   message(stringr::str_glue("num in pool: {length(ovlp)}"))
   return(ovlp)
+}
+
+draw_invgamma <- function(alpha, rate = 1 / alpha, from = 0.0001, to = 20) {
+  ggplot2::theme_set(ggplot2::theme_bw())
+  x <- seq(from, to, 0.01)
+  ggplot2::qplot(x, invgamma::dinvgamma(x, alpha, rate), geom = "line")
+}
+
+## point relative to the region
+pntrela2rgn <- function(rgn = c(0.0, 1.0), pnt = 0.0) {
+  post = 0
+  if (pnt < rgn[1]) {
+    post <- -1
+  } else if (pnt > rgn[2]) {
+    post <- 1
+  } else {
+    post <- 0
+  }
+  return(post)
+}
+
+## format float
+fmtflt <- function(f, nsmall = 3) {
+  return(format(round(f, nsmall), nsmall = nsmall))
 }

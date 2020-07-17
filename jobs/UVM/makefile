@@ -1,10 +1,11 @@
 #!make
-# plz use gmake
-# use absolute path for project root dir
-# it can be defined outside
+# use gmake
+
 root ?= /home/labszu/git-recipes/scRNAseqDEA
-.PHONY: pybagwiff_data rm_bagwiff_data compile sample combchains vi \
-        test_filter debulk rmbulk rdumpbagwiff
+# root ?= /Users/beyondpie/git-recipes/sDESeq
+.PHONY: install pybagwiff_data rm_bagwiff_data compile sample combchains vi \
+        test_filter debulk rmbulk rdumpbagwiff \
+        visum
 sub := UM
 cell := Malignant
 curdir := $(shell pwd)
@@ -12,9 +13,14 @@ local_data_dir := data
 exps := exps
 mydir := ${root}/${local_data_dir}/${sub}
 stanoutdir := ${root}/${exps}/${sub}/stan
+pipline_dir := ${root}/src/pipline
+
+# * install packages
+installpackges := 0-0_install_packages.R
+install: ${pipline_dir}/${installpackges}
+	Rscript $<
 
 # * prepare stan data
-pipline_dir := ${root}/src/pipline
 de_bulkRNAseq_r := 1-0_diff_bulkRNAseq_data.R
 bagwiff_r := 1-1_scRNAseq_to_bagwiff.R
 bagwiff_py := 1-2_scRNAseq_to_bagwiff.py
@@ -135,6 +141,10 @@ combchains: ${cmdstan_dir}/${cpc}.sh ${onemcresult}
 vi: ${cmdstan_dir}/${vi}.sh ${model_bin} ${mybagwiffdata}
 	-mkdir -p ${vidir}
 	$^ ${vidir}
+
+stan_analyzer := 2-1_stan_vi_analyzer.R
+visum:
+	Rscript ${pipline_dir}/${stan_analyzer}
 
 clean:
 	-rm ${curdir}/*.d ${curdir}/*.hpp ${curdir}/*.o
