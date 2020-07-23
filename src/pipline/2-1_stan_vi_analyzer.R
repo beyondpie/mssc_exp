@@ -47,20 +47,6 @@ deg <- myt$stat_geneset(sc_genes, deg$genesymbol)
 fpdeg <- myt$stat_geneset(sc_genes, fpdeg$genesymbol)
 tndeg <- myt$stat_geneset(sc_genes, tndeg$genesymbol)
 
-
-## * utils for gettign rstan results
-load_stan_vi <- function(path) {
-  rstan::read_stan_csv(path)
-}
-
-load_stan_mc <- function(dirpath, modelnm) {
-  csvfiles <- dir(
-    path = dirpath, pattern = paste0(modelnm, "[0-9].csv"),
-    full.names = T
-  )
-  rstan::read_stan_csv(csvfiles)
-}
-
 ## TODO: add explanation about which is case and control
 ## ctrlmnscase: control minus case
 get_ctrlmnscase_par <- function(mystanfit, par = "MuCond") {
@@ -71,12 +57,16 @@ get_ctrlmnscase_par <- function(mystanfit, par = "MuCond") {
 }
 
 ## simple t statistics
-get_t_stat <- function(delta, fn=mean) {
+calt <- function(delta, fn=matrixStats::colMedians) {
   fnhat <- fn(delta)
-  std_hat <- sd(delta) + 1e-10
-  return(fnhat / (sqrt(length(delta) * std_hat )))
+  std_hat <- matrixStats::colSds(delta + 1e-10)
+  return(fnhat / (sqrt(nrow(delta) * std_hat)))
 }
 
+## AUC analysis
+evalauc <- function(scores, backend) {
+  caTools::colAUC(scores, backend)
+}
 
 ## point relative to regions
 mypntrela2rgn <- function(myintvals, myprobs = c(0.025, 0.975), pnt = 0.0) {
@@ -85,25 +75,10 @@ mypntrela2rgn <- function(myintvals, myprobs = c(0.025, 0.975), pnt = 0.0) {
 }
 
 ## Bayesin posterial quatile evaluation
-bayesqtlevl <- function(modelnm = "v1-1", method = "vi", par = "MuCond",
-                        myprobs = c(0.025, 0.975), pnt = 0.0) {
-  if (method == "vi") {
-    vifnm <- paste0(modelnm, ".csv")
-    mystanfit <- load_stan_vi(here(
-      exp_dir, exp_sub_dir,
-      stan_dir, vi_dir, vifnm
-    ))
-  }
-  if (method == "mc") {
-    mcprefix <- paste0(modelnm, "_chain_")
-    mystanfit <- load_stan_mc(
-      dirpath = here(
-        exp_dir,
-        exp_sub_dir, stan_dir, mc_dir
-      ),
-      modelnm = mcprefix
-    )
-  }
+evalqtl <- function(modelnm = "v1-1", method = "vi", par = "MuCond",
+                    myprobs = c(0.025, 0.975), pnt = 0.0) {
+  mystanfit <- myt$load_stan(here(exp_dir, exp_sub_dir, stan_dir),
+                             modelnm, method)
   ## dmucond: delta mucond
   dmucond <- get_ctrlmnscase_par(mystanfit = mystanfit, par = par)
   zerorela2dmucond <- mypntrela2rgn(dmucond, myprobs = myprobs, pnt = pnt)
@@ -134,6 +109,6 @@ bayesqtlevl <- function(modelnm = "v1-1", method = "vi", par = "MuCond",
 
 ## * main
 ## ** performance analyze
-bayesqtlevl("v1-1", "vi", myprobs = c(0.01, 0.99))
-bayesqtlevl("v1-1", "vi", myprobs = c(0.025, 0.975))
-bayesqtlevl("v1-1", "vi", myprobs = c(0.05, 0.95))
+evalqtl("v1-1", "vi", myprobs = c(0.01, 0.99))
+evalqtl("v1-1", "vi", myprobs = c(0.025, 0.975))
+evalqtl("v1-1", "vi", myprobs = c(0.05, 0.95))

@@ -127,3 +127,32 @@ pntrela2rgn <- function(rgn = c(0.0, 1.0), pnt = 0.0) {
 fmtflt <- function(f, nsmall = 3) {
   return(format(round(f, nsmall), nsmall = nsmall))
 }
+
+## * utils for gettign rstan results
+load_stan_vi <- function(path) {
+  rstan::read_stan_csv(path)
+}
+
+load_stan_mc <- function(dirpath, modelnm) {
+  csvfiles <- dir(
+    path = dirpath, pattern = paste0(modelnm, "[0-9].csv"),
+    full.names = T
+  )
+  rstan::read_stan_csv(csvfiles)
+}
+
+load_stan <- function(dirnm, modelnm="v1-1", method = "vi",
+                      vi_dir="vi", mc_dir="mc") {
+  if (method == "vi") {
+    vifnm <- paste0(modelnm, ".csv")
+    mystanfit <- load_stan_vi(paste(dirnm,vi_dir, vifnm, sep="/"))
+  }
+  if (method == "mc") {
+    mcprefix <- paste0(modelnm, "_chain_")
+    mystanfit <- load_stan_mc(
+      dirpath = paste(dirnm, mc_dir, sep = "/"),
+      modelnm = mcprefix
+    )
+  }
+  return(mystanfit)
+}
