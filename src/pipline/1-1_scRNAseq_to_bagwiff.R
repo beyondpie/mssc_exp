@@ -100,7 +100,6 @@ args <- option_list %>%
   parse_args()
 
 message("load arguments: ")
-## print(args)
 message(str(args))
 
 mydatadir <- args$data_dir

@@ -70,6 +70,14 @@ get_ctrlmnscase_par <- function(mystanfit, par = "MuCond") {
   return(delta)
 }
 
+## simple t statistics
+get_t_stat <- function(delta, fn=mean) {
+  fnhat <- fn(delta)
+  std_hat <- sd(delta) + 1e-10
+  return(fnhat / (sqrt(length(delta) * std_hat )))
+}
+
+
 ## point relative to regions
 mypntrela2rgn <- function(myintvals, myprobs = c(0.025, 0.975), pnt = 0.0) {
   q <- as.data.frame(apply(myintvals, 2, quantile, probs = myprobs))
