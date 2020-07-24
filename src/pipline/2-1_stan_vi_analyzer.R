@@ -55,7 +55,7 @@ get_ctrlmnscase_par <- function(mystanfit, par = "MuCond") {
 }
 
 ## simple t statistics
-calt <- function(delta, fn=matrixStats::colMedians) {
+calt <- function(delta, fn = matrixStats::colMedians) {
   fnhat <- fn(as.matrix(delta))
   std_hat <- matrixStats::colSds(as.matrix(delta) + 1e-10)
   sts <- fnhat / (sqrt(nrow(delta)) * std_hat)
@@ -85,11 +85,11 @@ getndegnms <- function(myndegnm = "extreme") {
 ## eval scores based on posterior samples using AUC
 evalstat <- function(modelnm = "v1-1", method = "vi", par = "MuCond",
                      fnm = "mean", myndegnm = "extreme",
-                     mydegnms=degnms) {
+                     mydegnms = degnms) {
   mystanfit <- myt$load_stan(
     here(exp_dir, exp_sub_dir, stan_dir),
     modelnm, method
-    )
+  )
   dmucond <- get_ctrlmnscase_par(mystanfit = mystanfit, par = par)
   if (fnm == "mean") {
     fn <- colMeans
@@ -106,9 +106,10 @@ evalstat <- function(modelnm = "v1-1", method = "vi", par = "MuCond",
   myauc <- myt$fmtflt(calauc(dmut[bgnms], mybackend))
   message(str_glue("model {modelnm} with method {method}"))
   message(str_glue(
-    "parameter: {par} with stats {fnm}"))
+    "parameter: {par} with stats {fnm}"
+  ))
   message(str_glue("AUC: {myauc}"))
-  return(list(auc=myauc, sts=dmut))
+  return(list(auc = myauc, sts = dmut))
 }
 
 ## point relative to regions
@@ -118,11 +119,13 @@ mypntrela2rgn <- function(myintvals, myprobs = c(0.025, 0.975), pnt = 0.0) {
 }
 
 ## Bayesin posterial quatile evaluation
-evalqtl <- function(modelnm = "v1-1", method = "vi", par = "MuCond",
+evalqtl <- function(modelnm = "v1-1", method = "mc", par = "MuCond",
                     myprobs = c(0.025, 0.975), pnt = 0.0,
                     deg = degnms, myndegnm = "extreme") {
-  mystanfit <- myt$load_stan(here(exp_dir, exp_sub_dir, stan_dir),
-                             modelnm, method)
+  mystanfit <- myt$load_stan(
+    here(exp_dir, exp_sub_dir, stan_dir),
+    modelnm, method
+  )
   ## dmucond: delta mucond
   dmucond <- get_ctrlmnscase_par(mystanfit = mystanfit, par = par)
   zerorela2dmucond <- mypntrela2rgn(dmucond, myprobs = myprobs, pnt = pnt)
@@ -133,8 +136,8 @@ evalqtl <- function(modelnm = "v1-1", method = "vi", par = "MuCond",
 
   pred_tpg <- intersect(pred_deg, deg)
   pred_tng <- intersect(pred_ndeg, ndegnms)
-  pred_fpg <- setdiff(pred_deg, deg)
-  pred_fng <- setdiff(pred_ndeg, ndegnms)
+  pred_fpg <- intersect(pred_deg, ndegnms)
+  pred_fng <- intersect(pred_ndeg, deg)
 
   tp <- length(pred_tpg)
   tn <- length(pred_tng)
@@ -158,9 +161,9 @@ evalqtl <- function(modelnm = "v1-1", method = "vi", par = "MuCond",
 ## *** quantile based
 ## region to use (0.01, 0.99), (0.025, 0.975), (0.05, 0.95)
 for (myndeg in c("extreme", "nearpositive", "all")) {
-  for (mymethod in c("vi", "mc")) {
+  for (mymethod in c("mc")) {
     tmp <- evalqtl("v1-1", mymethod,
-      myprobs = c(0.01, 0.99), myndegnm = myndeg
+      myprobs = c(0.025, 0.975), myndegnm = myndeg
     )
   }
 }
@@ -171,6 +174,6 @@ for (myndeg in c("extreme", "nearpositive", "all")) {
     tmp <- evalstat("v1-1", mymethod,
       par = "MuCond",
       fnm = "mean", myndegnm = myndeg
-      )
+    )
   }
 }
