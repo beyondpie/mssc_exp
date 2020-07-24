@@ -163,7 +163,7 @@ evalqtl <- function(modelnm = "v1-1", method = "mc", par = "MuCond",
 for (myndeg in c("extreme", "nearpositive", "all")) {
   for (mymethod in c("mc")) {
     tmp <- evalqtl("v1-1", mymethod,
-      myprobs = c(0.025, 0.975), myndegnm = myndeg
+      myprobs = c(0.25, 0.75), myndegnm = myndeg
     )
   }
 }
