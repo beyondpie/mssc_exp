@@ -41,7 +41,7 @@ rm_mt <- function(seqdata) {
   return(seqdata)
 }
 
-to_bagwiff <- function(cnt_gbc, batch, conds, totcntpcell,outf, rdump = FALSE) {
+to_bagwiff <- function(cnt_gbc, batch, conds, totcntpcell, outf, rdump = FALSE) {
   ## bagwiff: modeling batch effects on gene-wise level
   ncells <- ncol(cnt_gbc)
   if (ncells != length(batch)) {
@@ -112,7 +112,7 @@ draw_invgamma <- function(alpha, rate = 1 / alpha, from = 0.0001, to = 20) {
 
 ## point relative to the region
 pntrela2rgn <- function(rgn = c(0.0, 1.0), pnt = 0.0) {
-  post = 0
+  post <- 0
   if (pnt < rgn[1]) {
     post <- -1
   } else if (pnt > rgn[2]) {
@@ -141,11 +141,14 @@ load_stan_mc <- function(dirpath, modelnm) {
   rstan::read_stan_csv(csvfiles)
 }
 
-load_stan <- function(dirnm, modelnm="v1-1", method = "vi",
-                      vi_dir="vi", mc_dir="mc") {
+load_stan <- function(dirnm, modelnm = "v1-1", method = "vi",
+                      vi_dir = "vi", mc_dir = "mc") {
   if (method == "vi") {
     vifnm <- paste0(modelnm, ".csv")
-    mystanfit <- load_stan_vi(paste(dirnm,vi_dir, vifnm, sep="/"))
+    mystanfit <- load_stan_vi(paste(dirnm,
+      vi_dir, vifnm,
+      sep = "/"
+    ))
   }
   if (method == "mc") {
     mcprefix <- paste0(modelnm, "_chain_")

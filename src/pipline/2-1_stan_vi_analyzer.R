@@ -32,8 +32,6 @@ scdata_sumfnm <- "sampled_scRNAseq_summary.rds"
 exp_dir <- "exps"
 exp_sub_dir <- "UM"
 stan_dir <- "stan"
-mc_dir <- "mc"
-vi_dir <- "vi"
 
 ## * load genes information
 deg <- readRDS(here(data_dir, subdir, de_outfnm))
@@ -43,9 +41,9 @@ sc_data_list <- readRDS(here(data_dir, subdir, scdata_sumfnm))
 sc_genes <- rownames(sc_data_list$cnt)
 
 ## * retrieve de/nonde-related genes
-deg <- myt$stat_geneset(sc_genes, deg$genesymbol)
-fpdeg <- myt$stat_geneset(sc_genes, fpdeg$genesymbol)
-tndeg <- myt$stat_geneset(sc_genes, tndeg$genesymbol)
+degnms <- myt$stat_geneset(sc_genes, deg$genesymbol)
+fpdegnms <- myt$stat_geneset(sc_genes, fpdeg$genesymbol)
+tndegnms <- myt$stat_geneset(sc_genes, tndeg$genesymbol)
 
 ## TODO: add explanation about which is case and control
 ## ctrlmnscase: control minus case
@@ -64,8 +62,28 @@ calt <- function(delta, fn=matrixStats::colMedians) {
 }
 
 ## AUC analysis
-evalauc <- function(scores, backend) {
+calauc <- function(scores, backend) {
   caTools::colAUC(scores, backend)
+}
+
+## eval scores based on posterior samples using AUC
+evalstat <- function(modelnm = "v1-1", method = "vi", par = "MuCond",
+                     fn = matrixStats::colMeans,
+                     degnms=degnms, ndegnms=tndegnms) {
+  mystanfit <- myt$load_stan(
+    here(exp_dir, exp_sub_dir, stan_dir),
+    modelnm, method
+    )
+  dmucond <- get_ctrlmnscase_par(mystanfit = mystanfit, par = par)
+  dmut <- calt(dmucond, fn)
+  mybackend <- c(rep(TRUE, length(degnms)), rep(FALSE, length(ndegnms)))
+  bgnms <- c(degnms, ndegnms)
+  names(mybackend) <- bgnms
+  myauc <- calauc(dmut[names], mybackend)
+  message(str_glue("model {modelnm} with method {method}"))
+  message(str_glue("parameter: {par}"))
+  message(str_glue("AUC: {myauc}"))
+  return(myauc)
 }
 
 ## point relative to regions
@@ -76,7 +94,8 @@ mypntrela2rgn <- function(myintvals, myprobs = c(0.025, 0.975), pnt = 0.0) {
 
 ## Bayesin posterial quatile evaluation
 evalqtl <- function(modelnm = "v1-1", method = "vi", par = "MuCond",
-                    myprobs = c(0.025, 0.975), pnt = 0.0) {
+                    myprobs = c(0.025, 0.975), pnt = 0.0,
+                    deg = degnms, ndeg = tndegnms) {
   mystanfit <- myt$load_stan(here(exp_dir, exp_sub_dir, stan_dir),
                              modelnm, method)
   ## dmucond: delta mucond
@@ -109,6 +128,12 @@ evalqtl <- function(modelnm = "v1-1", method = "vi", par = "MuCond",
 
 ## * main
 ## ** performance analyze
+## *** quantile based
 evalqtl("v1-1", "vi", myprobs = c(0.01, 0.99))
 evalqtl("v1-1", "vi", myprobs = c(0.025, 0.975))
 evalqtl("v1-1", "vi", myprobs = c(0.05, 0.95))
+
+## *** statisitc rank based, i.e., AUC
+message("Using mean divided by std with true negative genes")
+evalstat("v1-1", "vi", par = "MuCond", fn = colMeans,
+         degnms = degnms, ndegnms = tndegnms)
