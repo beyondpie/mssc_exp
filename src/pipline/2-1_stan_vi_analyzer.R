@@ -1,12 +1,9 @@
 options(error = traceback)
 options(warn = -1)
 
-suppressPackageStartupMessages(library(Seurat))
 suppressPackageStartupMessages(library(rstan))
 suppressPackageStartupMessages(library(ggplot2))
 suppressPackageStartupMessages(library(bayesplot))
-suppressPackageStartupMessages(library(data.table))
-
 suppressPackageStartupMessages(library(Matrix))
 suppressPackageStartupMessages(library(tidyverse))
 

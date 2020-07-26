@@ -1,8 +1,8 @@
 #!make
 # use gmake
 
-root ?= /home/labszu/git-recipes/scRNAseqDEA
-# root ?= /Users/beyondpie/git-recipes/sDESeq
+# root ?= /home/labszu/git-recipes/mssc
+root ?= /Users/beyondpie/git-recipes/mssc
 .PHONY: install pybagwiff_data rm_bagwiff_data compile sample combchains vi \
         test_filter debulk rmbulk rdumpbagwiff \
         visum
@@ -145,6 +145,10 @@ vi: ${cmdstan_dir}/${vi}.sh ${model_bin} ${mybagwiffdata}
 stan_analyzer := 2-1_stan_vi_analyzer.R
 visum:
 	Rscript ${pipline_dir}/${stan_analyzer}
+
+pseudeseq_analyzer := 2-2_sc_pseudobulk.R
+pseudeseq:
+	Rscript ${pipline_dir}/${pseudeseq_analyzer}
 
 clean:
 	-rm ${curdir}/*.d ${curdir}/*.hpp ${curdir}/*.o
