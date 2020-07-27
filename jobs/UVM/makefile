@@ -5,7 +5,7 @@
 root ?= /Users/beyondpie/git-recipes/mssc
 .PHONY: install pybagwiff_data rm_bagwiff_data compile sample combchains vi \
         test_filter debulk rmbulk rdumpbagwiff \
-        visum
+        visum pseudeseq sc2cellpops
 sub := UM
 cell := Malignant
 curdir := $(shell pwd)
@@ -43,7 +43,7 @@ sc_rdata := UVM_scRNAseq_c${ncell}g${ngene}.RData
 sc_pydump := UVM_scRNAseqpy_c${ncell}g${ngene}.rdump
 sc_rdump := UVM_scRNAseq_c${ncell}g${ngene}.rdump
 
-${mydir}/${genef} ${dea} &: 
+${mydir}/${genef} ${dea} &:
 	@Rscript ${pipline_dir}/${de_bulkRNAseq_r}
 
 debulk : ${mydir}/${genef} ${dea}
@@ -101,6 +101,10 @@ rm_bagwiff_data:
 	-rm ${mydir}/${sc_rdata}
 	-rm ${mydir}/*.rdump
 
+# * scRNAseq to different cell populations
+sc_to_cellpops_r := 1-3_scRNAseq_to_cellpopulations.R
+sc2cellpops:
+	@Rscript ${pipline_dir}/${sc_to_cellpops_r}
 
 # * stan process
 cmdstan_dir := ${root}/src/cmdstan
@@ -146,6 +150,7 @@ stan_analyzer := 2-1_stan_vi_analyzer.R
 visum:
 	Rscript ${pipline_dir}/${stan_analyzer}
 
+# * pseudo-bulk analysis
 pseudeseq_analyzer := 2-2_sc_pseudobulk.R
 pseudeseq:
 	Rscript ${pipline_dir}/${pseudeseq_analyzer}
