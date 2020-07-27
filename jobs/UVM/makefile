@@ -4,8 +4,8 @@
 # root ?= /home/labszu/git-recipes/mssc
 root ?= /Users/beyondpie/git-recipes/mssc
 .PHONY: install pybagwiff_data rm_bagwiff_data compile sample combchains vi \
-        test_filter debulk rmbulk rdumpbagwiff \
-        visum pseudeseq sc2cellpops
+        test_filter debulk rmbulk rdumpbagwiff clean \
+        visum sc2cellpops pseudo_samplede pseudo_cellpops
 sub := UM
 cell := Malignant
 curdir := $(shell pwd)
@@ -152,8 +152,12 @@ visum:
 
 # * pseudo-bulk analysis
 pseudeseq_analyzer := 2-2_sc_pseudobulk.R
-pseudeseq:
-	Rscript ${pipline_dir}/${pseudeseq_analyzer}
+pseudo_sampled:
+	Rscript ${pipline_dir}/${pseudeseq_analyzer} --scdataf sampled_scRNAseq_summary.rds
+
+pseudo_cellpops:
+	Rscript ${pipline_dir}/${pseudeseq_analyzer} --scdataf scRNAseq_no_malignant.rds
+	Rscript ${pipline_dir}/${pseudeseq_analyzer} --scdataf scRNAseq_allcell.rds
 
 clean:
 	-rm ${curdir}/*.d ${curdir}/*.hpp ${curdir}/*.o

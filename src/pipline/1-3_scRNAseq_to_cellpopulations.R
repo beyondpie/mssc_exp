@@ -128,7 +128,7 @@ filtergenes_savedata <- function(mycnt, outfnm) {
     ## * save data
     saveRDS(
         list(
-            mycnt = mycnt, batches = batches,
+            cnt = mycnt, batches = batches,
             conds = conds, totmycntpcell = totmycntpcell
         ),
         here(datadir, subdir, outfnm)

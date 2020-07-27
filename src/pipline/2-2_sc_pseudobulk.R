@@ -6,9 +6,28 @@ suppressPackageStartupMessages(library(tidyverse))
 suppressPackageStartupMessages(import::from(here, here))
 suppressPackageStartupMessages(library(DESeq2))
 import::from(stringr, str_glue)
+library(optparse)
 
 options("import.path" = here("rutils"))
 myt <- modules::import("transform")
+
+## * options
+option_list <- list(
+  make_option(
+    c("--scdataf"),
+    action = "store",
+    type = "character",
+    default = "scRNAseq_no_malignant.rds"
+  )
+)
+
+args <- option_list %>%
+    OptionParser(option_list = .) %>%
+    parse_args()
+
+message("load arguments: ")
+message(str(args))
+
 
 ## * configs
 ## ** data related configs
@@ -18,7 +37,6 @@ subdir <- "UM"
 de_outfnm <- "tcga_diffexp_genes.rds"
 fpde_outfnm <- "tcga_fp_diffexp_genes.rds"
 tnde_outfnm <- "tcga_tn_diffexp_genes.rds"
-scdata_sumfnm <- "sampled_scRNAseq_summary.rds"
 
 ## ** DESeq2
 
@@ -26,7 +44,7 @@ scdata_sumfnm <- "sampled_scRNAseq_summary.rds"
 deg <- readRDS(here(data_dir, subdir, de_outfnm))
 fpdeg <- readRDS(here(data_dir, subdir, fpde_outfnm))
 tndeg <- readRDS(here(data_dir, subdir, tnde_outfnm))
-sc_data_list <- readRDS(here(data_dir, subdir, scdata_sumfnm))
+sc_data_list <- readRDS(here(data_dir, subdir, args$scdataf))
 sc_genes <- rownames(sc_data_list$cnt)
 
 ## * retrieve de/nonde-related genes

@@ -156,8 +156,8 @@ message(str_glue("After choosing cell type {the_cell}"))
 myt$print_sc(nrow(cnt), ncol(cnt), row = "gene")
 ## [MAJOR]: get the total numebr of count for all the genes.
 totcntpcell <- colSums(cnt)
-## ** filtering genes
 
+## ** filtering genes
 ## *** low-quality genes
 low_ncells <- gfilteratio * ncol(cnt)
 ## number of filtered genes
