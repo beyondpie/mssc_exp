@@ -30,11 +30,12 @@ sc_seurat := UVM_GSE139829_harmony.rds
 sc_condf := genders.csv
 
 genef := tcga_bulk_gsymbol.rds
+godeg := tcga_goenrich_diffexp_genes.rds
 deg := tcga_diffexp_genes.rds
 fpdeg := tcga_fp_diffexp_genes.rds
 tndeg := tcga_tn_diffexp_genes.rds
 
-dea := $(addprefix ${mydir}/, ${deg} ${fpdeg} ${tndeg})
+dea := $(addprefix ${mydir}/, ${godeg} ${deg} ${fpdeg} ${tndeg})
 
 ncell := 200
 ngene := 140

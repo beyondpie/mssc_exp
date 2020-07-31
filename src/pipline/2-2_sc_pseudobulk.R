@@ -34,7 +34,8 @@ message(str(args))
 data_dir <- "data"
 subdir <- "UM"
 
-de_outfnm <- "tcga_diffexp_genes.rds"
+## de_outfnm <- "tcga_diffexp_genes.rds"
+de_outfnm <- "tcga_goenrich_diffexp_genes.rds"
 fpde_outfnm <- "tcga_fp_diffexp_genes.rds"
 tnde_outfnm <- "tcga_tn_diffexp_genes.rds"
 
