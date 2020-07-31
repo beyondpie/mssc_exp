@@ -38,7 +38,6 @@ args <- list(
   gene_filter_method = gene_filter_method,
   gene_qnt_cut_meanreads = gene_qnt_cut_meanreads
 )
-## print(args)
 message(str(args))
 
 query <- TCGAbiolinks::GDCquery(
@@ -92,7 +91,8 @@ ensembl2symbol_bulk <- AnnotationDbi::select(org.Hs.eg.db,
   keys = rownames(data_norm),
   column = "SYMBOL",
   keytype = "ENSEMBL"
-)
+  )
+message("Draft remove duplicated ENSEMBLs ... ")
 ensembl2symbol_bulk <- ensembl2symbol_bulk[
   !duplicated(ensembl2symbol_bulk$ENSEMBL),
 ]
@@ -158,7 +158,7 @@ message(
 )
 
 degs <- dea[dea$FDR < de_fdr_cut, ]
-degs <- degs[abs(degs$logFC) > de_fdr_cut, ]
+degs <- degs[abs(degs$logFC) > de_logfc_cut, ]
 
 message(
   stringr::str_glue(
