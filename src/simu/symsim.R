@@ -48,41 +48,64 @@ alpha_mean_fullength <- 0.4
 
 ## ** utils
 my_sim_true <- function(seed = 0) {
-  SimulateTrueCounts(
-    ncells_total = ncell, min_popsize = min_popsize,
-    i_minpop = i_minpop, ngenes = ngene, evf_center = evf_center,
-    evf_type = evf_type, nevf = nevf, n_de_evf = n_de_evf,
-    impulse = F, vary = vary, Sigma = sigma, phyla = phyla,
-    geffect_mean = 0, gene_effects_sd = 1, gene_effect_prob = 0.3,
-    bimod = 0, param_realdata = "zeisel.imputed", scale_s = 1,
-    prop_hge = 0.015, mean_hge = 5, randseed = seed,
-    gene_module_prop = genemoduleprop, min_module_size = minmodulesize
-  )
+    SimulateTrueCounts(
+        ncells_total = ncell, min_popsize = min_popsize,
+        i_minpop = i_minpop, ngenes = ngene, evf_center = evf_center,
+        evf_type = evf_type, nevf = nevf, n_de_evf = n_de_evf,
+        impulse = F, vary = vary, Sigma = sigma, phyla = phyla,
+        geffect_mean = 0, gene_effects_sd = 1, gene_effect_prob = 0.3,
+        bimod = 0, param_realdata = "zeisel.imputed", scale_s = 1,
+        prop_hge = 0.015, mean_hge = 5, randseed = seed,
+        gene_module_prop = genemoduleprop, min_module_size = minmodulesize
+    )
 }
 
 my_sim_obs <- function(protocol, true_data, add_batch_effect = T,
                        nbatch = 1, batch_effect_size = 1) {
-  depth_mean <- ifelse(protocol == "UMI", depth_mean_umi, depth_mean_fullength)
-  depth_sd <- ifelse(protocol == "UMI", depth_sd_umi, depth_sd_fullength)
-  alpha_mean <- ifelse(protocol == "UMI", alpha_mean_umi, alpha_mean_fullength)
-  tmp <- True2ObservedCounts(
-    true_counts = true_data[[1]],
-    meta_cell = true_data[3], protocol = protocol, alpha_mean = alpha_mean,
-    alpha_sd = 0.02, gene_len = gene_len, depth_mean = depth_mean,
-    depth_sd = depth_sd, nPCR1 = 14
-  )
-  if (add_batch_effect) {
-    tmp <- DivideBatches(
-      observed_counts_res = tmp, nbatch = nbatch,
-      batch_effect_size = batch_effect_size
+    depth_mean <- ifelse(protocol == "UMI", depth_mean_umi, depth_mean_fullength)
+    depth_sd <- ifelse(protocol == "UMI", depth_sd_umi, depth_sd_fullength)
+    alpha_mean <- ifelse(protocol == "UMI", alpha_mean_umi, alpha_mean_fullength)
+    tmp <- True2ObservedCounts(
+        true_counts = true_data[[1]],
+        meta_cell = true_data[3], protocol = protocol, alpha_mean = alpha_mean,
+        alpha_sd = 0.02, gene_len = gene_len, depth_mean = depth_mean,
+        depth_sd = depth_sd, nPCR1 = 14
     )
-  }
-  intc <- tmp
-  intc[[1]] <- apply(tmp[[1]], c(1, 2), function(x) {
-    ifelse(x > 0, as.integer(x + 1), 0L)
-  })
-  return(intc)
+    if (add_batch_effect) {
+        tmp <- DivideBatches(
+            observed_counts_res = tmp, nbatch = nbatch,
+            batch_effect_size = batch_effect_size
+        )
+    }
+    intc <- tmp
+    intc[[1]] <- apply(tmp[[1]], c(1, 2), function(x) {
+        ifelse(x > 0, as.integer(x + 1), 0L)
+    })
+    return(intc)
 }
+
+
+## * main
+symsim_true <- my_sim_true(myseed)
+symsim_umi <- my_sim_obs("UMI", symsim_true,
+    nbatch = nbatch,
+    batch_effect_size = batch_effect_size
+    )
+## nonUMI, i.e., fullength, here nonUMI is needed by SymSim
+symsim_fullen <- my_sim_obs("nonUMI", symsim_true,
+    nbatch = nbatch,
+    batch_effect_size = batch_effect_size
+)
+
+## ** save data for plotting
+saveRDS(symsim_true, "symsim_true.rds")
+saveRDS(symsim_umi, "symsim_umi.rds")
+saveRDS(symsim_fullen, "symsim_fullen.rds")
+
+## ** load saved data
+## symsim_true <- load("symsim_true.rds")
+## symsim_umi <- load("symsim_umi.rds")
+## symsim_fullen <- load("symsim_fullen.rds")
 
 
 symsim_ptsne <- function(protocol, obs_data, label = "cell_meta.pop") {
@@ -106,16 +129,17 @@ mysymsim <- function(seed) {
         add_batch_effect = add_batch_effect,
         nbatch = nbatch, batch_effect_size = batch_effect_size
     )
-  save(true_counts,
-       obs_umi, obs_fullength,
-       file = stringr::str_c("symsim_data/sim",
-        ncell, ngene, seed, ".RData",
-        sep = "_"
-    ))
+    save(true_counts,
+        obs_umi, obs_fullength,
+        file = stringr::str_c("symsim_data/sim",
+            ncell, ngene, seed, ".RData",
+            sep = "_"
+        )
+    )
 }
 
-main <- function(myrep = 10) {
-    for (i in 1:myrep) {
-        mysymsim(i)
-    }
-}
+## main <- function(myrep = 10) {
+##     for (i in 1:myrep) {
+##         mysymsim(i)
+##     }
+## }
