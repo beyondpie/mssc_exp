@@ -10,12 +10,12 @@ nbatch <- 10
 add_batch_effect <- T
 batch_effect_size <- 1
 ncell <- 5000
-ngene <- 300
+ngene <- 270
 
 ## ** cell evf settings
 npopulation <- 5
 phyla <- Phyla5()
-min_popsize <- 50
+min_popsize <- 450
 i_minpop <- 1
 
 evf_center <- 1 # should always fix as 1
@@ -29,7 +29,8 @@ vary <- "s" # 'all' or 's'
 sigma <- 0.2 # use for seperating cell clusters
 
 ## ** gene modules
-mygenemoduleprop <- 0.3
+minmodulesize <- 50
+genemoduleprop <- minmodulesize * npopulation / ngene
 
 ## ** get gene length
 data(gene_len_pool)
@@ -55,7 +56,7 @@ my_sim_true <- function(seed = 0) {
     geffect_mean = 0, gene_effects_sd = 1, gene_effect_prob = 0.3,
     bimod = 0, param_realdata = "zeisel.imputed", scale_s = 1,
     prop_hge = 0.015, mean_hge = 5, randseed = seed,
-    gene_module_prop = mygenemoduleprop
+    gene_module_prop = genemoduleprop, min_module_size = minmodulesize
   )
 }
 
