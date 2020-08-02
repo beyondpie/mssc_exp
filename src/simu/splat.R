@@ -15,8 +15,7 @@ ncelltype <- 3
 nbatch <- 10
 ncellbatches <- rep(200, nbatch)
 group_prob <- c(0.3, 0.3, 0.4)
-## group_prob <- 1.0
-ngene <- 300
+ngene <- 200
 nmodule <- 5
 
 ## * test
@@ -49,8 +48,10 @@ sim <- scater::logNormCounts(sim)
 sim <- scater::runTSNE(sim)
 sim <- scater::runPCA(sim)
 p <- scater::multiplot(plotlist = list(
-    scater::plotTSNE(sim, colour_by = "Batch") + scale_fill_brewer(palette = "Paired"),
-    scater::plotTSNE(sim, colour_by = "Group") + scale_fill_brewer(palette="Set1")
+                         scater::plotTSNE(sim, colour_by = "Batch") +
+                         scale_fill_brewer(palette = "Paired"),
+                         scater::plotTSNE(sim, colour_by = "Group") +
+                         scale_fill_brewer(palette="Set1")
 ), cols = 2)
 
 # plotPCA(sim, shape_by = "Batch", colour_by = "Group")

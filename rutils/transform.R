@@ -1,4 +1,52 @@
 
+umi_scale_factor <- 10000
+fullength_scale_factor <- 1e+06
+
+getcpm <- function(cnt, scale_level = umi_scale_factor) {
+  ## * cnt is gene by cell matrix
+  return(scale(cnt,
+      center = F,
+      scale = colSums(cnt)
+  ) * scale_level)
+}
+
+getlogcpm <- function(cpm, margin = 1) {
+    return(log(cpm + margin))
+}
+
+gettsne <- function(logcpm, seed = 0L) {
+  set.seed(seed)
+  tsne <- Rtsne::Rtsne(t(logcpm), pca_scale = T, pca_center = T,
+                       initial_dims = 50, pca = T,
+                       check_duplicates = F)
+  return(tsne)
+}
+
+plottsne <- function(tsneembed, celltypes, fnm = NULL) {
+  ## * tsneembed should be tsneres$Y
+  library(ggplot2)
+  cellnum <- nrow(tsneembed)
+  typenum <- length(celltypes)
+  if (cellnum != typenum) {
+    stop(stringr::str_glue(
+        "dim inconsistant: ",
+        "tsne rownum ({cellnum});",
+        "cell type num ({typenum})"
+    ))
+  }
+  dat <- data.frame(cbind(tsneembed), celltypes)
+  colnames(dat) <- c("TSNE1", "TSNE2", "Type")
+  p <- ggplot(dat, aes(x = TSNE1, y = TSNE2, color = Type)) +
+      geom_point() +
+    theme_bw()
+  if (!is.null(fnm)) {
+    pdf(file = fnm)
+    plot(p)
+    dev.off()
+  }
+  return(p)
+}
+
 to_onehot_matrix <- function(str_vec) {
   as.matrix(mltools::one_hot(data.table::data.table(as.factor(str_vec))))
 }
