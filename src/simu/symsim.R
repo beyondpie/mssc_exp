@@ -17,8 +17,9 @@ npopulation <- 5
 myphyla <- Phyla5()
 min_popsize <- 500
 i_minpop <- 1
-
 evf_type <- "discrete"
+nevf <- 30
+n_de_evf <- 18
 ## ** gene modules
 minmodulesize <- 50
 genemoduleprop <- minmodulesize * npopulation / ngene
@@ -46,7 +47,7 @@ my_sim_true <- function(myseed = 0) {
         phyla = myphyla,
         randseed = myseed,
         gene_module_prop = genemoduleprop, min_module_size = minmodulesize,
-        Sigma = 0.15
+        Sigma = 0.2
     )
 }
 
