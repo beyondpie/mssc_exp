@@ -14,20 +14,11 @@ ngene <- 270
 
 ## ** cell evf settings
 npopulation <- 5
-phyla <- Phyla5()
-min_popsize <- 450
+myphyla <- Phyla5()
+min_popsize <- 500
 i_minpop <- 1
 
-evf_center <- 1 # should always fix as 1
 evf_type <- "discrete"
-nevf <- 10
-# increasing n_de_evfs can also make the clusters more
-# distinct as they represent the number of biological
-# conditions that cause differences between cell types.
-n_de_evf <- 7
-vary <- "s" # 'all' or 's'
-sigma <- 0.2 # use for seperating cell clusters
-
 ## ** gene modules
 minmodulesize <- 50
 genemoduleprop <- minmodulesize * npopulation / ngene
@@ -47,16 +38,15 @@ depth_sd_fullength <- 10000
 alpha_mean_fullength <- 0.4
 
 ## ** utils
-my_sim_true <- function(seed = 0) {
+my_sim_true <- function(myseed = 0) {
     SimulateTrueCounts(
         ncells_total = ncell, min_popsize = min_popsize,
-        i_minpop = i_minpop, ngenes = ngene, evf_center = evf_center,
+        i_minpop = i_minpop, ngenes = ngene,
         evf_type = evf_type, nevf = nevf, n_de_evf = n_de_evf,
-        impulse = F, vary = vary, Sigma = sigma, phyla = phyla,
-        geffect_mean = 0, gene_effects_sd = 1, gene_effect_prob = 0.3,
-        bimod = 0, param_realdata = "zeisel.imputed", scale_s = 1,
-        prop_hge = 0.015, mean_hge = 5, randseed = seed,
-        gene_module_prop = genemoduleprop, min_module_size = minmodulesize
+        phyla = myphyla,
+        randseed = myseed,
+        gene_module_prop = genemoduleprop, min_module_size = minmodulesize,
+        Sigma = 0.15
     )
 }
 
@@ -101,12 +91,6 @@ symsim_fullen <- my_sim_obs("nonUMI", symsim_true,
 saveRDS(symsim_true, "symsim_true.rds")
 saveRDS(symsim_umi, "symsim_umi.rds")
 saveRDS(symsim_fullen, "symsim_fullen.rds")
-
-## ** load saved data
-## symsim_true <- load("symsim_true.rds")
-## symsim_umi <- load("symsim_umi.rds")
-## symsim_fullen <- load("symsim_fullen.rds")
-
 
 symsim_ptsne <- function(protocol, obs_data, label = "cell_meta.pop") {
     PlotTsne(
