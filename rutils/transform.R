@@ -37,7 +37,7 @@ saveggplot <- function(p, fnm = NULL) {
 }
 plottsne <- function(tsneembed, celltypes,
                      title = "tsne", fnm = NULL) {
-    ## * tsneembed should be tsneres$Y
+    ## tsneembed should be tsneres$Y
     library(ggplot2)
     cellnum <- nrow(tsneembed)
     ## avoid treating celltypes as continuous variables
@@ -61,6 +61,8 @@ plottsne <- function(tsneembed, celltypes,
     saveggplot(p, fnm)
     return(p)
 }
+
+
 
 plothist <- function(cnt, mybinwidth = 200,
                      max_xlim = 2e+05, mytitle = "histogram", fnm = NULL) {

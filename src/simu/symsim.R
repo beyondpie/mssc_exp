@@ -1,5 +1,5 @@
 library(SymSim)
-library(tidyverse)
+suppressPackageStartupMessages(library(tidyverse))
 import::from(here, here)
 import::from(stringr, str_glue)
 options("import.path" = here("rutils"))
