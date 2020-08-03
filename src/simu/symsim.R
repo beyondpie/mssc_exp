@@ -1,6 +1,7 @@
 library(SymSim)
 library(tidyverse)
 import::from(here, here)
+import::from(stringr, str_glue)
 options("import.path" = here("rutils"))
 myt <- modules::import("transform")
 
@@ -18,8 +19,10 @@ myphyla <- Phyla5()
 min_popsize <- 500
 i_minpop <- 1
 evf_type <- "discrete"
-nevf <- 30
-n_de_evf <- 18
+nevf <- 10
+n_de_evf <- 5
+sigma <- 0.15
+
 ## ** gene modules
 minmodulesize <- 50
 genemoduleprop <- minmodulesize * npopulation / ngene
@@ -47,15 +50,19 @@ my_sim_true <- function(myseed = 0) {
         phyla = myphyla,
         randseed = myseed,
         gene_module_prop = genemoduleprop, min_module_size = minmodulesize,
-        Sigma = 0.2
+        Sigma = sigma
     )
 }
 
 my_sim_obs <- function(protocol, true_data, add_batch_effect = T,
                        nbatch = 1, batch_effect_size = 1) {
-    depth_mean <- ifelse(protocol == "UMI", depth_mean_umi, depth_mean_fullength)
+    depth_mean <- ifelse(protocol == "UMI",
+        depth_mean_umi, depth_mean_fullength
+    )
     depth_sd <- ifelse(protocol == "UMI", depth_sd_umi, depth_sd_fullength)
-    alpha_mean <- ifelse(protocol == "UMI", alpha_mean_umi, alpha_mean_fullength)
+    alpha_mean <- ifelse(protocol == "UMI",
+        alpha_mean_umi, alpha_mean_fullength
+    )
     tmp <- True2ObservedCounts(
         true_counts = true_data[[1]],
         meta_cell = true_data[3], protocol = protocol, alpha_mean = alpha_mean,
@@ -76,55 +83,22 @@ my_sim_obs <- function(protocol, true_data, add_batch_effect = T,
 }
 
 
-## * main
-symsim_true <- my_sim_true(myseed)
-symsim_umi <- my_sim_obs("UMI", symsim_true,
-    nbatch = nbatch,
-    batch_effect_size = batch_effect_size
-    )
-## nonUMI, i.e., fullength, here nonUMI is needed by SymSim
-symsim_fullen <- my_sim_obs("nonUMI", symsim_true,
-    nbatch = nbatch,
-    batch_effect_size = batch_effect_size
-)
-
-## ** save data for plotting
-saveRDS(symsim_true, "symsim_true.rds")
-saveRDS(symsim_umi, "symsim_umi.rds")
-saveRDS(symsim_fullen, "symsim_fullen.rds")
-
-symsim_ptsne <- function(protocol, obs_data, label = "cell_meta.pop") {
-    PlotTsne(
-        meta = obs_data[[2]], data = log2(obs_data[[1]] +
-            1), evf_type = "discrete", n_pc = 20, label = label,
-        saving = F, plotname = protocol
-    )
-}
-
 mysymsim <- function(seed) {
-    ## * scRNAseq data simulation ** get true expressions
     true_counts <- my_sim_true(seed)
-
-    ## ** get observed expressions
     obs_umi <- my_sim_obs("UMI", true_counts,
         add_batch_effect = add_batch_effect,
         nbatch = nbatch, batch_effect_size = batch_effect_size
     )
-    obs_fullength <- my_sim_obs("fullength", true_counts,
-        add_batch_effect = add_batch_effect,
-        nbatch = nbatch, batch_effect_size = batch_effect_size
+    suffix <- str_glue("{ncell}_{ngene}_{npopulation}_{minmodulesize}_{seed}.rds")
+    saveRDS(
+        true_counts,
+        here("src", "simu", "symsimdata", str_glue("true_{suffix}"))
     )
-    save(true_counts,
-        obs_umi, obs_fullength,
-        file = stringr::str_c("symsim_data/sim",
-            ncell, ngene, seed, ".RData",
-            sep = "_"
-        )
+    saveRDS(
+        obs_umi,
+        here("src", "simu", "symsimdata", str_glue("umi_{suffix}"))
     )
 }
 
-## main <- function(myrep = 10) {
-##     for (i in 1:myrep) {
-##         mysymsim(i)
-##     }
-## }
+## * main
+lapply(seq_len(10), mysymsim)

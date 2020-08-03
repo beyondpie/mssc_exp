@@ -21,12 +21,12 @@ symsim_umi <- readRDS("symsim_umi.rds")
 logcpm_true <- myt$getlogcpm(myt$getcpm(symsim_true$counts,
                                         myt$umi_scale_factor))
 tsne_true <- myt$gettsne(logcpm_true, myseed)
-## ptsne_true <- myt$plottsne(tsne_true$Y, symsim_true$cell_meta$pop,
-    ## title = "SymSim_True TSNE", fnm = "symsim_true_tsne.pdf"
-## )
 ptsne_true <- myt$plottsne(tsne_true$Y, symsim_true$cell_meta$pop,
-    title = "SymSim_True TSNE"
+    title = "SymSim_True TSNE", fnm = "symsim_true_tsne.pdf"
 )
+## ptsne_true <- myt$plottsne(tsne_true$Y, symsim_true$cell_meta$pop,
+    ## title = "SymSim_True TSNE"
+## )
 
 ## *** cell library size
 phist_true <- myt$plothist(symsim_true$counts, mytitle = "SymSim_True Cell Library Size",
