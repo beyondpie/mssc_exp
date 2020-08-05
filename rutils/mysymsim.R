@@ -9,6 +9,38 @@ plotphylo <- function(mytree) {
     ape::nodelabels(cex = 2)
 }
 
+
+sim_symsim_obs <- function(protocol, symsimtrue) {
+    data(gene_len_pool, package = "SymSim")
+    ngene <- nrow(symsimtrue$counts)
+    gene_len <- sample(gene_len_pool, ngene, replace = FALSE)
+
+    ## UMI settings
+    depth_mean_umi <- 45000
+    depth_sd_umi <- 4500
+    alpha_mean_umi <- 0.1
+    ## fullength settings
+    depth_mean_fullength <- 1e+05
+    depth_sd_fullength <- 10000
+    alpha_mean_fullength <- 0.4
+
+    depth_mean <- ifelse(protocol == "UMI",
+        depth_mean_umi, depth_mean_fullength
+    )
+    depth_sd <- ifelse(protocol == "UMI", depth_sd_umi, depth_sd_fullength)
+    alpha_mean <- ifelse(protocol == "UMI",
+        alpha_mean_umi, alpha_mean_fullength
+    )
+    True2ObservedCounts(
+        true_counts = symsimtrue$counts,
+        meta_cell = symsimtrue$cell_meta,
+        protocol = protocol, alpha_mean = alpha_mean,
+        alpha_sd = 0.02, gene_len = gene_len, depth_mean = depth_mean,
+        depth_sd = depth_sd, nPCR1 = 14
+    )
+}
+
+
 ## consider case and control in setting for cells
 ## case and control as two different cell populations.
 assign_batch_for_cells <- function(symsimobs, nbatch) {
@@ -74,8 +106,14 @@ add_batch_effect <- function(symsimobs, nbatch,
     }
 
     observed_counts <- round(2^(log2(observed_counts) + batch_factor))
+
+    intc <- observed_counts
+    intc[[1]] <- apply(observed_counts[[1]], c(1, 2), function(x) {
+        ifelse(x > 0, as.integer(x + 1), 0L)
+    })
+
     return(list(
-        counts = observed_counts,
+        counts = intc,
         gene_mean = gene_mean,
         mean_matrix = mean_matrix,
         batch_factor = batch_factor,
