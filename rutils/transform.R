@@ -4,7 +4,6 @@ fullength_scale_factor <- 1e+06
 
 myggtitle <- theme(plot.title = element_text(size = 15, hjust = 0.5))
 
-
 getcpm <- function(cnt, scale_level = umi_scale_factor) {
     ## * cnt is gene by cell matrix
     return(scale(cnt,

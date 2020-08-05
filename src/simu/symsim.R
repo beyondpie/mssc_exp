@@ -1,4 +1,4 @@
-library(SymSim)
+suppressPackageStartupMessages(library(SymSim))
 suppressPackageStartupMessages(library(tidyverse))
 import::from(here, here)
 import::from(stringr, str_glue)
@@ -10,22 +10,25 @@ myseed <- 0L
 nbatch <- 10
 add_batch_effect <- T
 batch_effect_size <- 1
-ncell <- 5000
+ncell <- 2000
 ngene <- 270
+hasgenemoudle <- F
 
 ## ** cell evf settings
-npopulation <- 5
-myphyla <- Phyla5()
-min_popsize <- 500
+npop <- 2
+myphyla <- myt$phyla2()
+
+min_popsize <- 1000
 i_minpop <- 1
 evf_type <- "discrete"
 nevf <- 10
-n_de_evf <- 5
-sigma <- 0.15
+n_de_evf <- 9
+sigma <- 0.2
 
 ## ** gene modules
-minmodulesize <- 50
-genemoduleprop <- minmodulesize * npopulation / ngene
+minmodn <- 50
+gmodprop <- ifelse(hasgenemoudle,
+                         minmodn * npop / ngene, 0.0)
 
 ## ** get gene length
 data(gene_len_pool)
@@ -49,7 +52,7 @@ my_sim_true <- function(myseed = 0) {
         evf_type = evf_type, nevf = nevf, n_de_evf = n_de_evf,
         phyla = myphyla,
         randseed = myseed,
-        gene_module_prop = genemoduleprop, min_module_size = minmodulesize,
+        gene_module_prop = gmodprop, min_module_size = minmodn,
         Sigma = sigma
     )
 }
@@ -82,14 +85,13 @@ my_sim_obs <- function(protocol, true_data, add_batch_effect = T,
     return(intc)
 }
 
-
 mysymsim <- function(seed) {
     true_counts <- my_sim_true(seed)
     obs_umi <- my_sim_obs("UMI", true_counts,
         add_batch_effect = add_batch_effect,
         nbatch = nbatch, batch_effect_size = batch_effect_size
     )
-    suffix <- str_glue("{ncell}_{ngene}_{npopulation}_{minmodulesize}_{seed}.rds")
+    suffix <- str_glue("{ncell}_{ngene}_{npop}_{minmodn}_{seed}.rds")
     saveRDS(
         true_counts,
         here("src", "simu", "symsimdata", str_glue("true_{suffix}"))
