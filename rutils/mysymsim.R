@@ -115,21 +115,17 @@ getDEgenes <- function(true_counts_res, popA_idx, popB_idx) {
                 DEstr[which(param_str == "s")] == "DE"
             ]) - 0.001 > 0))
     })
-
     kon_mat <- true_counts_res$kinetic_params[[1]]
     koff_mat <- true_counts_res$kinetic_params[[2]]
     s_mat <- true_counts_res$kinetic_params[[3]]
-
     logFC_theoretical <- sapply(1:ngenes, function(igene) {
         return(log2(mean(s_mat[igene, popA_idx] * kon_mat[igene, popA_idx] /
             (kon_mat[igene, popA_idx] + koff_mat[igene, popA_idx])) /
             mean(s_mat[igene, popB_idx] * kon_mat[igene, popB_idx]
                 / (kon_mat[igene, popB_idx] + koff_mat[igene, popB_idx]))))
     })
-
     true_counts <- true_counts_res$counts
     true_counts_norm <- t(t(true_counts) / colSums(true_counts)) * 10^6
-
     wil.p_true_counts <- sapply(
         1:ngenes,
         function(igene) {
@@ -139,9 +135,7 @@ getDEgenes <- function(true_counts_res, popA_idx, popB_idx) {
             )$p.value)
         }
     )
-
     wil.adjp_true_counts <- p.adjust(wil.p_true_counts, method = "fdr")
-
     return(list(
         nDiffEVF = n_useDEevf,
         logFC_theoretical = logFC_theoretical,

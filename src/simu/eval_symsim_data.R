@@ -137,3 +137,28 @@ test_de_anygroup <- function() {
 ## ** case and control experiments (true positive)
 ## ** add batch effect (false positive)
 ## * evaluate simulation
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
