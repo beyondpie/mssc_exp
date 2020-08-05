@@ -82,3 +82,69 @@ add_batch_effect <- function(symsimobs, nbatch,
         batchids = batchids
     ))
 }
+
+## set getDEgenes on any two groups of cells
+getDEgenes <- function(true_counts_res, popA_idx, popB_idx) {
+    meta_cell <- true_counts_res$cell_meta
+    meta_gene <- true_counts_res$gene_effects
+    ## popA_idx <- which(meta_cell$pop == popA)
+    ## popB_idx <- which(meta_cell$pop == popB)
+    ngenes <- dim(true_counts_res$gene_effects[[1]])[1]
+
+    DEstr <- sapply(
+        strsplit(colnames(meta_cell)[which(
+            grepl("evf", colnames(meta_cell))
+        )], "_"), "[[", 2
+    )
+    param_str <- sapply(
+        strsplit(colnames(meta_cell)[which(
+            grepl("evf", colnames(meta_cell))
+        )], "_"), "[[", 1
+    )
+    n_useDEevf <- sapply(1:ngenes, function(igene) {
+        return(sum(abs(meta_gene[[1]][
+            igene,
+            DEstr[which(param_str == "kon")] == "DE"
+        ]) - 0.001 > 0) +
+            sum(abs(meta_gene[[2]][
+                igene,
+                DEstr[which(param_str == "koff")] == "DE"
+            ]) - 0.001 > 0) +
+            sum(abs(meta_gene[[3]][
+                igene,
+                DEstr[which(param_str == "s")] == "DE"
+            ]) - 0.001 > 0))
+    })
+
+    kon_mat <- true_counts_res$kinetic_params[[1]]
+    koff_mat <- true_counts_res$kinetic_params[[2]]
+    s_mat <- true_counts_res$kinetic_params[[3]]
+
+    logFC_theoretical <- sapply(1:ngenes, function(igene) {
+        return(log2(mean(s_mat[igene, popA_idx] * kon_mat[igene, popA_idx] /
+            (kon_mat[igene, popA_idx] + koff_mat[igene, popA_idx])) /
+            mean(s_mat[igene, popB_idx] * kon_mat[igene, popB_idx]
+                / (kon_mat[igene, popB_idx] + koff_mat[igene, popB_idx]))))
+    })
+
+    true_counts <- true_counts_res$counts
+    true_counts_norm <- t(t(true_counts) / colSums(true_counts)) * 10^6
+
+    wil.p_true_counts <- sapply(
+        1:ngenes,
+        function(igene) {
+            return(wilcox.test(
+                true_counts_norm[igene, popA_idx],
+                true_counts_norm[igene, popB_idx]
+            )$p.value)
+        }
+    )
+
+    wil.adjp_true_counts <- p.adjust(wil.p_true_counts, method = "fdr")
+
+    return(list(
+        nDiffEVF = n_useDEevf,
+        logFC_theoretical = logFC_theoretical,
+        wil.p_true_counts = wil.adjp_true_counts
+    ))
+}
