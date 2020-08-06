@@ -1,3 +1,6 @@
+
+myggtitle <- theme(plot.title = element_text(size = 15, hjust = 0.5))
+
 phyla2 <- function() {
     tmp <- ape::rtree(2, tip.label = c(1, 2))
     ape::compute.brlen(tmp, 1)
@@ -192,4 +195,32 @@ get_symsim_degenes <- function(symsim_dea, nDiffEVF = 1, logFC = 0.6) {
 get_strict_symsim_ndegnes <- function(symsim_dea, nDiffEVF = 0, logFC = 0.1) {
     invisible((symsim_dea$nDiffEV <= nDiffEVF) &
         (symsim_dea$logFC_theoretical <= logFC))
+}
+
+plotviolin <- function(symsimdata, genes) {
+    library(tidyverse)
+    ## library(ggpubr)
+    n <- length(genes)
+    gnm <- paste0("gene", genes)
+    select_cnt <- symsimdata$counts[genes, ]
+    cell2batch <- symsimdata$batch_meta$batch
+    nbatch <-  max(cell2batch)
+    plotdata <- as.data.frame(t(select_cnt))
+    colnames(plotdata) <- gnm
+
+    ## use factor to order the plot
+    ## in the order ind1, ind2, ..., not ind1. ind10, ind2, ...
+    plotdata$pop <- factor(paste0("ind", cell2batch),
+                           levels = paste0("ind", seq_len(nbatch)),
+                           ordered = TRUE)
+
+    plist <- lapply(seq_len(n), FUN = function(i) {
+        tmp <- plotdata[c(gnm[i], "pop")]
+        ggplot(tmp, aes_string(x = "pop", y=gnm[i], fill = "pop")) +
+            geom_violin() +
+            myggtitle +
+            theme(legend.position = "none",
+                  axis.title.x =  element_blank())
+    })
+    return(plist)
 }
