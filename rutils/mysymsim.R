@@ -31,7 +31,7 @@ sim_symsim_obs <- function(protocol, symsimtrue) {
     alpha_mean <- ifelse(protocol == "UMI",
         alpha_mean_umi, alpha_mean_fullength
     )
-    True2ObservedCounts(
+    SymSim::True2ObservedCounts(
         true_counts = symsimtrue$counts,
         meta_cell = symsimtrue$cell_meta,
         protocol = protocol, alpha_mean = alpha_mean,
@@ -46,7 +46,7 @@ sim_symsim_obs <- function(protocol, symsimtrue) {
 assign_batch_for_cells <- function(symsimobs, nbatch) {
     left_max_batch <- floor(nbatch / 2)
     ncell <- ncol(symsimobs$counts)
-    cellpops <- symsimobs$cell_meta$cell_meta.pop
+    cellpops <- symsimobs$cell_meta$pop
     control_batches <- seq_len(left_max_batch)
     control_cells <- which(cellpops == 1)
     case_batches <- seq(left_max_batch + 1, nbatch)
@@ -67,11 +67,11 @@ assign_batch_for_cells <- function(symsimobs, nbatch) {
 ## to different group of cells.
 add_batch_effect <- function(symsimobs, nbatch,
                              ongenes = seq_len(nrow(symsimobs$counts)),
-                             oncells = seq_len(ncol(symsimobs$counts)),
+                             onbatches = c(1, 2, 5),
                              batchids = assign_batch_for_cells(
                                  symsimobs, nbatch
                              ),
-                             batch_effect_size = 1,
+                             batch_effect_size = rep(1.0, nbatch),
                              sd = 0.01) {
     ## add batch effects to observed counts
     # use different mean and same sd to generate the
@@ -79,27 +79,28 @@ add_batch_effect <- function(symsimobs, nbatch,
     observed_counts <- symsimobs[["counts"]]
     ncells <- ncol(symsimobs$counts)
     ngenes <- nrow(symsimobs$counts)
+    oncells <- which((batchids %in% onbatches) == T)
 
     ## set gene-batch effect matrix
     ## only the ongenes and oncells will non-zeros have batch effects
     gene_mean <- rnorm(ngenes, 0, 1)
     mean_matrix <- matrix(0, ngenes, nbatch)
     for (i in ongenes) {
-        for (j in oncells) {
+        for (j in seq_len(nbatch)) {
             mean_matrix[i, j] <- runif(1,
-                min = gene_mean[i] - batch_effect_size,
-                max = gene_mean[i] + batch_effect_size
+                min = gene_mean[i] - batch_effect_size[j],
+                max = gene_mean[i] + batch_effect_size[j]
             )
         }
     }
 
     ## add batch effects the entire observed count matrix
     batch_factor <- matrix(0, ngenes, ncells)
-    for (igene in seq_len(ngenes)) {
-        for (icell in seq_len(ncells)) {
-            batch_factor[igene, icell] <- rnorm(
+    for (i in seq_len(ngenes)) {
+        for (j in seq_len(ncells)) {
+            batch_factor[i, j] <- rnorm(
                 n = 1,
-                mean = mean_matrix[igene, batchids[icell]],
+                mean = mean_matrix[i, batchids[j]],
                 sd = sd
             )
         }
@@ -107,22 +108,24 @@ add_batch_effect <- function(symsimobs, nbatch,
 
     observed_counts <- round(2^(log2(observed_counts) + batch_factor))
 
-    intc <- observed_counts
-    intc[[1]] <- apply(observed_counts[[1]], c(1, 2), function(x) {
+    ## double check observed_counts counts data as integer
+    intc <- apply(observed_counts, c(1, 2), function(x) {
         ifelse(x > 0, as.integer(x + 1), 0L)
     })
 
-    return(list(
-        counts = intc,
-        gene_mean = gene_mean,
-        mean_matrix = mean_matrix,
-        batch_factor = batch_factor,
-        batchids = batchids
-    ))
+    ## convert to symsim related structure
+    result <- symsimobs
+    result$counts <- intc
+    result$batch_meta <- list(batch = batchids,
+                             g2b = mean_matrix,
+                             gmean = gene_mean,
+                             g2c = batch_factor,
+                             sd = sd)
+    invisible(result)
 }
 
 ## set getDEgenes on any two groups of cells
-getDEgenes <- function(true_counts_res, popA_idx, popB_idx) {
+symsim_de_analysis <- function(true_counts_res, popA_idx, popB_idx) {
     meta_cell <- true_counts_res$cell_meta
     meta_gene <- true_counts_res$gene_effects
     ## popA_idx <- which(meta_cell$pop == popA)
@@ -179,4 +182,14 @@ getDEgenes <- function(true_counts_res, popA_idx, popB_idx) {
         logFC_theoretical = logFC_theoretical,
         wil.p_true_counts = wil.adjp_true_counts
     ))
+}
+
+get_symsim_degenes <- function(symsim_dea, nDiffEVF = 1, logFC = 0.6) {
+    invisible((symsim_dea$nDiffEVF >= nDiffEVF) &
+        (symsim_dea$logFC_theoretical >= logFC))
+}
+
+get_strict_symsim_ndegnes <- function(symsim_dea, nDiffEVF = 0, logFC = 0.1) {
+    invisible((symsim_dea$nDiffEV <= nDiffEVF) &
+        (symsim_dea$logFC_theoretical <= logFC))
 }

@@ -29,7 +29,8 @@ sigma <- 0.2
 ## ** gene modules
 minmodn <- 50
 gmodprop <- ifelse(hasgenemoudle,
-                         minmodn * npop / ngene, 0.0)
+    minmodn * npop / ngene, 0.0
+)
 
 ## ** utils
 my_sim_true <- function(myseed = 0) {
@@ -64,5 +65,26 @@ my_sim_umi <- function(seed) {
 
 ## * add individual effects
 symsimtrue <- my_sim_true()
+symsim_dea <- mysymsim$symsim_de_analysis(symsimtrue,
+    popA_idx = which(symsimtrue$cell_meta$pop == 1),
+    popB_idx = which(symsimtrue$cell_meta$pop == 2)
+)
+
+symsim_degenes <- mysymsim$get_symsim_degenes(symsim_dea)
+symsim_strict_ndegenes <- mysymsim$get_symsim_degenes(symsim_dea)
+
 symsimumi <- mysymsim$sim_symsim_obs("UMI", symsimtrue)
 batchids <- mysymsim$assign_batch_for_cells(symsimumi, nbatch)
+
+## ** create false positive genes
+symsimumi_batcheffect <- mysymsim$add_batch_effect(
+    symsimumi, nbatch = nbatch,
+    ongenes = which(symsim_strict_ndegenes == F),
+    onbatches = c(1,2,6),
+    batchids = batchids,
+    batch_effect_size = c(rep(1.0, 2), rep(0.1, 3), 1.0, rep(0.1, 4)),
+    sd = 0.01
+    )
+
+## ** eval de genes after batch effect
+## ** add gene on batch figures
