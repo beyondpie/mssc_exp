@@ -2,6 +2,7 @@ suppressPackageStartupMessages(library(SymSim))
 suppressPackageStartupMessages(library(tidyverse))
 import::from(here, here)
 import::from(stringr, str_glue)
+library(ggpubr)
 options("import.path" = here("rutils"))
 myt <- modules::import("transform")
 mysymsim <- modules::import("mysymsim")
@@ -23,7 +24,7 @@ min_popsize <- 1000
 i_minpop <- 1
 evf_type <- "discrete"
 nevf <- 10
-n_de_evf <- 9
+n_de_evf <- 7
 sigma <- 0.2
 
 ## ** gene modules
@@ -70,8 +71,9 @@ symsim_dea <- mysymsim$symsim_de_analysis(symsimtrue,
   popB_idx = which(symsimtrue$cell_meta$pop == 2)
 )
 
-symsim_degenes <- mysymsim$get_symsim_degenes(symsim_dea)
-symsim_strict_ndegenes <- mysymsim$get_symsim_degenes(symsim_dea)
+symsim_degenes <- mysymsim$get_symsim_degenes(symsim_dea) %>% which(. == T)
+symsim_strict_ndegenes <- mysymsim$get_symsim_strict_ndegnes(
+                                       symsim_dea, logFC = 0.5) %>% which(. == T)
 
 symsimumi <- mysymsim$sim_symsim_obs("UMI", symsimtrue)
 batchids <- mysymsim$assign_batch_for_cells(symsimumi, nbatch)
@@ -79,23 +81,28 @@ batchids <- mysymsim$assign_batch_for_cells(symsimumi, nbatch)
 ## ** create false positive genes
 ## hbe short for high batch effect; lbe shor for low batch effect
 hbe <- 1.0
-lbe <- 0.1
-symsimumi_batcheffect <- mysymsim$add_batch_effect(
+lbe <- -1.0
+symsimumibe <- mysymsim$add_batch_effect(
   symsimumi,
   nbatch = nbatch,
-  ongenes = which(symsim_strict_ndegenes == F),
+  ongenes = symsim_strict_ndegenes,
   onbatches = c(1, 2, 6),
   batchids = batchids,
   batch_effect_size = c(rep(hbe, 2), rep(lbe, 3), hbe, rep(lbe, 4)),
-  sd = 0.01
+  sd = 0.01,
+  gene_mean_std = 0.2,
+  isg2brandom = F
 )
 
-## ** eval de genes after batch effect
-symsim_dea_fpbatch <- mysymsim$symsim_de_analysis(
-  symsimumi_batcheffect,
-  popA_idx = which(symsimumi_batcheffect$cell_meta$pop == 1),
-  popB_idx = which(symsimumi_batcheffect$cell_meta$pop == 2)
-)
+## ** eval de/nde genes after batch effect
+pviolin_symsimdeg <- mysymsim$plotviolin(symsimumibe,
+                                         symsim_degenes)
+sampled_pvd <- ggarrange(plotlist = pviolin_symsimdeg[sample(length(symsim_degenes), 40)],
+                         ncol = 5, nrow = 8)
 
-## ** add gene on batch figures
-## ** add gene on batch figures
+
+pviolin_symsim_sndeg <- mysymsim$plotviolin(symsimumibe, symsim_strict_ndegenes)
+sampled_pvsnd <- ggarrange(
+    plotlist= pviolin_symsim_sndeg,
+    nrow = 5, ncol = ceiling(length(symsim_strict_ndegenes) / 5) )
+
