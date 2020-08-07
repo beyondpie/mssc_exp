@@ -133,11 +133,6 @@ test_de_anygroup <- function() {
 }
 ## ** TODO gene module and PCA
 
-## * simulation design
-## ** case and control experiments (true positive)
-## ** add batch effect (false positive)
-## * evaluate simulation
-
 
 
 
