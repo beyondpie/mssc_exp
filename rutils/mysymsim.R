@@ -31,6 +31,7 @@ sim_symsim_true <- function(myseed = 0,
     gmodprop <- ifelse(hasgenemodule, minmodn * npop / ngene, 0.0)
     SymSim::SimulateTrueCounts(randseed = myseed,
                                ncells_total = ncell, ngenes = ngene,
+                               phyla = myphyla,
                                min_popsize = min_popsize,
                                i_minpop = 1, evf_type = "discrete",
                                nevf = nevf, n_de_evf = n_de_evf,
@@ -74,7 +75,7 @@ sim_symsim_obs <- function(protocol, symsimtrue) {
 
 ## consider case and control in setting for cells
 ## case and control as two different cell populations.
-assign_batch_for_cells <- function(symsimobs, nbatch) {
+assign_batches_2pop <- function(symsimobs, nbatch) {
   left_max_batch <- floor(nbatch / 2)
   ncell <- ncol(symsimobs$counts)
   cellpops <- symsimobs$cell_meta$pop
@@ -103,8 +104,8 @@ add_batch_effect <- function(symsimobs, nbatch,
                                symsimobs, nbatch
                              ),
                              batch_effect_size = rep(1.0, nbatch),
-                             sd = 0.01,
-                             gene_mean_std = 0.2,
+                             batch_factor_sd = 0.01,
+                             gene_mean_sd = 0.2,
                              isg2brandom = F) {
   ## add batch effects to observed counts
   # use different mean and same sd to generate the
@@ -114,7 +115,7 @@ add_batch_effect <- function(symsimobs, nbatch,
   ngenes <- nrow(symsimobs$counts)
 
   ## set gene-batch effect matrix
-  gene_mean <- rnorm(ngenes, 0, gene_mean_std)
+  gene_mean <- rnorm(ngenes, 0, gene_mean_sd)
   mean_matrix <- matrix(0, ngenes, nbatch)
   for (i in ongenes) {
     for (j in seq_len(nbatch)) {
@@ -136,7 +137,7 @@ add_batch_effect <- function(symsimobs, nbatch,
       batch_factor[i, j] <- rnorm(
         n = 1,
         mean = mean_matrix[i, batchids[j]],
-        sd = sd
+        sd = batch_factor_sd
       )
     }
   }
