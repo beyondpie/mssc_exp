@@ -36,7 +36,9 @@ plot_genes_after_batcheffect <- function(symsimumibe, degs, ndegs,
 
 twostage_batcheffect_symsim <- function(myseed = 1) {
   nbatch <- 10L
-  dprefix <- here("src", "simu", "twostage_be_symsim", "data", "symsim")
+  resultdir <- here("data", "symsim", "twostage_be_symsim")
+  dprefix <- paste(resultdir, "data", "symsim", sep = "/")
+  plotprefix <- paste(resultdir, pdf, "sample", sep = "/")
   ## simulate the true
   symsimtrue <- mysymsim$sim_symsim_true(myseed = myseed, vary = "s")
   ## generate observed umi data
@@ -103,7 +105,6 @@ twostage_batcheffect_symsim <- function(myseed = 1) {
     symsim_strict_ndegenes
   )
 
-  plotprefix <- here("src", "simu", "twostage_be_symsim", "pdf", "sample")
   ggsave(
     filename = str_glue("{plotprefix}_be_deg_{myseed}.pdf"),
     plot = pvln_be$spvln_degs,
