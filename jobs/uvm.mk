@@ -2,18 +2,13 @@
 # use gmake
 
 # root ?= /home/labszu/git-recipes/mssc
-root ?= /Users/beyondpie/git-recipes/mssc
-.PHONY: install pybagwiff_data rm_bagwiff_data compile sample combchains vi \
-        test_filter debulk rmbulk rdumpbagwiff clean \
+.PHONY: install pybagwiff_data rm_bagwiff_data sample combchains vi \
+        test_filter debulk rmbulk rdumpbagwiff \
         visum sc2cellpops pseudo_samplede pseudo_cellpops
 sub := UM
 cell := Malignant
-curdir := $(shell pwd)
-local_data_dir := data
-exps := exps
 mydir := ${root}/${local_data_dir}/${sub}
-stanoutdir := ${root}/${exps}/${sub}/stan
-pipline_dir := ${root}/src/pipline
+uvm_stan_outdir := ${root}/${exps}/${sub}/stan
 
 # * install packages
 installpackges := 0-0_install_packages.R
@@ -107,46 +102,27 @@ sc_to_cellpops_r := 1-3_scRNAseq_to_cellpopulations.R
 sc2cellpops:
 	@Rscript ${pipline_dir}/${sc_to_cellpops_r}
 
-# * stan process
-cmdstan_dir := ${root}/src/cmdstan
-stanmodel_dir := ${root}/src/stan
+# * run stan
+uvm_mc_outdir := ${uvm_stan_outdir}/mc
+uvm_vi_outdir := ${uvm_stan_outdir}/vi
 
-mc := mc
-# comine stan multiple parallel chains script
-cpc := cpc
-vi := vi
-
-mcdir := ${stanoutdir}/${mc}
-vidir := ${stanoutdir}/${vi}
-
-MODEL ?= v1-1
-model_bin := ${curdir}/${MODEL}
 mybagwiffdata := ${mydir}/${sc_rdump}
+onemcresult := ${uvm_mc_outdir}/${model_version}_chain_1.csv
 
-onemcresult := ${mcdir}/${MODEL}_chain_1.csv
-
-${model_bin}: ${stanmodel_dir}/${MODEL}.stan
-	cp $< ${model_bin}.stan; \
-	cd ${HOME}/softwares/cmdstan-2.23.0 ;\
-	make -j4 STANCFLAGS="--include_paths=${stanmodel_dir}" $@; \
-	cd - ;\
-	rm ${model_bin}.stan
-
-compile : ${model_bin}
-
-${onemcresult} : ${cmdstan_dir}/${mc}.sh ${model_bin} ${mybagwiffdata}
-	-mkdir -p ${mcdir}
-	$^ ${mcdir}
+${onemcresult} : ${cmdstan_dir}/${mc}.sh ${stan_bin} ${mybagwiffdata}
+	-mkdir -p ${uvm_mc_outdir}
+	$^ ${uvm_mc_outdir}
 
 sample : ${onemcresult}
 
 combchains: ${cmdstan_dir}/${cpc}.sh ${onemcresult}
 	$^
 
-vi: ${cmdstan_dir}/${vi}.sh ${model_bin} ${mybagwiffdata}
-	-mkdir -p ${vidir}
-	$^ ${vidir}
+vi: ${cmdstan_dir}/${vi}.sh ${stan_bin} ${mybagwiffdata}
+	-mkdir -p ${uvm_vi_outdir}
+	$^ ${uvm_vi_outdir}
 
+# * summary stan
 stan_analyzer := 2-1_stan_vi_analyzer.R
 visum:
 	Rscript ${pipline_dir}/${stan_analyzer}
@@ -160,17 +136,6 @@ pseudo_cellpops:
 	Rscript ${pipline_dir}/${pseudeseq_analyzer} --scdataf scRNAseq_no_malignant.rds
 	Rscript ${pipline_dir}/${pseudeseq_analyzer} --scdataf scRNAseq_allcell.rds
 
-clean:
-	-rm ${curdir}/*.d ${curdir}/*.hpp ${curdir}/*.o
-	-rm ${mcdir}/*.log
-	-rm ${vidir}/*.log
-	-rm ${model_bin}
-
-
-
-
-
-
-
-
-
+clean_uvm:
+	-rm ${uvm_mc_outdir}/*.log
+	-rm ${uvm_vi_outdir}/*.log
