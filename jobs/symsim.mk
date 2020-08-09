@@ -1,6 +1,6 @@
 symsim := symsim
 symsim_tostan_script := ${pipline_dir}/3-1_symsim_to_bagwiff.R
-symsim_tostan_datadir := ${root}/${local_data_dir}/${symsim}/twostage_be_sysmsim/data
+symsim_tostan_datadir := ${root}/${local_data_dir}/${symsim}/twostage_be_symsim/data
 symsim_stan_outdir := ${root}/${exps}/${symsim}/stan
 symsimseed ?= 1
 symsim_gwise_data := ${symsim_tostan_datadir}/symsim_2be_${symsimseed}.rdump
