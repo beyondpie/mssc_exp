@@ -1,8 +1,4 @@
-# root ?= /home/labszu/git-recipes/mssc
-# root ?= /Users/beyondpie/git-recipes/mssc
-root := ..
-# VPATH := ..
-
+root := $(abspath ..)
 modelnm := mssc
 model_version ?= v1-1
 
