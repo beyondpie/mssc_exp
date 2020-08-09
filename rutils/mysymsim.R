@@ -157,6 +157,7 @@ add_batch_effect <- function(symsimobs, nbatch,
     g2b = mean_matrix,
     gmean = gene_mean,
     g2c = batch_factor,
+    ongenes = ongenes,
     sd = sd
   )
   invisible(result)
