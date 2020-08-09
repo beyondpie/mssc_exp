@@ -17,28 +17,28 @@ sim_symsim_true <- function(myseed = 0,
                             hasgenemodule = F, minmodn = 50,
                             npop = 2,
                             nevf = 10, n_de_evf = 6,
-                            sigma  = 0.2, vary = "all") {
-    min_popsize <- floor(ncell / npop)
-    if (npop == 2) {
-        myphyla <- phyla2()
-    }
-    if (npop == 3) {
-        myphyla <- SymSim::Phyla3()
-    }
-    if (npop == 5) {
-        myphyla <- SymSim::Phyla5()
-    }
-    gmodprop <- ifelse(hasgenemodule, minmodn * npop / ngene, 0.0)
-    SymSim::SimulateTrueCounts(randseed = myseed,
-                               ncells_total = ncell, ngenes = ngene,
-                               phyla = myphyla,
-                               min_popsize = min_popsize,
-                               i_minpop = 1, evf_type = "discrete",
-                               nevf = nevf, n_de_evf = n_de_evf,
-                               gene_module_prop = gmodprop,
-                               min_module_size = minmodn,
-                               Sigma = sigma, vary = vary,
-                               prop_hge = 0.0)
+                            sigma = 0.2, vary = "all") {
+  min_popsize <- floor(ncell / npop)
+  if (npop == 2) {
+    myphyla <- phyla2()
+  }
+  if (npop == 3) {
+    myphyla <- SymSim::Phyla3()
+  }
+  if (npop == 5) {
+    myphyla <- SymSim::Phyla5()
+  }
+  gmodprop <- ifelse(hasgenemodule, minmodn * npop / ngene, 0.0)
+  SymSim::SimulateTrueCounts(randseed = myseed,
+    ncells_total = ncell, ngenes = ngene,
+    phyla = myphyla,
+    min_popsize = min_popsize,
+    i_minpop = 1, evf_type = "discrete",
+    nevf = nevf, n_de_evf = n_de_evf,
+    gene_module_prop = gmodprop,
+    min_module_size = minmodn,
+    Sigma = sigma, vary = vary,
+    prop_hge = 0.0)
 }
 
 
