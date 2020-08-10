@@ -9,6 +9,7 @@ pipline_dir := ${root}/src/pipline
 
 include stan.mk
 include uvm.mk
+include pseudobulk.mk
 include symsim.mk
 
 .PHONY: clean
