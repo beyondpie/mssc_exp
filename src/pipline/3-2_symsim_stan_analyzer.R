@@ -59,6 +59,10 @@ symsim_strict_ndegenes <- mysymsim$get_symsim_strict_ndegenes(symsim_dea,
   nDiffEVF = 0,
   logFC = 0.5) %>% which(. == T)
 
+symsim_zerodiffevf_genes <- mysymsim$get_symsim_ndiffevf_genes(symsim_dea) %>%
+  which(. == T)
+
+
 
 ## * load simulated counts
 symsimumi <- readRDS(file = paste(symsim_data_dir, str_glue("symsim_umi_{myseed}.rds"),
@@ -90,18 +94,22 @@ getauc <- function(resdir, modelvsn = "v1-1", method = "vi", par = "MuCond",
   return(result)
 }
 
+
+## TODO: merge multiple pairs of degs and ndegs
+
 ## symsim_vi_auc_strict <- getauc(resdir = symsim_exp_dir,
 ##   modelvsn = mvrsn, method = "vi", par = "MuCond",
 ##   degs = symsim_degenes, ndegs = symsim_strict_ndegenes,
 ##   seed = myseed)
 ## str(symsim_vi_auc_strict)
 
-symsim_vi_auc_sample <- getauc(resdir = symsim_exp_dir,
-  modelvsn = mvrsn, method = "vi", par = "MuCond",
-  degs = symsim_degenes, ndegs = sample(symsim_ndegs, size = length(symsim_degenes),
-    replace = F),
-  seed = myseed)
-str(symsim_vi_auc_sample)
+## TODO: try multiple sample groups
+## symsim_vi_auc_sample <- getauc(resdir = symsim_exp_dir,
+##   modelvsn = mvrsn, method = "vi", par = "MuCond",
+##   degs = symsim_degenes, ndegs = sample(symsim_ndegs, size = length(symsim_degenes),
+##     replace = F),
+##   seed = myseed)
+## str(symsim_vi_auc_sample)
 
 
 ## symsim_vi_auc_all <- getauc(resdir = symsim_exp_dir,
@@ -109,3 +117,9 @@ str(symsim_vi_auc_sample)
 ##   degs = symsim_degenes, ndegs = symsim_ndegs,
 ##   seed = myseed)
 ## str(symsim_vi_auc_all)
+
+symsim_vi_auc_zerodiffevf <- getauc(resdir = symsim_exp_dir,
+  modelvsn = mvrsn, method = "vi", par = "MuCond",
+  degs = symsim_degenes, ndegs = symsim_zerodiffevf_genes,
+  seed = myseed)
+str(symsim_vi_auc_zerodiffevf)
