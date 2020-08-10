@@ -205,11 +205,11 @@ twostage_batcheffect_symsim <- function(myseed = 1,
 }
 
 ## * generate data
-lapply(seq_len(myrep), FUN = function(i) {
-  message("save args configuration ... ")
-  saveRDS(file = paste(resultdir, "args.rds", sep = "/"),
-    object = args)
+message("save args configuration ... ")
+saveRDS(file = paste(resultdir, "args.rds", sep = "/"),
+  object = args)
 
+lapply(seq_len(myrep), FUN = function(i) {
   message(str_glue("generating the {i}th symsim data ..."))
   twostage_batcheffect_symsim(i,
     nbatch = nbatch,

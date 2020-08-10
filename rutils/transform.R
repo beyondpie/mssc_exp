@@ -158,16 +158,16 @@ to_bagwiff <- function(cnt_gbc, batch, conds,
   P <- 1L
   B <- matrix(1:G, nrow = G, ncol = P)
   if (rdump) {
-    rstan::stan_rdump(c(
+    invisible(rstan::stan_rdump(c(
       "N", "J", "K", "G", "S", "P", "B",
       "XCond", "XInd", "Xcg"
-    ), file = outf)
+    ), file = outf))
   }
   else {
     Xcg <- as.data.frame(Xcg)
     XInd <- as.data.frame(XInd)
     XCond <- as.data.frame(XCond)
-    save(N, J, K, G, S, P, B, XInd, XCond, Xcg, file = outf)
+    invisible(save(N, J, K, G, S, P, B, XInd, XCond, Xcg, file = outf))
   }
 }
 
