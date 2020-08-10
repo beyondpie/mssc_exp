@@ -97,26 +97,26 @@ getauc <- function(resdir, modelvsn = "v1-1", method = "vi", par = "MuCond",
 
 ## TODO: merge multiple pairs of degs and ndegs
 
-## symsim_vi_auc_strict <- getauc(resdir = symsim_exp_dir,
-##   modelvsn = mvrsn, method = "vi", par = "MuCond",
-##   degs = symsim_degenes, ndegs = symsim_strict_ndegenes,
-##   seed = myseed)
-## str(symsim_vi_auc_strict)
+symsim_vi_auc_strict <- getauc(resdir = symsim_exp_dir,
+  modelvsn = mvrsn, method = "vi", par = "MuCond",
+  degs = symsim_degenes, ndegs = symsim_strict_ndegenes,
+  seed = myseed)
+str(symsim_vi_auc_strict)
 
 ## TODO: try multiple sample groups
-## symsim_vi_auc_sample <- getauc(resdir = symsim_exp_dir,
-##   modelvsn = mvrsn, method = "vi", par = "MuCond",
-##   degs = symsim_degenes, ndegs = sample(symsim_ndegs, size = length(symsim_degenes),
-##     replace = F),
-##   seed = myseed)
-## str(symsim_vi_auc_sample)
+symsim_vi_auc_sample <- getauc(resdir = symsim_exp_dir,
+  modelvsn = mvrsn, method = "vi", par = "MuCond",
+  degs = symsim_degenes, ndegs = sample(symsim_ndegs, size = length(symsim_degenes),
+    replace = F),
+  seed = myseed)
+str(symsim_vi_auc_sample)
 
 
-## symsim_vi_auc_all <- getauc(resdir = symsim_exp_dir,
-##   modelvsn = mvrsn, method = "vi", par = "MuCond",
-##   degs = symsim_degenes, ndegs = symsim_ndegs,
-##   seed = myseed)
-## str(symsim_vi_auc_all)
+symsim_vi_auc_all <- getauc(resdir = symsim_exp_dir,
+  modelvsn = mvrsn, method = "vi", par = "MuCond",
+  degs = symsim_degenes, ndegs = symsim_ndegs,
+  seed = myseed)
+str(symsim_vi_auc_all)
 
 symsim_vi_auc_zerodiffevf <- getauc(resdir = symsim_exp_dir,
   modelvsn = mvrsn, method = "vi", par = "MuCond",

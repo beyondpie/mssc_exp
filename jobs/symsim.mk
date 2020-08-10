@@ -1,5 +1,6 @@
 symsim := symsim
 symsim_tostan_script := ${pipline_dir}/3-1_symsim_to_bagwiff.R
+symsim_sumstan_script := ${pipline_dir}/3-2_symsim_stan_analyzer.R
 symsim_tostan_datadir := ${root}/${local_data_dir}/${symsim}/twostage_be_symsim/data
 symsim_tostan_pdfdir := ${root}/${local_data_dir}/${symsim}/twostage_be_symsim/pdf
 symsim_stan_outdir := ${root}/${exps}/${symsim}/stan
@@ -38,3 +39,7 @@ symsim_vi: ${symsim_gwise_data}
 
 # * summary stan
 
+# ** vi
+.PHONY: sum_symsim_vi
+sum_symsim_vi:
+	Rscript ${symsim_sumstan_script} --myseed ${symsimseed} --version ${model_version}
