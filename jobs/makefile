@@ -11,7 +11,5 @@ include stan.mk
 include uvm.mk
 include symsim.mk
 
-
-
 .PHONY: clean
 clean: clean_stan clean_uvm
