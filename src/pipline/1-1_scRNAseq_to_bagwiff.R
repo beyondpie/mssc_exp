@@ -258,4 +258,3 @@ myt$to_bagwiff(
   here(mydatadir, mysubdir, args$output),
   args$rdump
   )
-
