@@ -43,24 +43,6 @@ degnms <- myt$stat_geneset(sc_genes, deg$genesymbol)
 fpdegnms <- myt$stat_geneset(sc_genes, fpdeg$genesymbol)
 tndegnms <- myt$stat_geneset(sc_genes, tndeg$genesymbol)
 
-## TODO: add explanation about which is case and control
-## ctrlmnscase: control minus case
-get_ctrlmnscase_par <- function(mystanfit, par = "MuCond") {
-  mus <- rstan::extract(mystanfit, pars = par)[[par]]
-  delta <- as.data.frame(mus[, , 1] - mus[, , 2])
-  colnames(delta) <- sc_genes
-  return(delta)
-}
-
-## simple t statistics
-calt <- function(delta, fn = matrixStats::colMedians) {
-  fnhat <- fn(as.matrix(delta))
-  std_hat <- matrixStats::colSds(as.matrix(delta) + 1e-10)
-  sts <- fnhat / (sqrt(nrow(delta)) * std_hat)
-  names(sts) <- colnames(delta)
-  return(sts)
-}
-
 ## AUC analysis
 calauc <- function(scores, backend) {
   caTools::colAUC(scores, backend)
@@ -81,6 +63,7 @@ getndegnms <- function(myndegnm = "extreme") {
 }
 
 ## eval scores based on posterior samples using AUC
+## TODO: refactor as 3-2; only mean should be enough
 evalstat <- function(modelnm = "v1-1", method = "vi", par = "MuCond",
                      fnm = "mean", myndegnm = "extreme",
                      mydegnms = degnms) {
@@ -88,14 +71,15 @@ evalstat <- function(modelnm = "v1-1", method = "vi", par = "MuCond",
     here(exp_dir, exp_sub_dir, stan_dir),
     modelnm, method
   )
-  dmucond <- get_ctrlmnscase_par(mystanfit = mystanfit, par = par)
+  dmucond <- myt$get_ctrlmnscase_par(mystanfit = mystanfit, par = par)
+  colnames(dmucond) <-  sc_genes
   if (fnm == "mean") {
     fn <- colMeans
   }
   if (fnm == "median") {
     fn <- matrixStats::colMedians
   }
-  dmut <- calt(dmucond, fn)
+  dmut <- myt$calt(dmucond, fn)
 
   ndegnms <- getndegnms(myndegnm)
   mybackend <- c(rep(TRUE, length(mydegnms)), rep(FALSE, length(ndegnms)))
@@ -125,7 +109,8 @@ evalqtl <- function(modelnm = "v1-1", method = "mc", par = "MuCond",
     modelnm, method
   )
   ## dmucond: delta mucond
-  dmucond <- get_ctrlmnscase_par(mystanfit = mystanfit, par = par)
+  dmucond <- myt$get_ctrlmnscase_par(mystanfit = mystanfit, par = par)
+  colnames(dmucond) <- sc_genes
   zerorela2dmucond <- mypntrela2rgn(dmucond, myprobs = myprobs, pnt = pnt)
 
   ndegnms <- getndegnms(myndegnm)

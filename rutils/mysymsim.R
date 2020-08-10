@@ -228,7 +228,7 @@ get_symsim_degenes <- function(symsim_dea, nDiffEVF = 1, logFC = 0.6) {
     (symsim_dea$logFC_theoretical >= logFC))
 }
 
-get_symsim_strict_ndegnes <- function(symsim_dea, nDiffEVF = 0, logFC = 0.1) {
+get_symsim_strict_ndegenes <- function(symsim_dea, nDiffEVF = 0, logFC = 0.1) {
   invisible((symsim_dea$nDiffEV <= nDiffEVF) &
     (symsim_dea$logFC_theoretical <= logFC))
 }

@@ -241,3 +241,20 @@ load_stan <- function(dirnm, modelnm = "v1-1", method = "vi",
   }
   return(mystanfit)
 }
+
+## TODO: add explanation about which is case and control
+## ctrlmnscase: control minus case
+get_ctrlmnscase_par <- function(mystanfit, par = "MuCond") {
+  mus <- rstan::extract(mystanfit, pars = par)[[par]]
+  delta <- as.data.frame(mus[, , 1] - mus[, , 2])
+  return(delta)
+}
+
+## simple t statistics
+calt <- function(delta, fn = matrixStats::colMedians) {
+  fnhat <- fn(as.matrix(delta))
+  std_hat <- matrixStats::colSds(as.matrix(delta) + 1e-10)
+  sts <- fnhat / (sqrt(nrow(delta)) * std_hat)
+  names(sts) <- colnames(delta)
+  return(sts)
+}

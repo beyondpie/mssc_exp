@@ -63,7 +63,7 @@ twostage_batcheffect_symsim <- function(myseed = 1) {
   )
 
   symsim_degenes <- mysymsim$get_symsim_degenes(symsim_dea) %>% which(. == T)
-  symsim_strict_ndegenes <- mysymsim$get_symsim_strict_ndegnes(
+  symsim_strict_ndegenes <- mysymsim$get_symsim_strict_ndegenes(
     symsim_dea,
     logFC = 0.5
   ) %>% which(. == T)
