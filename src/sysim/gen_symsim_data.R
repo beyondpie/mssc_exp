@@ -38,7 +38,7 @@ twostage_batcheffect_symsim <- function(myseed = 1) {
   nbatch <- 10L
   resultdir <- here("data", "symsim", "twostage_be_symsim")
   dprefix <- paste(resultdir, "data", "symsim", sep = "/")
-  plotprefix <- paste(resultdir, pdf, "sample", sep = "/")
+  plotprefix <- paste(resultdir, "pdf", "sample", sep = "/")
   ## simulate the true
   symsimtrue <- mysymsim$sim_symsim_true(myseed = myseed, vary = "s")
   ## generate observed umi data
