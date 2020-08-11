@@ -25,9 +25,9 @@ ${symsim_onemc_res} : ${symsim_gwise_data}
 	-mkdir -p ${symsim_stanmc_outdir}
 	${cmdstan_dir}/${mc}.sh ${stan_bin} $< ${symsim_stanmc_outdir}
 
-.PHONY: symsim_mc
+.PHONY: symsim_sample symsim_combchains
 symsim_sample : ${symsim_onemc_res}
-symsim_combchanins : ${symsim_onemc_res}
+symsim_combchains : ${symsim_onemc_res}
 	${cmdstan_dir}/${cpc}.sh ${symsim_onemc_res}
 
 # ** vi
@@ -39,9 +39,8 @@ symsim_vi: ${symsim_gwise_data}
 
 # * summary stan
 
-# ** vi
-.PHONY: sum_symsim_vi
-sum_symsim_vi:
+.PHONY: sum_symsim
+sum_symsim:
 	Rscript ${symsim_sumstan_script} --myseed ${symsimseed} \
       --version ${model_version} \
-      --method vi
+      --method ${method}

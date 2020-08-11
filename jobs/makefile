@@ -1,6 +1,7 @@
 root := $(abspath ..)
 modelnm := mssc
 model_version ?= v1-1
+method ?= vi
 
 curdir := $(shell pwd)
 local_data_dir := data
