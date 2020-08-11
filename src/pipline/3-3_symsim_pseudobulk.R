@@ -10,6 +10,7 @@ options("import.path" = here("rutils"))
 myt <- modules::import("transform")
 myroc <- modules::import("roc")
 mysymsim <- modules::import("mysymsim")
+mypseudo <- modules::import("pseudobulk")
 
 ## * options
 option_list <- list(
@@ -84,45 +85,22 @@ symsim2be <- readRDS(
 mycnt <- symsim2be$counts
 mybatches <- symsim2be$batch_meta$batch
 myconds <- symsim2be$cell_meta$pop
-names(myconds) <- as.character(mybatches)
+pseudo_deseq2_res <- mypseudo$pseudobulk_deseq2(mycnt, mybatches, myconds)
 
-ubatches <- unique(mybatches)
-uconds <- as.character(ubatches) %>% myconds[.]
+tmp <- mypseudo$calc_auc(pseudo_deseq2_res, symsim_degenes,
+                         symsim_strict_ndegenes)
 
-mypseudobulk <- ubatches %>%
-  map(.f = function(batch) {
-    rowSums(mycnt[, mybatches %in% batch])
-  }) %>%
-  do.call(what = cbind, args = .)
+tmp <- mypseudo$calc_auc(pseudo_deseq2_res, symsim_degenes,
+                         symsim_ndegs)
 
-colnames(mypseudobulk) <- as.character(ubatches)
+tmp <- mypseudo$calc_auc(pseudo_deseq2_res, symsim_degenes,
+                        symsim_zerodiffevf_genes)
 
-deseqds <- DESeq2::DESeqDataSetFromMatrix(
-  countData = mypseudobulk,
-  colData = data.frame(uconds),
-  design = ~uconds
-)
+tmp <- mypseudo$calc_auc(pseudo_deseq2_res, symsim_degenes,
+  symsim_sampled_ndegs_1)
 
-deseqres <- DESeq2::DESeq(deseqds) %>%
-  DESeq2::results() %>%
-  data.frame()
+tmp <- mypseudo$calc_auc(pseudo_deseq2_res, symsim_degenes,
+  symsim_sampled_ndegs_2)
 
-eval_DESeq2 <- function(degs, ndegs, DESeq2res,
-                       scorecol = "pvalue") {
-  mybackend <- c(rep(TRUE, length(degs)), rep(FALSE, length(ndegs)))
-  bgnms <- c(degs, ndegs)
-  names(mybackend) <- as.character(bgnms)
-
-  scores <- DESeq2res[[scorecol]]
-  names(scores) <- rownames(DESeq2res)
-  scores[is.na(scores)] <- 1.0
-  myauc <- myt$fmtflt(caTools::colAUC(scores[bgnms], mybackend))
-  invisible(list(auc = myauc, sts = scores))
-}
-
-tmp <- eval_DESeq2(symsim_degenes, symsim_strict_ndegenes,
-            deseqres)
-tmp <- eval_DESeq2(symsim_degenes, symsim_ndegs,
-  deseqres)
-tmp <- eval_DESeq2(symsim_degenes, symsim_sampled_ndegs_1,
-  deseqres)
+tmp <- mypseudo$calc_auc(pseudo_deseq2_res, symsim_degenes,
+  symsim_sampled_ndegs_3)
