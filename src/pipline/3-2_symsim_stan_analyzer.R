@@ -164,3 +164,4 @@ symsimvi_auc <- function() {
     str_glue("symsim {modelvsn} {method} on {par}: zero diffevf ndegs"))
   str(symsim_vi_auc_zerodiffevf)
 }
+
