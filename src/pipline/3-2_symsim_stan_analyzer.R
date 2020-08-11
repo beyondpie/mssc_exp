@@ -25,7 +25,11 @@ option_list <- list(
   make_option(c("--version"),
     action = "store",
     type = "character",
-    default = "v1-1")
+    default = "v1-1"),
+  make_option(c("--method"),
+    action = "store",
+    type = "character",
+    default = "vi")
 )
 
 args <- option_list %>%
@@ -35,6 +39,7 @@ args <- option_list %>%
 ## * configs
 myseed <- args$myseed
 mvrsn <- args$version
+method <- args$method
 symsim_data_dir <- here("data", "symsim", "twostage_be_symsim", "data")
 symsim_exp_dir <- here("exps", "symsim", "stan", myseed)
 symsim_exp_vi_dir <- paste(symsim_exp_dir, "vi")
@@ -111,49 +116,21 @@ getauc <- function(resdir, modelvsn = "v1-1", method = "vi", par = "MuCond",
 
 ## TODO: merge multiple pairs of degs and ndegs
 symsimvi_auc <- function() {
+  par <- "MuCond"
   symsim_vi_auc_strict <- getauc(resdir = symsim_exp_dir,
     modelvsn = mvrsn, method = "vi", par = "MuCond",
     degs = symsim_degenes, ndegs = symsim_strict_ndegenes,
     seed = myseed)
   message(
-    str_glue("symsim {modelvsn} {method} on {par}: strict ndegs"))
+    str_glue("symsim {mvrsn} {method} on {par}: strict ndegs"))
   str(symsim_vi_auc_strict)
-
-  ## TODO: try multiple sample groups
-  symsim_vi_auc_sample <- getauc(resdir = symsim_exp_dir,
-    modelvsn = mvrsn, method = "vi", par = "MuCond",
-    degs = symsim_degenes,
-    ndegs = symsim_sampled_ndegs_1,
-    seed = myseed)
-  message(
-    str_glue("symsim {modelvsn} {method} on {par}: sampled ndegs"))
-  str(symsim_vi_auc_sample)
-
-  symsim_vi_auc_sample <- getauc(resdir = symsim_exp_dir,
-    modelvsn = mvrsn, method = "vi", par = "MuCond",
-    degs = symsim_degenes,
-    ndegs = symsim_sampled_ndegs_2,
-    seed = myseed)
-  message(
-    str_glue("symsim {modelvsn} {method} on {par}: sampled ndegs"))
-  str(symsim_vi_auc_sample)
-
-  symsim_vi_auc_sample <- getauc(resdir = symsim_exp_dir,
-    modelvsn = mvrsn, method = "vi", par = "MuCond",
-    degs = symsim_degenes,
-    ndegs = symsim_sampled_ndegs_3,
-    seed = myseed)
-  message(
-    str_glue("symsim {modelvsn} {method} on {par}: sampled ndegs"))
-  str(symsim_vi_auc_sample)
-
 
   symsim_vi_auc_all <- getauc(resdir = symsim_exp_dir,
     modelvsn = mvrsn, method = "vi", par = "MuCond",
     degs = symsim_degenes, ndegs = symsim_ndegs,
     seed = myseed)
   message(
-    str_glue("symsim {modelvsn} {method} on {par}: all ndegs"))
+    str_glue("symsim {mvrsn} {method} on {par}: all ndegs"))
   str(symsim_vi_auc_all)
 
   symsim_vi_auc_zerodiffevf <- getauc(resdir = symsim_exp_dir,
@@ -161,7 +138,37 @@ symsimvi_auc <- function() {
     degs = symsim_degenes, ndegs = symsim_zerodiffevf_genes,
     seed = myseed)
   message(
-    str_glue("symsim {modelvsn} {method} on {par}: zero diffevf ndegs"))
+    str_glue("symsim {mvrsn} {method} on {par}: zero diffevf ndegs"))
   str(symsim_vi_auc_zerodiffevf)
+
+    symsim_vi_auc_sample <- getauc(resdir = symsim_exp_dir,
+      modelvsn = mvrsn, method = "vi", par = "MuCond",
+      degs = symsim_degenes,
+      ndegs = symsim_sampled_ndegs_1,
+      seed = myseed)
+    message(
+      str_glue("symsim {mvrsn} {method} on {par}: sampled ndegs"))
+    str(symsim_vi_auc_sample)
+
+
+    symsim_vi_auc_sample <- getauc(resdir = symsim_exp_dir,
+      modelvsn = mvrsn, method = "vi", par = "MuCond",
+      degs = symsim_degenes,
+      ndegs = symsim_sampled_ndegs_2,
+      seed = myseed)
+    message(
+      str_glue("symsim {mvrsn} {method} on {par}: sampled ndegs"))
+    str(symsim_vi_auc_sample)
+
+    symsim_vi_auc_sample <- getauc(resdir = symsim_exp_dir,
+      modelvsn = mvrsn, method = "vi", par = "MuCond",
+      degs = symsim_degenes,
+      ndegs = symsim_sampled_ndegs_3,
+      seed = myseed)
+    message(
+      str_glue("symsim {mvrsn} {method} on {par}: sampled ndegs"))
+    str(symsim_vi_auc_sample)
+
 }
 
+symsimvi_auc()

@@ -42,4 +42,6 @@ symsim_vi: ${symsim_gwise_data}
 # ** vi
 .PHONY: sum_symsim_vi
 sum_symsim_vi:
-	Rscript ${symsim_sumstan_script} --myseed ${symsimseed} --version ${model_version}
+	Rscript ${symsim_sumstan_script} --myseed ${symsimseed} \
+      --version ${model_version} \
+      --method vi
