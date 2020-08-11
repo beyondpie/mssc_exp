@@ -5,7 +5,8 @@
 
 # select model name, basename get v1-1_chain_1 like pattern
 # then only use v1-1
-model_name=${$(basename ${1})/_*/}
+tmp=$(basename ${1})
+model_name="${tmp/_*/}"
 to_dir=$(dirname ${1})
 prefix=${model_name}_chain
 resultf=${to_dir}/cpc_${model_name}.csv
