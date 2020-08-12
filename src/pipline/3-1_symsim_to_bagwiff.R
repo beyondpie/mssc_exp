@@ -71,6 +71,7 @@ sigma <- args$sigma
 vary <- args$vary
 myrep <- args$rep
 fpnum <- args$fpnum
+
 ## * utils
 plot_genes_after_batcheffect <- function(symsimumibe, degs, ndegs,
                                          nde = 40, nnde = 40,

@@ -251,10 +251,11 @@ get_ctrlmnscase_par <- function(mystanfit, par = "MuCond") {
 }
 
 ## simple t statistics
-calt <- function(delta, fn = matrixStats::colMedians) {
+calt <- function(delta, fn = colMeans) {
   fnhat <- fn(as.matrix(delta))
-  std_hat <- matrixStats::colSds(as.matrix(delta) + 1e-10)
-  sts <- fnhat / (sqrt(nrow(delta)) * std_hat)
+  std_hat <- matrixStats::colSds(as.matrix(delta))
+  ## sts <- fnhat / (sqrt(nrow(delta)) * std_hat)
+  sts <- fnhat / std_hat
   names(sts) <- colnames(delta)
   return(sts)
 }

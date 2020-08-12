@@ -99,8 +99,8 @@ getauc <- function(resdir, modelvsn = "v1-1", method = "vi", par = "MuCond",
   stanfit <- myt$load_stan(dirnm = resdir, modelnm = modelvsn, method = method,
     vi_dir = "vi", mc_dir = "mc")
   dcond <- myt$get_ctrlmnscase_par(stanfit, par = par)
-  dt <- myt$calt(dcond, fn = colMeans)
-  dt <- dt[union(degs, ndegs)]
+  dt <- abs(myt$calt(dcond, fn = colMeans))
+  dt <- dt[c(degs, ndegs)]
   labels <- c(rep(1L, length(degs)), rep(0L, length(ndegs)))
   auc <- myt$fmtflt(caTools::colAUC(dt, labels))
   result <- list(modelvsn = modelvsn,

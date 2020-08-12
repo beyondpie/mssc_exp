@@ -261,6 +261,9 @@ plotviolin <- function(symsimdata, genes) {
     tmp <- plotdata[c(gnm[i], "pop")]
     ggplot(tmp, aes_string(x = "pop", y = gnm[i], fill = "pop")) +
       geom_violin() +
+      stat_summary(fun.data = "mean_sdl",
+                   mult = 1, geom = "pointrange", color = "red",
+                   size = 0.2) +
       myggtitle +
       theme(
         legend.position = "none",
