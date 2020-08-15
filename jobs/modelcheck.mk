@@ -1,5 +1,5 @@
 mcheck_tostan_script := ${root}/src/modelcheck/modelcheck_symsim.R
-mcheck_tostan_datadir := ${root}/${local_data_dir}/nobatch
+mcheck_tostan_datadir := ${root}/${local_data_dir}/symsim/nobatch
 mcheck_stan_outdir := ${root}/${exps}/modelcheck
 mcheck_stanvi_outdir := ${mcheck_stan_outdir}/vi
 
