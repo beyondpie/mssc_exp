@@ -148,7 +148,6 @@ to_bagwiff <- function(cnt_gbc, batch, conds,
   K <- ncol(XInd)
   G <- ncol(Xcg)
 
-  ## S <- rowSums(Xcg)
   S <- totcntpcell
 
   ## bagmiff mdel
@@ -173,9 +172,9 @@ to_bagwiff <- function(cnt_gbc, batch, conds,
 
 subsampling <- function(myarray, size, replace = FALSE) {
   if (length(myarray) <= size) {
-    return(myarray)
+    invisible(myarray)
   } else {
-    return(sample(myarray, size = size, replace = replace))
+    invisible(sample(myarray, size = size, replace = replace))
   }
 }
 
