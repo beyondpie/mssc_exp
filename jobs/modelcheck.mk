@@ -3,7 +3,7 @@ mcheck_tostan_datadir := ${root}/${local_data_dir}/nobatch
 mcheck_stan_outdir := ${root}/${exps}/modelcheck
 mcheck_stanvi_outdir := ${mcheck_stan_outdir}/vi
 
-mcheckseed := 1
+mcheckseed := 0
 mcheck_gwise_data := ${mcheck_tostan_datadir}/${mcheckseed}.rdump
 
 # * generate simulation data without batch effect
