@@ -38,10 +38,12 @@ symsimumi$batch_meta <- list(batch = batchids)
 cnt <- symsimumi$counts
 totcntpcell <- colSums(cnt)
 
-## * output
+## * output the train data
 saveRDS(object = symsimumi,
   file = paste(todatadir, str_glue("{myseed}.rds"), sep = "/"))
 myt$to_bagwiff(cnt, batchids, symsimumi$cell_meta$pop,
   totcntpcell,
   outf = paste(todatadir, str_glue("{myseed}.rdump"), sep = "/"),
   rdump = T)
+
+## * check the vi result
