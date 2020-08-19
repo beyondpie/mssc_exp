@@ -143,7 +143,7 @@ cnt_vs_scale_heavyzeros_all <- compareviolin_cnt_tpm(
 cnt_vs_scale_heavyindeff_all <- compareviolin_cnt_tpm(
   pbmccnt, pbmctpm, heavyindeffectGs, pbmcinds, limitcells = NULL,
   title = violin_all_cells_title,
-  fnm = "vln_cnt-tpm_heavyindeff.png")
+  fnm = "vln_cnt-tpm_heavyindeff_allcells.png")
 
 violin_cytoTcell_title <- ggpubr::text_grob(
   "Violin Plot Compare: Count vs TPM on cytotoxic T cells",
