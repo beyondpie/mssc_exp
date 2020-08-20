@@ -6,6 +6,21 @@ library(Seurat)
 import::from(here, here)
 import::from(stringr, str_glue)
 suppressPackageStartupMessages(library(ggpubr))
+library(MASS)
+
+## Support numerical way to solve MLE of Poisson lognormal
+## distribution:
+## - Y ~ Poisson( S * lambda)
+## - log(lambda) ~ Normal(mu, sigma)
+## The MLE process needs all the counts share the same
+## S and lambda
+## library(poilog)
+
+## sads does MLE of Poisson lognormal by poilog
+## sads mainly uses mle2 from bbmle package, which
+## then based on mle in stats4 for MLE.
+library(sads)
+
 library(rstan)
 options(mc.cores = parallel::detectCores())
 rstan_options(auto_write = TRUE)
@@ -112,7 +127,6 @@ pbmc_cellanno <- pbmcseurat@meta.data$seurat_clusters
 
 ## cytototic T cells
 mycluster <- 2
-
 ind <- "R1"
 
 ## 314 cells
@@ -161,5 +175,20 @@ cnt_vs_scale_heavyindeff_cytoTcell <- compareviolin_cnt_tpm(
   pbmccnt, pbmctpm, heavyindeffectGs, pbmcinds, limitcells = mulindcells,
   title = violin_cytoTcell_title,
   fnm = "vln_cnt-tpm_heavyindeff_cytotoxicTcell.png")
+
+## *** fitting
+
+set.seed(123)
+x <- MASS::rnegbin(100, mu = 5, theta = 4)
+fnb <- MASS::fitdistr(x, densfun = "Negative Binomial")
+
+totcntpcell_acluster_anind <- colSums(pbmcnt[, oneindcells])
+totcntpcell_all_anind <- colSums(pbmcnt[, mulindcells])
+
+cnt_HBB_acluster_anind <- pbmccnt["HBB", oneindcells]
+cnt_HBB_all_anind <- pbmccnt["HBB", mulindcells]
+
+
+
 
 ## * scRNAseq benchmark
