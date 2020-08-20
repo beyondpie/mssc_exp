@@ -1,11 +1,15 @@
 options(error = traceback)
-options(warn = -1)
+options(warn = 0)
 library(optparse)
 suppressPackageStartupMessages(library(tidyverse))
 library(Seurat)
 import::from(here, here)
 import::from(stringr, str_glue)
 suppressPackageStartupMessages(library(ggpubr))
+
+## fitdist in MASS
+## It supports Poisson, NB, Gamma and so on.
+## NB and Gamma use optim to estimate
 library(MASS)
 
 ## Support numerical way to solve MLE of Poisson lognormal
@@ -19,8 +23,19 @@ library(MASS)
 ## sads does MLE of Poisson lognormal by poilog
 ## sads mainly uses mle2 from bbmle package, which
 ## then based on mle in stats4 for MLE.
+library(bbmle)
 library(sads)
 
+## Ref lib: HIPPO and NBID
+
+## stan support MAP estimation,
+## i.e., find a mode in the posterior
+## try to directly use the constrains and unconstrains.
+## compare them for efficiency.
+## Note: if initialization if needed for parameters
+
+## Check: if support non-inform prior (not setting prior)
+## then MAP here equals to MLE
 library(rstan)
 options(mc.cores = parallel::detectCores())
 rstan_options(auto_write = TRUE)
