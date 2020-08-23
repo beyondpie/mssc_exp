@@ -23,17 +23,27 @@ library(MASS)
 ## sads does MLE of Poisson lognormal by poilog
 ## sads mainly uses mle2 from bbmle package, which
 ## then based on mle in stats4 for MLE.
+## qunminorm-paper also uses sads to estimate poisson lognormal
 library(bbmle)
 library(sads)
 
-## Ref lib: HIPPO and NBID
+## MLE of zero-inflated and hurdle models for count data.
+library(pscl)
+
+
+## This lib is to discover the zero-inflated genes
+## by MLE of poisson, negive binomial.
+library(HIPPO)
+
+## This lib is to UMI-based scRNA-Seq DEE analysis
+## with negative binomial with independent dispersions
+library(NBID)
 
 ## stan support MAP estimation,
 ## i.e., find a mode in the posterior
 ## try to directly use the constrains and unconstrains.
 ## compare them for efficiency.
 ## Note: if initialization if needed for parameters
-
 ## Check: if support non-inform prior (not setting prior)
 ## then MAP here equals to MLE
 library(rstan)
@@ -42,6 +52,8 @@ rstan_options(auto_write = TRUE)
 
 options("import.path" = here("rutils"))
 myt <- modules::import("transform")
+myfit <- modules::import("myfitdistr")
+# modules::reload(myfit)
 
 ## * configs
 datadir <- here("data")
@@ -55,8 +67,8 @@ myaxis_title_y <- ggplot2::element_text(size = 16, face = "bold")
 mytitle <- ggplot2::element_text(size = 15, hjust = 0.5)
 
 ## * functions
-is_outlier <- function(x) {
-  return(x > 5 * quantile(x, 0.999))
+is_outlier <- function(x, up_prob = 0.995) {
+  return(x > 5 * quantile(x, up_prob))
 }
 
 singleviolin <- function(whichdf, whichgene, whichgroup,
@@ -95,7 +107,7 @@ groupviolin <- function(gbcmatrix, genes, groups, limitcells = NULL,
   lapply(seq_len(length(genes)), FUN = function(i) {
     tmp <- plotdata[c(genes[i], "pop")]
     if (rm_outliers) {
-      myoutliers <- is_outlier(tmp[ , genes[i]])
+      myoutliers <- is_outlier(tmp[, genes[i]])
 
       nout <- length(which(myoutliers == T))
       message(str_glue("remove {nout} outliers"))
@@ -131,6 +143,8 @@ compareviolin_cnt_tpm <- function(cnt, scaledata,
     dpi = mydpi, width = mywidth, height = myheight)
   return(p)
 }
+
+
 
 ## * PBMC data
 ## ** load seurat data
@@ -192,18 +206,51 @@ cnt_vs_scale_heavyindeff_cytoTcell <- compareviolin_cnt_tpm(
   fnm = "vln_cnt-tpm_heavyindeff_cytotoxicTcell.png")
 
 ## *** fitting
-
 set.seed(123)
 x <- MASS::rnegbin(100, mu = 5, theta = 4)
 fnb <- MASS::fitdistr(x, densfun = "Negative Binomial")
 
-totcntpcell_acluster_anind <- colSums(pbmcnt[, oneindcells])
-totcntpcell_all_anind <- colSums(pbmcnt[, mulindcells])
+totcntpcell_acluster_anind <- colSums(pbmccnt[, oneindcells])
+totcntpcell_all_anind <- colSums(pbmccnt[, mulindcells])
 
 cnt_HBB_acluster_anind <- pbmccnt["HBB", oneindcells]
 cnt_HBB_all_anind <- pbmccnt["HBB", mulindcells]
 
+## **** Poisson
+x_HBB <- cnt_HBB_acluster_anind[!is_outlier(cnt_HBB_acluster_anind)]
+s_HBB <- totcntpcell_acluster_anind[!is_outlier(cnt_HBB_acluster_anind)]
+l_HBB <- MASS::fitdistr(x_HBB, densfun = "poisson")
 
+## **** Poisson with sequencing depth
+sl_HBB <- myfit$fit_poi_with_scalefactors(x_HBB, s_HBB)
 
+## **** NB
+nb_HBB <- MASS::fitdistr(x_HBB, densfun = "negative binomial")
+
+## **** PoiLog
+
+## **** PoiLog with sequencing depth
+## **** zero-inflated model on count data
+
+## ** chck cell sequence depth scaling factor with individual index
+## do we need to model the cell scaling factor on different individuals
+## also do we need to model cell scaling factor for different cell types
+
+## ** for genes shows great individual effects, can we firstly design
+## a hypothesis testing to remove them?
+## - we can directly use Poisson regression
+## - or we can use Poisson distribution itself, without log transform.
+## - we might design the hypothesis by zeros or by the weight itself.
+
+## Furthermore, can we say if such genes are actually show similar pattern across
+## cells types ? So we might fit the distribution under all the cell types ?
 
 ## * scRNAseq benchmark
+## genes with more zeros than expected on DE
+
+## * check if our model can reflect what we assume about the data.
+## using simulations
+
+## * check if our model is right
+
+## * check why our model cannot perform as good as pseudobulk
