@@ -10,7 +10,10 @@ suppressPackageStartupMessages(library(ggpubr))
 ## fitdist in MASS
 ## It supports Poisson, NB, Gamma and so on.
 ## NB and Gamma use optim to estimate
+## we can use fitdistrplus instead of MASS
+## the latter is an extension towards MASS::fitdist
 library(MASS)
+library(fitdistrplus)
 
 ## Support numerical way to solve MLE of Poisson lognormal
 ## distribution:
@@ -37,7 +40,7 @@ library(HIPPO)
 
 ## This lib is to UMI-based scRNA-Seq DEE analysis
 ## with negative binomial with independent dispersions
-library(NBID)
+# library(NBID)
 
 ## stan support MAP estimation,
 ## i.e., find a mode in the posterior
@@ -144,8 +147,6 @@ compareviolin_cnt_tpm <- function(cnt, scaledata,
   return(p)
 }
 
-
-
 ## * PBMC data
 ## ** load seurat data
 pbmcseurat <- readRDS(paste(datadir, pbmc_IL8_dirnm, "seurat.RDS", sep = "/"))
@@ -206,33 +207,35 @@ cnt_vs_scale_heavyindeff_cytoTcell <- compareviolin_cnt_tpm(
   fnm = "vln_cnt-tpm_heavyindeff_cytotoxicTcell.png")
 
 ## *** fitting
-set.seed(123)
-x <- MASS::rnegbin(100, mu = 5, theta = 4)
-fnb <- MASS::fitdistr(x, densfun = "Negative Binomial")
-
 totcntpcell_acluster_anind <- colSums(pbmccnt[, oneindcells])
 totcntpcell_all_anind <- colSums(pbmccnt[, mulindcells])
 
 cnt_HBB_acluster_anind <- pbmccnt["HBB", oneindcells]
 cnt_HBB_all_anind <- pbmccnt["HBB", mulindcells]
-
-## **** Poisson
 x_HBB <- cnt_HBB_acluster_anind[!is_outlier(cnt_HBB_acluster_anind)]
 s_HBB <- totcntpcell_acluster_anind[!is_outlier(cnt_HBB_acluster_anind)]
-l_HBB <- MASS::fitdistr(x_HBB, densfun = "poisson")
+
+## **** Poisson
+poi_HBB <- myfit$prob_zero_poi(x_HBB, densfun = "poisson")
 
 ## **** Poisson with sequencing depth
-sl_HBB <- myfit$fit_poi_with_scalefactors(x_HBB, s_HBB)
+spoi_HBB <- myfit$fit_poi_with_scalefactors(x_HBB, s_HBB)
 
 ## **** NB
-nb_HBB <- MASS::fitdistr(x_HBB, densfun = "negative binomial")
+nb_HBB <- myfit$prob_zero_nb(x_HBB)
 
 ## **** PoiLog
+## sads is used for fitting species abundance distributions
+poilog_HBB <- myfit$prob_zero_poilognm(x_HBB)
 
 ## **** PoiLog with sequencing depth
+poislognm_HBB <- myfit$prob_zero_poislognm(x_HBB, s_HBB)
+
 ## **** zero-inflated model on count data
 
-## ** chck cell sequence depth scaling factor with individual index
+## **** hurdle model
+
+## ** check cell sequence depth scaling factor with individual index
 ## do we need to model the cell scaling factor on different individuals
 ## also do we need to model cell scaling factor for different cell types
 
