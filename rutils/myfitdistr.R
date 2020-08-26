@@ -69,28 +69,30 @@ prob_zero_nb <- function(x, rmoutliers = T) {
   }
   nbfit <- MASS::fitdistr(x, densfun = "negative binomial")
   ## r or its reciprocal 1/r is also called dispersion
-  ## here we treat 1/r as dispersion as the same as in the paper
-  ## "Droplet scRNA-Seq is not zero-inflated." Nature Biotech, 2020
+  ##
+  ## -- 1/r as dispersion  in the paper
+  ##    "Droplet scRNA-Seq is not zero-inflated." Nature Biotech, 2020
+  ## -- r as dispersion in stan
+  ## Here we choose r as dispersion following stan.
   r <- nbfit$estimate["size"]
   mu <- nbfit$estimate["mu"]
   p <- r / (r + mu)
   v <- mu + mu^2 / r
 
-  ## people use phi to represent "dispersion"
-  phi <- 1 / r
-
   ## when r is extremely large, we can use this as the limitation of r -> inf.
   ## In fact, when r -> inf, NB converges to a Poisson dist, where the lambda
   ## parameter in Poisson is the mean in this NB.
-  if (phi == 0.0) {
-    p0 <- exp(-mu)
-  } else {
-    p0 <- (r / (r + mu))^r
-  }
+  ## phi <- 1 / r
+  ## if (phi == 0.0) {
+  ##   p0 <- exp(-mu)
+  ## } else {
+  ##   p0 <- (r / (r + mu))^r
+  ## }
+
+  p0 <- (r / (r + mu))^r
 
   invisible(list(
-    size = r, r = r, dispersion = phi,
-    phi = 1 / phi,
+    size = r, r = r, dispersion_stan = r,
     prob = p, variance = v, nbfit = nbfit,
     p0 = p0
   ))
@@ -145,6 +147,8 @@ prob_zero_poislognm <- function(x, s, rmoutliers = T, method = "BFGS") {
   negloglikelihood <- function(mu, sig, cnt, tcnt) {
     mymu <- mu + log(tcnt)
     -sum(vapply(seq_len(length(cnt)), FUN = function(i) {
+      ## during optimization, sig will sometimes be negative.
+      ## so add abs(sig) here, which is different with the sads.
       dpoilog(cnt[i], mymu[i], abs(sig), log = TRUE)},
     FUN.VALUE = 1.0
     ))

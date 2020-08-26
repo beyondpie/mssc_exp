@@ -1,5 +1,5 @@
 // Model batch effect gene-wise.
-// This version model each gene indepdendently.
+// This version model each gene independently.
 
 #include mydata.stan
 

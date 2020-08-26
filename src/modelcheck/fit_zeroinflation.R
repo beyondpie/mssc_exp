@@ -231,9 +231,8 @@ poilog_HBB <- myfit$prob_zero_poilognm(x_HBB)
 ## **** PoiLog with sequencing depth
 poislognm_HBB <- myfit$prob_zero_poislognm(x_HBB, s_HBB)
 
-## **** zero-inflated model on count data
-
-## **** hurdle model
+## put them aside.
+## zero-inflated and hurdle model
 
 ## ** check cell sequence depth scaling factor with individual index
 ## do we need to model the cell scaling factor on different individuals
