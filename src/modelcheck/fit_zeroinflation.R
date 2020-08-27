@@ -267,9 +267,9 @@ myconds <- pbmc_cond[mulindcells]
 d_bagwiff <- myt$to_bagwiff_r(mycnts, myinds, myconds,
                               mytotcnts)
 
-myfit <- stan(file = "v1-1.stan",
+myfit <- stan(file = "v3-1.stan",
               data = d_bagwiff,
-              iter = 500,
+              iter = 1000,
               warmup = 500,
               thin=1,
               chains=2,

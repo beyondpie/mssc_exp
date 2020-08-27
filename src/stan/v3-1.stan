@@ -15,7 +15,7 @@ parameters {
 }
 
 transformed parameters {
-	vector[G] KappaG = sqrt(kappa2G);
+	vector[G] KappaG = sqrt(Kappa2G);
 	matrix[G, K] MuInd;
 	for (k in 1:K) {
 		MuInd[, k] = KappaG .* MuIndRaw[, k];

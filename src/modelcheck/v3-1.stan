@@ -15,19 +15,25 @@ parameters {
 }
 
 transformed parameters {
-	vector[G] KappaG = sqrt(kappa2G);
+
+	vector[G] KappaG;
 	matrix[G, K] MuInd;
+	vector[G] TauG;
+	matrix[G, J] MuCond;
+
+	KappaG = sqrt(Kappa2G);
 	for (k in 1:K) {
 		MuInd[, k] = KappaG .* MuIndRaw[, k];
 	}
-	vector[G] TauG = sqrt(Tau2G);
-	matrix[G, J] MuCond;
+	TauG = sqrt(Tau2G);
 	for (j in 1:J) {
-		MuCond[ ,j] = TauG .* MuCondRaw[, j];
+		MuCond[, j] = TauG .* MuCondRaw[, j];
 	}
 }
 
 model {
+	vector[G] scores;
+	vector[1 + J + K] W;
 	Kappa2G ~ inv_gamma(alphaKappa2G, betaKappa2G);
 	Tau2G ~ inv_gamma(alphaTauG, betaTauG);
 	Phi2G ~ inv_gamma(alphaPhi2G, betaPhi2G);
@@ -42,8 +48,6 @@ model {
 		MuCondRaw[, j] ~ std_normal();//implicit MuCond[,j] ~ normal(0.0, diag(TauG))
 	}
 
-	vector[G] scores;
-	vector[1 + J + K] W;
 	for(g in 1:G) {
 		W[1] = MuG[g];
 		for (j in 1:J) {
