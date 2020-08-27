@@ -13,7 +13,7 @@ suppressPackageStartupMessages(library(ggpubr))
 ## we can use fitdistrplus instead of MASS
 ## the latter is an extension towards MASS::fitdist
 library(MASS)
-library(fitdistrplus)
+## library(fitdistrplus)
 
 ## Support numerical way to solve MLE of Poisson lognormal
 ## distribution:
@@ -22,7 +22,7 @@ library(fitdistrplus)
 ## The MLE process needs all the counts share the same
 ## S and lambda
 ## library(poilog)
-
+##
 ## sads does MLE of Poisson lognormal by poilog
 ## sads mainly uses mle2 from bbmle package, which
 ## then based on mle in stats4 for MLE.
@@ -31,16 +31,16 @@ library(bbmle)
 library(sads)
 
 ## MLE of zero-inflated and hurdle models for count data.
-library(pscl)
+## library(pscl)
 
 
 ## This lib is to discover the zero-inflated genes
 ## by MLE of poisson, negive binomial.
-library(HIPPO)
+## library(HIPPO)
 
 ## This lib is to UMI-based scRNA-Seq DEE analysis
 ## with negative binomial with independent dispersions
-# library(NBID)
+## library(NBID)
 
 ## stan support MAP estimation,
 ## i.e., find a mode in the posterior
@@ -234,25 +234,51 @@ poislognm_HBB <- myfit$prob_zero_poislognm(x_HBB, s_HBB)
 ## put them aside.
 ## zero-inflated and hurdle model
 
-## ** check cell sequence depth scaling factor with individual index
-## do we need to model the cell scaling factor on different individuals
-## also do we need to model cell scaling factor for different cell types
+## ignore cell sequence depth scaling factor design for
+## each individual or each cell types.
 
-## ** for genes shows great individual effects, can we firstly design
-## a hypothesis testing to remove them?
-## - we can directly use Poisson regression
-## - or we can use Poisson distribution itself, without log transform.
-## - we might design the hypothesis by zeros or by the weight itself.
+## * check if the model reflects the assumptions about the data.
+library(rstan)
+options(mc.cores = parallel::detectCores())
+rstan_options(auto_write = TRUE)
+options("import.path" = here("rutils"))
+myt <- modules::import("transform")
+myfit <- modules::import("myfitdistr")
+# modules::reload(myfit)
 
-## Furthermore, can we say if such genes are actually show similar pattern across
-## cells types ? So we might fit the distribution under all the cell types ?
+## ** PBMC data
+## PBMC data are the same as above.
+pbmcseurat <- readRDS(paste(datadir, pbmc_IL8_dirnm, "seurat.RDS", sep = "/"))
+pbmccnt <- as.matrix(pbmcseurat@assays$RNA@counts)
+pbmcinds <- pbmcseurat@meta.data$patient
+pbmc_cellanno <- pbmcseurat@meta.data$seurat_clusters
+pbmc_cond <- pbmcseurat@meta.data$response
 
-## * scRNAseq benchmark
-## genes with more zeros than expected on DE
+mygenes <- c("HBB", "CCL3L3", "ICAM1")
+## cytototic T cells
+mycluster <- 2
+mulindcells <- pbmc_cellanno == mycluster
 
-## * check if our model can reflect what we assume about the data.
-## using simulations
+mytotcnts <- colSums(pbmccnt[, mulindcells])
+mycnts <- pbmccnt[mygenes, mulindcells]
+myinds <- pbmcinds[mulindcells]
+myconds <- pbmc_cond[mulindcells]
 
-## * check if our model is right
+d_bagwiff <- myt$to_bagwiff_r(mycnts, myinds, myconds,
+                              mytotcnts)
+
+myfit <- stan(file = "v1-1.stan",
+              data = d_bagwiff,
+              iter = 500,
+              warmup = 500,
+              thin=1,
+              chains=2,
+              refresh = 50,
+              control = list(adapt_delta=0.9, max_treedepth = 20))
+
+
 
 ## * check why our model cannot perform as good as pseudobulk
+
+
+## * TODO: fitting batch effect on gene modules

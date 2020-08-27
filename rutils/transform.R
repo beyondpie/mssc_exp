@@ -122,6 +122,45 @@ rm_mt <- function(seqdata) {
   return(seqdata)
 }
 
+to_bagwiff_r <- function(cnt_gbc, batch, conds, totcntpcell) {
+  ## bagwiff: modeling batch effects on gene-wise level
+  ncells <- ncol(cnt_gbc)
+  if (ncells != length(batch)) {
+    error(
+      stringr::str_glue(
+        "num of cell not match: cnt_gbc({ncells}); batch ({length(batch)})"
+      )
+    )
+  }
+  if (ncells != length(conds)) {
+    error(
+      stringr::str_glue(
+        "num of cell not match: cnt_gbc({ncells}); conds ({length(conds)})"
+      )
+    )
+  }
+  Xcg <- t(as.matrix(cnt_gbc))
+  XInd <- to_onehot_matrix(batch)
+  XCond <- to_onehot_matrix(conds)
+  N <- nrow(XCond)
+  J <- ncol(XCond)
+  K <- ncol(XInd)
+  G <- ncol(Xcg)
+
+  S <- totcntpcell
+
+  ## bagmiff mdel
+  ## bagmiff: modeling batch effects on gene-module level
+  ## add gene module infomration.
+  ## a trivial one
+  P <- 1L
+  B <- matrix(1:G, nrow = G, ncol = P)
+  invisible(list(N = N, G = G, K = K, J = J, P = P,
+    Xcg = Xcg, S = S,
+    XCond = XCond, XInd = XInd,
+    B = B))
+}
+
 to_bagwiff <- function(cnt_gbc, batch, conds,
                        totcntpcell, outf, rdump = FALSE) {
   ## bagwiff: modeling batch effects on gene-wise level
