@@ -67,8 +67,19 @@ prob_zero_nb <- function(x, rmoutliers = T) {
     outliers <- is_outlier(x)
     x <- x[!outliers]
   }
-  nbfit <- MASS::fitdistr(x, densfun = "negative binomial",
-                          lower = c(0.00001, 0.00001))
+
+  nbfit <- tryCatch({
+    MASS::fitdistr(x, densfun = "negative binomial",
+      lower = c(0.00001, 0.00001))
+  }, error = function(cond) {
+    message(cond)
+    return(NULL)
+  }
+  )
+
+  if (is.null(nbfit)) {
+    return(invisible(list(p0 = NA)))
+  }
   ## r or its reciprocal 1/r is also called dispersion
   ## -- 1/r as dispersion  in the paper
   ##    "Droplet scRNA-Seq is not zero-inflated." Nature Biotech, 2020
@@ -125,23 +136,23 @@ poilog_negsumlld <- function(mu, sig, x, log = T) {
 poilog_mle <- function(x) {
   tmp_lambdas <- log((x + 0.01))
   initpars <- list(mu = mean(tmp_lambdas),
-                   sig = sd(tmp_lambdas) + 0.00001)
+    sig = sd(tmp_lambdas) + 0.00001)
   tryCatch({
     myfit <- bbmle::mle2(poilog_negsumlld,
-                start = initpars,
-                optimizer = "optim",
-                data = list(x = x),
-                lower = list(mu = -Inf, sig = 0.00001),
-                method = "L-BFGS-B",
-        hessian = F,
-        )
+      start = initpars,
+      optimizer = "optim",
+      data = list(x = x),
+      lower = list(mu = -Inf, sig = 0.00001),
+      method = "L-BFGS-B",
+      hessian = F,
+    )
     new("fitsad", myfit, sad = "poilog", distr = "discrete",
       trunc = NaN)
-    },
-    error = function(cond) {
-      message(cond)
-      return(NULL)
-    }
+  },
+  error = function(cond) {
+    message(cond)
+    return(NULL)
+  }
   )
 }
 
@@ -204,20 +215,20 @@ prob_zero_poislognm <- function(x, s, rmoutliers = T, method = "L-BFGS-B") {
   initpars <- list(mu = mean(tmp_lambdas), sig = sd(tmp_lambdas) + 0.00001)
 
   myfit <- tryCatch({
-      bbmle::mle2(poislog_negsumlld,
-        start = initpars,
-        optimizer = "optim",
-        data = list(cnt = x, tcnt = s),
-        lower = c(mu = -Inf, sig = 0.00001),
-        method = method,
-        control = list(),
-        hessian = F
-      )
-    },
-    error = function(cond) {
-      message(cond)
-      return(NULL)
-    }
+    bbmle::mle2(poislog_negsumlld,
+      start = initpars,
+      optimizer = "optim",
+      data = list(cnt = x, tcnt = s),
+      lower = c(mu = -Inf, sig = 0.00001),
+      method = method,
+      control = list(),
+      hessian = F
+    )
+  },
+  error = function(cond) {
+    message(cond)
+    return(NULL)
+  }
   )
   if (is.null(myfit)) {
     return(invisible(list(mdnp0 = NA, meanp0 = NA)))
