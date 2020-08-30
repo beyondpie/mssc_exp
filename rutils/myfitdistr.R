@@ -67,7 +67,8 @@ prob_zero_nb <- function(x, rmoutliers = T) {
     outliers <- is_outlier(x)
     x <- x[!outliers]
   }
-  nbfit <- MASS::fitdistr(x, densfun = "negative binomial")
+  nbfit <- MASS::fitdistr(x, densfun = "negative binomial",
+                          lower = c(0.00001, 0.00001))
   ## r or its reciprocal 1/r is also called dispersion
   ## -- 1/r as dispersion  in the paper
   ##    "Droplet scRNA-Seq is not zero-inflated." Nature Biotech, 2020
@@ -124,7 +125,7 @@ poilog_negsumlld <- function(mu, sig, x, log = T) {
 poilog_mle <- function(x) {
   tmp_lambdas <- log((x + 0.01))
   initpars <- list(mu = mean(tmp_lambdas),
-                   sig = sd(tmp_lambdas + 0.1))
+                   sig = sd(tmp_lambdas) + 0.00001)
   tryCatch({
     myfit <- bbmle::mle2(poilog_negsumlld,
                 start = initpars,
@@ -200,7 +201,7 @@ prob_zero_poislognm <- function(x, s, rmoutliers = T, method = "L-BFGS-B") {
     s <- s[!outliers]
   }
   tmp_lambdas <- log((x + 0.01) / s)
-  initpars <- list(mu = mean(tmp_lambdas), sig = sd(tmp_lambdas + 0.1))
+  initpars <- list(mu = mean(tmp_lambdas), sig = sd(tmp_lambdas) + 0.00001)
 
   myfit <- tryCatch({
       bbmle::mle2(poislog_negsumlld,
