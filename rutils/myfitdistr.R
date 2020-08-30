@@ -285,3 +285,22 @@ estimate_zeroratio <- function(x, s, rmoutliers = T) {
     nb = nb_zr
   ))
 }
+
+estimate_zeroratios <- function(cntgbc, cellmeta_inds,
+                                cellmeta_clusters,
+                                genes, whichind = "R1", whichcluster = c(2),
+                                rmoutliers = T) {
+  if (is.null(whichind)) {
+    thecells <- cellmeta_clusters %in% whichcluster
+  } else {
+    thecells <- (cellmeta_clusters == whichcluster) &
+      (grepl(whichind, cellmeta_inds))
+  }
+
+  totcnt <- Matrix::colSums(cntgbc)[thecells]
+  zrs <- lapply(genes, FUN = function(g) {
+    estimate_zeroratio(cntgbc[g, thecells],
+      totcnt, rmoutliers)
+  }) %>% do.call(what = rbind, args = .)
+  invisible(zrs)
+}

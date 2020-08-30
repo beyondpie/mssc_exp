@@ -147,6 +147,25 @@ compareviolin_cnt_tpm <- function(cnt, scaledata,
   return(p)
 }
 
+estimate_zeroratios <- function(cntgbc, cellmeta_inds,
+                                cellmeta_clusters,
+                                genes, whichind = "R1", whichcluster = c(2),
+                                rmoutliers = T) {
+  if (is.null(whichind)) {
+    thecells <- cellmeta_clusters %in% whichcluster
+  } else {
+    thecells <- (cellmeta_clusters == whichcluster) &
+      (grepl(whichind, cellmeta_inds))
+  }
+
+  totcnt <- Matrix::colSums(cntgbc)[thecells]
+  zrs <- lapply(genes, FUN = function(g) {
+    myfit$estimate_zeroratio(cntgbc[g, thecells],
+      totcnt, rmoutliers)
+  }) %>% do.call(what = rbind, args = .)
+  invisible(zrs)
+}
+
 ## * PBMC data
 ## ** load seurat data
 pbmcseurat <- readRDS(paste(datadir, pbmc_IL8_dirnm, "seurat.RDS", sep = "/"))
@@ -207,29 +226,65 @@ cnt_vs_scale_heavyindeff_cytoTcell <- compareviolin_cnt_tpm(
   fnm = "vln_cnt-tpm_heavyindeff_cytotoxicTcell.png")
 
 ## *** fitting
-totcntpcell_acluster_anind <- colSums(pbmccnt[, oneindcells])
-totcntpcell_all_anind <- colSums(pbmccnt[, mulindcells])
+pbmcseurat <- readRDS(paste(datadir, pbmc_IL8_dirnm, "seurat.RDS", sep = "/"))
+pbmccnt <- as.matrix(pbmcseurat@assays$RNA@counts)
+pbmctpm <- as.matrix(pbmcseurat@assays$RNA@data)
+pbmcinds <- pbmcseurat@meta.data$patient
+pbmc_cellanno <- pbmcseurat@meta.data$seurat_clusters
 
-cnt_HBB_acluster_anind <- pbmccnt["HBB", oneindcells]
-cnt_HBB_all_anind <- pbmccnt["HBB", mulindcells]
-x_HBB <- cnt_HBB_acluster_anind[!is_outlier(cnt_HBB_acluster_anind)]
-s_HBB <- totcntpcell_acluster_anind[!is_outlier(cnt_HBB_acluster_anind)]
+## cytototic T cells
+mycluster <- 2
+ind <- "R1"
 
-## **** Poisson
-poi_HBB <- myfit$prob_zero_poi(x_HBB, densfun = "poisson")
+## 314 cells
+oneindcells <- (pbmc_cellanno == mycluster) & (grepl(ind, colnames(pbmccnt)))
+## 3885 cells
+mulindcells <- pbmc_cellanno == mycluster
 
-## **** Poisson with sequencing depth
-spoi_HBB <- myfit$fit_poi_with_scalefactors(x_HBB, s_HBB)
+DEGs <- c("CCL4L1", "CCL4L2", "CCL3L1", "CCL3L3")
+heavyzeroGs <- c("MIR155HG", "TNFRSF4", "ICAM1", "NA.499", "HIST2H2AA4")
+heavyindeffectGs <- c("HBB", "HBA2", "HBA1")
+genes <- c(DEGs, heavyzeroGs, heavyindeffectGs)
 
-## **** NB
-nb_HBB <- myfit$prob_zero_nb(x_HBB)
+zrs_c2_R1 <- estimate_zeroratios(pbmccnt, pbmcinds, pbmc_cellanno,
+  genes, whichind = "R1",
+  whichcluster = 2)
+rownames(zrs_c2_R1) <- genes
+saveRDS(object = zrs_c2_R1,
+  file = here("src", "modelcheck", "zeroratio_R1_cluster2.RDS"))
 
-## **** PoiLog
-## sads is used for fitting species abundance distributions
-poilog_HBB <- myfit$prob_zero_poilognm(x_HBB)
+## should remove genes when all the counts are zeros
+## other wise nb fitting, poislog fitting might be errors.
+zrs_c1_R1 <- estimate_zeroratios(pbmccnt, pbmcinds, pbmc_cellanno,
+  genes, whichind = "R1",
+  whichcluster = 1)
+rownames(zrs_c1_R1) <- genes
+saveRDS(object = zrs_c1_R1,
+  file = here("src", "modelcheck", "zeroratio_R1_cluster1.RDS"))
 
-## **** PoiLog with sequencing depth
-poislognm_HBB <- myfit$prob_zero_poislognm(x_HBB, s_HBB)
+zrs_c2_Rall <- estimate_zeroratios(pbmccnt, pbmcinds, pbmc_cellanno,
+  genes,
+  whichcluster = 2)
+rownames(zrs_c2_Rall) <- genes
+saveRDS(object = zrs_c2_Rall,
+  file = here("src", "modelcheck", "zeroratio_Rall_cluster2.RDS"))
+
+zrs_c1_c2_R1 <- estimate_zeroratios(pbmccnt, pbmcinds, pbmc_cellanno,
+  genes,
+  whichcluster = c(1,2),
+  whichind = "R1")
+rownames(zrs_c1_c2_R1) <- genes
+saveRDS(object = zrs_c1_c2_R1,
+  file = here("src", "modelcheck", "zeroratio_R1_cluster1_cluster2.RDS"))
+
+
+zrs_c1_c2_Rall <- estimate_zeroratios(pbmccnt, pbmcinds, pbmc_cellanno,
+  genes,
+  whichcluster = c(1, 2))
+rownames(zrs_c1_c2_Rall) <- genes
+saveRDS(object = zrs_c1_c2_Rall,
+  file = here("src", "modelcheck", "zeroratio_Rall_cluster1_cluster2.RDS"))
+
 
 ## put them aside.
 ## zero-inflated and hurdle model
@@ -265,20 +320,43 @@ myinds <- pbmcinds[mulindcells]
 myconds <- pbmc_cond[mulindcells]
 
 d_bagwiff <- myt$to_bagwiff_r(mycnts, myinds, myconds,
-                              mytotcnts)
+  mytotcnts)
 
-myfit <- stan(file = "v3-1.stan",
-              data = d_bagwiff,
-              iter = 1000,
-              warmup = 500,
-              thin=1,
-              chains=2,
-              refresh = 50,
-              control = list(adapt_delta=0.9, max_treedepth = 20))
+myfit_poiglm_mc <- stan(file = "v1-1.stan",
+  data = d_bagwiff,
+  iter = 1000,
+  warmup = 500,
+  thin = 1,
+  chains = 2,
+  refresh = 50,
+  seed = 1,
+  control = list(adapt_delta = 0.9,
+    max_treedepth = 20))
 
+myfit_nbglm_mc <- stan(file = "v3-1.stan",
+  data = d_bagwiff,
+  iter = 1000,
+  warmup = 500,
+  thin = 1,
+  chains = 2,
+  refresh = 50,
+  seed = 1,
+  control = list(adapt_delta = 0.9,
+    max_treedepth = 20)
+)
 
+myfit_nblognm_mc <- stan(file = "v4-1.stan",
+  data = d_bagwiff,
+  iter = 1000,
+  warmup = 500,
+  thin = 1,
+  chains = 2,
+  refresh = 50,
+  seed = 1,
+  control = list(adapt_delta = 0.9,
+    max_treedepth = 20))
 
 ## * check why our model cannot perform as good as pseudobulk
-
+## SymSim
 
 ## * TODO: fitting batch effect on gene modules
