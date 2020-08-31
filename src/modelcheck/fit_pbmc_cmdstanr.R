@@ -76,3 +76,15 @@ stanmodel_nblognm_gw_mc <- get_mystanmodel("v4-1.stan")
 ## * sampling
 num_chains <- 4
 stanfit_poiglm_gw_mc <- sampling_mystanmodel(stanmodel_poiglm_gw_mc, num_chains)
+stanfit_poiglm_gw_mc$draws()
+
+## csv_contents <- read_cmdstan_csv(fit$output_files())
+## str(csv_contents)
+## fit <- mod$sample(data = data_list, save_latent_dynamics = TRUE)
+## fit$latent_dynamics_files()
+## x <- utils::read.csv(fit$latent_dynamics_files()[1], comment.char = "#")
+## head(x)
+## temp_rds_file <- tempfile(fileext = ".RDS") # temporary file just for demonstration
+## fit$save_object(file = temp_rds_file)
+## fit <- readRDS(temp_rds_file)
+## fit$summary()
