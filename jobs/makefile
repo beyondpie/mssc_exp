@@ -4,8 +4,8 @@ model_version ?= v1-1
 method ?= vi
 cmdstan_dir := ${root}/src/cmdstan
 stanmodel_dir := ${root}/src/stan
-stan_version := 2.23.0
-# stan_version := 2.24.1
+# stan_version := 2.23.0
+stan_version := 2.24.1
 
 curdir := $(shell pwd)
 stan_bin := ${curdir}/${model_version}
