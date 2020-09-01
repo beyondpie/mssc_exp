@@ -1,5 +1,10 @@
 is_outlier <- function(x, up_prob = 0.995) {
-  return(x > 5 * quantile(x, up_prob))
+  invisible(x > 5 * quantile(x, up_prob))
+}
+
+grpoutliers <- function(cntgbc) {
+  outliers <- apply(cntgbc, 1, is_outlier)
+  invisible(rowSums(outliers) > s)
 }
 
 empirical_prob_zero <- function(x, rmoutliers = T) {
@@ -293,7 +298,7 @@ estimate_zeroratios <- function(cntgbc, cellmeta_inds,
   if (is.null(whichind)) {
     thecells <- cellmeta_clusters %in% whichcluster
   } else {
-    thecells <- (cellmeta_clusters == whichcluster) &
+    thecells <- (cellmeta_clusters %in% whichcluster) &
       (grepl(whichind, cellmeta_inds))
   }
 

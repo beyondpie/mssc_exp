@@ -208,7 +208,8 @@ cnt_vs_scale_heavyindeff_cytoTcell <- compareviolin_cnt_tpm(
 
 ## *** fitting
 ## TODO: double check those high zero inflation (near or equal to one)
-## if there are some bugs in the codes.
+##       if there are some bugs in the codes.
+## TODO: fit species diversity for different cell populations.
 
 pbmcseurat <- readRDS(paste(datadir, pbmc_IL8_dirnm, "seurat.RDS", sep = "/"))
 pbmccnt <- as.matrix(pbmcseurat@assays$RNA@counts)

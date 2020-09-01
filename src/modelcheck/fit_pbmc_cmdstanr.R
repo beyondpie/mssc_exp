@@ -23,22 +23,40 @@ pbmcinds <- pbmcseurat@meta.data$patient
 pbmc_cellanno <- pbmcseurat@meta.data$seurat_clusters
 pbmc_cond <- pbmcseurat@meta.data$response
 
-mygenes <- c("HBB", "CCL3L3", "ICAM1")
 ## cytototic T cells
-mycluster <- 2
-mulindcells <- pbmc_cellanno == mycluster
+mycluster <- c(2)
+## ** select genes
+DEGs <- c("CCL4L1", "CCL4L2", "CCL3L1", "CCL3L3")
+heavyzeroGs <- c("MIR155HG", "TNFRSF4", "ICAM1", "NA.499", "HIST2H2AA4")
+heavyindeffectGs <- c("HBB", "HBA2", "HBA1")
+mygenes <- c(DEGs, heavyzeroGs, heavyindeffectGs)
 
-mytotcnts <- colSums(pbmccnt[, mulindcells])
-mycnts <- pbmccnt[mygenes, mulindcells]
-myinds <- pbmcinds[mulindcells]
-myconds <- pbmc_cond[mulindcells]
+get_stan_bagwiff_data <- function(whichgenes,
+                                  whichcluster = mycluster,
+                                  cnts,
+                                  cellmeta_inds,
+                                  cellmeta_conds,
+                                  cellmeta_clusters,
+                                  rmoutliers = T) {
+  whichcells <- cellmeta_clusters %in% whichcluster
+  tmp <- cnts[whichgenes, whichcells]
+  if (rmoutliers) {
+    outliers <- myfit$grpoutliers(tmp)
+  } else {
+    outliers <- rep(F, ncol(tmp))
+  }
+  mycnts <- tmp[, !outliers]
+  mytotcnts <- colSums(cnts[, whichcells])[!outliers]
+  myinds <- cellmeta_inds[whichcells][!outliers]
+  myconds <- cellmeta_conds[whichcells][!outliers]
+  myt$to_bagwiff_r(mycnts, myinds, myconds, mytotcnts)
+}
 
-## TODO: reove cells if some genes have outliers
-standata_bagwiff <- myt$to_bagwiff_r(
-  mycnts, myinds,
-  myconds,
-  mytotcnts
-)
+standata_cytoxictcell <- get_stan_bagwiff_data(mygenes, c(2),
+  pbmccnt,
+  pbmcinds,
+  pbmc_cond,
+  pbmc_cellanno, T)
 
 ## * setup model
 get_mystanmodel <- function(fnm) {
@@ -50,8 +68,8 @@ get_mystanmodel <- function(fnm) {
   )
 }
 
-sampling_mystanmodel <- function(mystanmodel, num_chains = 4) {
-  stanmodel_poiglm_gw_mc$sample(data = standata_bagwiff,
+sampling_mystanmodel <- function(mystanmodel, mystandata, num_chains = 4) {
+  stanmodel_poiglm_gw_mc$sample(data = mystandata,
     seed = 355113L,
     refresh = 200,
     iter_warmup = 500,
@@ -68,14 +86,13 @@ sampling_mystanmodel <- function(mystanmodel, num_chains = 4) {
 }
 
 stanmodel_poiglm_gw_mc <- get_mystanmodel("v1-1.stan")
-
 stanmodel_nbglm_gw_mc <- get_mystanmodel("v3-1.stan")
-
 stanmodel_nblognm_gw_mc <- get_mystanmodel("v4-1.stan")
 
 ## * sampling
 num_chains <- 4
-stanfit_poiglm_gw_mc <- sampling_mystanmodel(stanmodel_poiglm_gw_mc, num_chains)
+stanfit_poiglm_gw_mc <- sampling_mystanmodel(
+  stanmodel_poiglm_gw_mc, standata_cytoxictcell, num_chains)
 stanfit_poiglm_gw_mc$draws()
 
 ## csv_contents <- read_cmdstan_csv(fit$output_files())
