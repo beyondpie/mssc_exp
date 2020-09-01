@@ -93,7 +93,6 @@ symsim2be <- readRDS(
     sep = "/"))
 
 ## * get results
-
 getauc <- function(resdir, modelvsn = "v1-1", method = "vi", par = "MuCond",
                    degs, ndegs, seed = myseed) {
   stanfit <- myt$load_stan(dirnm = resdir, modelnm = modelvsn, method = method,

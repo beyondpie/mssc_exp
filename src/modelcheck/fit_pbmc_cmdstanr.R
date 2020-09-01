@@ -1,4 +1,7 @@
 library(cmdstanr)
+set_cmdstan_path(path = paste(Sys.getenv("HOME"),
+  "softwares",
+  "cmdstan-2.23.0", sep = "/"))
 library(bayesplot)
 library(posterior)
 library(Seurat)
@@ -9,8 +12,22 @@ options("import.path" = here("rutils"))
 myt <- modules::import("transform")
 myfit <- modules::import("myfitdistr")
 
+## * warnings/errors traceback settings
 options(error = traceback)
 options(warn = 0)
+
+## * ggplot settings.
+myaxis_text <- ggplot2::element_text(size = 13, face = "bold",
+                                     color = "black")
+myaxis_text_x <- myaxis_text
+myaxis_title_x <- ggplot2::element_blank()
+myaxis_text_y <- myaxis_text
+myaxis_title_y <- ggplot2::element_text(size = 15, face = "bold",
+                                        color = "black")
+mytitle <- ggplot2::element_text(size = 20, hjust = 0.5,
+                                 color = "black", face = "bold",
+                                 family = "Helvetica")
+
 
 ## * load data
 datadir <- here("data")
@@ -145,20 +162,104 @@ stanfit_nbglm_gw_mc$save_object(file = here("src", "modelcheck",
 
 ## ** view results
 stanfit_poiglm_gw_mc <- readRDS(here("src", "modelcheck",
-                                     "stan_save", "v1-1.rds"))
+  "stan_save", "v1-1.rds"))
 stanfit_nbglm_gw_mc <- readRDS(here("src", "modelcheck",
-                                    "stan_save", "v3-1.rds"))
+  "stan_save", "v3-1.rds"))
+
+## get dataframe num_sample x num_variable
+mcdf_poiglm_gw <- posterior::as_draws_df(stanfit_poiglm_gw_mc$draws())
+mcdf_nbglm_gw <- posterior::as_draws_df(stanfit_nbglm_gw_mc$draws())
+
+## view individual effect estimate
+get_indeffs <- function(stan_mcdf, mygenes, numinds = 10) {
+  get_indnms <- function(geneid, numinds) {
+    ind_colnms <- vapply(seq_len(numinds),
+      FUN = function(j) {
+        paste0("MuInd[", geneid, ",", j, "]")
+      },
+      FUN.VALUE = "MuInd")
+  }
+  geneindex <- seq_len(length(mygenes))
+  res <- lapply(geneindex,
+    FUN = function(i) {
+      indcols <- get_indnms(i, numinds)
+      tmp <- stan_mcdf[, indcols]
+      colnames(tmp) <- paste0(mygenes[i], "-", "Ind", seq_len(numinds))
+      invisible(tmp)
+    })
+  names(res) <- mygenes
+  invisible(res)
+}
 
 
-stanfit_poiglm_gw_mc$draws()
+get_indeff_mcmcarea <- function(mygenes, indeff_df, modelnm="PoissonGLM") {
+  lapply(mygenes,
+         FUN = function(g) {
+           bayesplot::mcmc_areas(indeff_df[[g]],
+                                 prob = 0.95,
+                                 point_est = "mean",
+                                 ) +
+             theme(axis.text.x = myaxis_text,
+                   axis.text.y = myaxis_text,
+                   axis.title.y = myaxis_title_y,
+                   plot.title = mytitle) +
+             ggtitle(str_glue("{g}_{modelnm}"))
+         })
+}
 
-## csv_contents <- read_cmdstan_csv(fit$output_files())
-## str(csv_contents)
-## fit <- mod$sample(data = data_list, save_latent_dynamics = TRUE)
-## fit$latent_dynamics_files()
-## x <- utils::read.csv(fit$latent_dynamics_files()[1], comment.char = "#")
-## head(x)
-## temp_rds_file <- tempfile(fileext = ".RDS") # temporary file just for demonstration
-## fit$save_object(file = temp_rds_file)
-## fit <- readRDS(temp_rds_file)
-## fit$summary()
+indeff_poiglm_gw <- get_indeffs(mcdf_poiglm_gw, mygenes)
+indeff_nbglm_gw <- get_indeffs(mcdf_nbglm_gw, mygenes)
+
+mcmcarea_indeff_poiglm_gw <- get_indeff_mcmcarea(mygenes,
+                                                 indeff_poiglm_gw,
+                                                 modelnm = "PoissonGLM")
+mcmcarea_indeff_nbglm_gw <- get_indeff_mcmcarea(mygenes,
+                                                indeff_nbglm_gw,
+                                                modelnm = "NegaBinomialGLM")
+bayesplot::bayesplot_grid(
+             plots = c(mcmcarea_indeff_poiglm_gw,
+                       mcmcarea_indeff_nbglm_gw),
+             grid_args = list(nrow = 2)
+           )
+
+## view conditional effect estimations
+get_condeffs <- function(stan_mcdf, mygenes, numconds=2) {
+  get_indnms <- function(geneid, numinds) {
+    ind_colnms <- vapply(seq_len(numinds),
+      FUN = function(j) {
+        paste0("MuCond[", geneid, ",", j, "]")
+      },
+      FUN.VALUE = "MuCond")
+  }
+  geneindex <- seq_len(length(mygenes))
+  res <- lapply(geneindex,
+    FUN = function(i) {
+      indcols <- get_indnms(i, numconds)
+      tmp <- stan_mcdf[, indcols]
+      colnames(tmp) <- paste0(mygenes[i], "-", "Cond", seq_len(numconds))
+      tmp$delta <- tmp[, 1] - tmp[,2]
+      invisible(tmp)
+    })
+  names(res) <- mygenes
+  invisible(res)
+}
+
+condeff_poiglm_gw <- get_condeffs(mcdf_poiglm_gw, mygenes)
+condeff_nbglm_gw <- get_condeffs(mcdf_nbglm_gw, mygenes)
+
+mcmcarea_condeff_poiglm_gw <- get_indeff_mcmcarea(mygenes,
+                                                  condeff_poiglm_gw,
+                                                  modelnm = "PoissonGLM")
+mcmcarea_condeff_nbglm_gw <- get_indeff_mcmcarea(mygenes,
+                                                 condeff_nbglm_gw,
+                                                 modelnm = "NegaBionomialGLM")
+bayesplot::bayesplot_grid(
+  plots = c(mcmcarea_condeff_poiglm_gw,
+    mcmcarea_condeff_nbglm_gw),
+  grid_args = list(nrow = 2)
+)
+
+
+## check pseudobulk with DESeq2 analysis, and t statistics from posterior
+
+
