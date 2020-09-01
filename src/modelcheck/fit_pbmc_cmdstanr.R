@@ -18,15 +18,15 @@ options(warn = 0)
 
 ## * ggplot settings.
 myaxis_text <- ggplot2::element_text(size = 13, face = "bold",
-                                     color = "black")
+  color = "black")
 myaxis_text_x <- myaxis_text
 myaxis_title_x <- ggplot2::element_blank()
 myaxis_text_y <- myaxis_text
 myaxis_title_y <- ggplot2::element_text(size = 15, face = "bold",
-                                        color = "black")
+  color = "black")
 mytitle <- ggplot2::element_text(size = 20, hjust = 0.5,
-                                 color = "black", face = "bold",
-                                 family = "Helvetica")
+  color = "black", face = "bold",
+  family = "Helvetica")
 
 
 ## * load data
@@ -170,7 +170,7 @@ stanfit_nbglm_gw_mc <- readRDS(here("src", "modelcheck",
 mcdf_poiglm_gw <- posterior::as_draws_df(stanfit_poiglm_gw_mc$draws())
 mcdf_nbglm_gw <- posterior::as_draws_df(stanfit_nbglm_gw_mc$draws())
 
-## view individual effect estimate
+## *** view individual effect estimate
 get_indeffs <- function(stan_mcdf, mygenes, numinds = 10) {
   get_indnms <- function(geneid, numinds) {
     ind_colnms <- vapply(seq_len(numinds),
@@ -192,38 +192,38 @@ get_indeffs <- function(stan_mcdf, mygenes, numinds = 10) {
 }
 
 
-get_indeff_mcmcarea <- function(mygenes, indeff_df, modelnm="PoissonGLM") {
+get_indeff_mcmcarea <- function(mygenes, indeff_df, modelnm = "PoissonGLM") {
   lapply(mygenes,
-         FUN = function(g) {
-           bayesplot::mcmc_areas(indeff_df[[g]],
-                                 prob = 0.95,
-                                 point_est = "mean",
-                                 ) +
-             theme(axis.text.x = myaxis_text,
-                   axis.text.y = myaxis_text,
-                   axis.title.y = myaxis_title_y,
-                   plot.title = mytitle) +
-             ggtitle(str_glue("{g}_{modelnm}"))
-         })
+    FUN = function(g) {
+      bayesplot::mcmc_areas(indeff_df[[g]],
+        prob = 0.95,
+        point_est = "mean",
+      ) +
+        theme(axis.text.x = myaxis_text,
+          axis.text.y = myaxis_text,
+          axis.title.y = myaxis_title_y,
+          plot.title = mytitle) +
+        ggtitle(str_glue("{g}_{modelnm}"))
+    })
 }
 
 indeff_poiglm_gw <- get_indeffs(mcdf_poiglm_gw, mygenes)
 indeff_nbglm_gw <- get_indeffs(mcdf_nbglm_gw, mygenes)
 
 mcmcarea_indeff_poiglm_gw <- get_indeff_mcmcarea(mygenes,
-                                                 indeff_poiglm_gw,
-                                                 modelnm = "PoissonGLM")
+  indeff_poiglm_gw,
+  modelnm = "PoissonGLM")
 mcmcarea_indeff_nbglm_gw <- get_indeff_mcmcarea(mygenes,
-                                                indeff_nbglm_gw,
-                                                modelnm = "NegaBinomialGLM")
+  indeff_nbglm_gw,
+  modelnm = "NegaBinomialGLM")
 bayesplot::bayesplot_grid(
-             plots = c(mcmcarea_indeff_poiglm_gw,
-                       mcmcarea_indeff_nbglm_gw),
-             grid_args = list(nrow = 2)
-           )
+  plots = c(mcmcarea_indeff_poiglm_gw,
+    mcmcarea_indeff_nbglm_gw),
+  grid_args = list(nrow = 2)
+)
 
-## view conditional effect estimations
-get_condeffs <- function(stan_mcdf, mygenes, numconds=2) {
+## *** view conditional effect estimations
+get_condeffs <- function(stan_mcdf, mygenes, numconds = 2) {
   get_indnms <- function(geneid, numinds) {
     ind_colnms <- vapply(seq_len(numinds),
       FUN = function(j) {
@@ -237,7 +237,7 @@ get_condeffs <- function(stan_mcdf, mygenes, numconds=2) {
       indcols <- get_indnms(i, numconds)
       tmp <- stan_mcdf[, indcols]
       colnames(tmp) <- paste0(mygenes[i], "-", "Cond", seq_len(numconds))
-      tmp$delta <- tmp[, 1] - tmp[,2]
+      tmp$delta <- tmp[, 1] - tmp[, 2]
       invisible(tmp)
     })
   names(res) <- mygenes
@@ -248,18 +248,43 @@ condeff_poiglm_gw <- get_condeffs(mcdf_poiglm_gw, mygenes)
 condeff_nbglm_gw <- get_condeffs(mcdf_nbglm_gw, mygenes)
 
 mcmcarea_condeff_poiglm_gw <- get_indeff_mcmcarea(mygenes,
-                                                  condeff_poiglm_gw,
-                                                  modelnm = "PoissonGLM")
+  condeff_poiglm_gw,
+  modelnm = "PoissonGLM")
 mcmcarea_condeff_nbglm_gw <- get_indeff_mcmcarea(mygenes,
-                                                 condeff_nbglm_gw,
-                                                 modelnm = "NegaBionomialGLM")
+  condeff_nbglm_gw,
+  modelnm = "NegaBinomialGLM")
 bayesplot::bayesplot_grid(
   plots = c(mcmcarea_condeff_poiglm_gw,
     mcmcarea_condeff_nbglm_gw),
   grid_args = list(nrow = 2)
 )
 
+## *** view intercetps, i.e., the overall mean
+get_intercepts <- function(stan_mcdf, mygenes) {
+  geneindex <- seq_len(length(mygenes))
+  res <- lapply(geneindex,
+    FUN = function(i) {
+      tmp <- stan_mcdf[, paste0("MuG[", i, "]"), drop = F]
+      colnames(tmp) <- paste0(mygenes[i], "-", "Intercept")
+      invisible(tmp)
+    })
+  names(res) <- mygenes
+  invisible(res)
+}
 
-## check pseudobulk with DESeq2 analysis, and t statistics from posterior
+intercept_poiglm_gw <- get_intercepts(mcdf_poiglm_gw, mygenes)
+mcmcarea_intercept_poiglm_gw <- get_indeff_mcmcarea(mygenes,
+                                                    intercept_poiglm_gw,
+                                                    modelnm = "PoissonGLM")
+intercept_nbglm_gw <- get_intercepts(mcdf_nbglm_gw, mygenes)
+mcmcarea_intercept_nbglm_gw <- get_indeff_mcmcarea(mygenes,
+  intercept_nbglm_gw,
+  modelnm = "NegaBinomialGLM")
 
+bayesplot::bayesplot_grid(
+             plots = c(mcmcarea_intercept_poiglm_gw,
+                       mcmcarea_intercept_nbglm_gw),
+             grid_args = list(nrow = 2)
+)
 
+## *** check pseudobulk with DESeq2 analysis, and t statistics from posterior
