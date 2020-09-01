@@ -46,11 +46,13 @@ get_stan_bagwiff_data <- function(whichgenes,
   mytotcnts <- colSums(cnts[, whichcells])[!outliers]
   myinds <- cellmeta_inds[whichcells][!outliers]
   myconds <- cellmeta_conds[whichcells][!outliers]
-  invisible(list(standata = myt$to_bagwiff_r(mycnts, myinds, myconds, mytotcnts),
-                 cnts = mycnts,
-                 totcnts = mytotcnts,
-                 inds <- myinds,
-                 conds <- myconds))
+  invisible(list(
+    standata = myt$to_bagwiff_r(
+      mycnts, myinds, myconds, mytotcnts),
+    cnts = mycnts,
+    totcnts = mytotcnts,
+    inds <- myinds,
+    conds <- myconds))
 }
 
 
@@ -58,7 +60,7 @@ get_init_nb_phi <- function(cnts) {
   get_single_init <- function(x) {
     tryCatch({
       nbfit <- MASS::fitdistr(x, densfun = "negative binomial",
-                              lower = c(1e-5, 1e-5))
+        lower = c(1e-5, 1e-5))
       invisible(nbfit$estimate["size"])
     }, error = function(cond) {
       message(cond)
@@ -125,7 +127,7 @@ stanfit_poiglm_gw_mc <- sampling_mystanmodel(
   stanmodel_poiglm_gw_mc, standata_cytoxictcell$standata,
   0.83, 20, 4)
 stanfit_poiglm_gw_mc$save_object(file = here("src", "modelcheck",
-                                             "stan_save", "v1-1.rds"))
+  "stan_save", "v1-1.rds"))
 
 ## need to assign all the variables.
 ## init_nb_phis <- get_init_nb_phi(standata_cytoxictcell$cnts)
@@ -142,6 +144,12 @@ stanfit_nbglm_gw_mc$save_object(file = here("src", "modelcheck",
 ## )
 
 ## ** view results
+stanfit_poiglm_gw_mc <- readRDS(here("src", "modelcheck",
+                                     "stan_save", "v1-1.rds"))
+stanfit_nbglm_gw_mc <- readRDS(here("src", "modelcheck",
+                                    "stan_save", "v3-1.rds"))
+
+
 stanfit_poiglm_gw_mc$draws()
 
 ## csv_contents <- read_cmdstan_csv(fit$output_files())
