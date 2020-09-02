@@ -10,7 +10,9 @@ import::from(here, here)
 
 options("import.path" = here("rutils"))
 myt <- modules::import("transform")
+
 myfit <- modules::import("myfitdistr")
+mypseudo <- modules::import("pseudobulk")
 
 ## * warnings/errors traceback settings
 options(error = traceback)
@@ -274,17 +276,71 @@ get_intercepts <- function(stan_mcdf, mygenes) {
 
 intercept_poiglm_gw <- get_intercepts(mcdf_poiglm_gw, mygenes)
 mcmcarea_intercept_poiglm_gw <- get_indeff_mcmcarea(mygenes,
-                                                    intercept_poiglm_gw,
-                                                    modelnm = "PoissonGLM")
+  intercept_poiglm_gw,
+  modelnm = "PoissonGLM")
 intercept_nbglm_gw <- get_intercepts(mcdf_nbglm_gw, mygenes)
 mcmcarea_intercept_nbglm_gw <- get_indeff_mcmcarea(mygenes,
   intercept_nbglm_gw,
   modelnm = "NegaBinomialGLM")
 
 bayesplot::bayesplot_grid(
-             plots = c(mcmcarea_intercept_poiglm_gw,
-                       mcmcarea_intercept_nbglm_gw),
-             grid_args = list(nrow = 2)
+  plots = c(mcmcarea_intercept_poiglm_gw,
+    mcmcarea_intercept_nbglm_gw),
+  grid_args = list(nrow = 2)
 )
 
 ## *** check pseudobulk with DESeq2 analysis, and t statistics from posterior
+## pseudobulk
+tempcluster <- c(2)
+## mygenes <- c(DEGs, heavyzeroGs, heavyindeffectGs)
+mygenes <- c("CCL3L3", "ICAM1", "HBB")
+
+tempcells <- pbmc_cellanno %in% tempcluster
+tempcnts <- pbmccnt[mygenes, tempcells]
+tempbatches <- paste0("b", pbmcinds[tempcells])
+tempconds <- paste0("c", pbmc_cond[tempcells])
+
+temp_psedobulk_DESeq2 <- mypseudo$pseudobulk_deseq2(tempcnts,
+  tempbatches,
+  tempconds)
+
+##         baseMean log2FoldChange     lfcSE        stat    pvalue      padj
+## CCL3L3  47.17908   -0.008957221 0.5693854 -0.01573139 0.9874487 0.9874487
+## ICAM1   14.26437    0.592224791 0.4927516  1.20187279 0.2294128 0.3441192
+## HBB    316.58898   -4.196680297 2.8890210 -1.45263057 0.1463264 0.3441192
+
+
+tempcells <- pbmc_cellanno %in% tempcluster
+tempcnts <- pbmccnt[, tempcells]
+tempbatches <- paste0("b", pbmcinds[tempcells])
+tempconds <- paste0("c", pbmc_cond[tempcells])
+
+temp_psedobulk_DESeq2 <- mypseudo$pseudobulk_deseq2(tempcnts,
+  tempbatches,
+  tempconds)
+temp_psedobulk_DESeq2[mygenes, ]
+
+##         baseMean log2FoldChange     lfcSE      stat       pvalue       padj
+## CCL3L3  66.30936      -2.113009 0.6147236 -3.437332 5.874752e-04 0.09164613
+## ICAM1   14.97278      -1.636157 0.3949447 -4.142750 3.431655e-05 0.02462556
+## HBB    507.53113      -6.708014 2.8910296 -2.320285 2.032545e-02 0.43828326
+
+## t statistics
+delta_poiglm_gw <- do.call(what = cbind,
+  args = list(condeff_poiglm_gw$CCL3L3$delta,
+    condeff_poiglm_gw$ICAM1$delta,
+    condeff_poiglm_gw$HBB$delta))
+colnames(delta_poiglm_gw) <- mygenes
+t_poiglm_gw <- myt$calt(delta_poiglm_gw)
+##    CCL3L3     ICAM1       HBB
+## 2.2532804 2.3067713 0.4124514
+
+delta_nbglm_gw <- do.call(what = cbind,
+  args = list(condeff_nbglm_gw$CCL3L3$delta,
+    condeff_nbglm_gw$ICAM1$delta,
+    condeff_nbglm_gw$HBB$delta))
+colnames(delta_nbglm_gw) <- mygenes
+t_nbglm_gw <- myt$calt(delta_nbglm_gw)
+
+##    CCL3L3     ICAM1       HBB
+## 2.2682012 2.2492147 0.3861089
