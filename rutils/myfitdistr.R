@@ -293,7 +293,7 @@ estimate_zeroratio <- function(x, s, rmoutliers = T) {
 
 estimate_zeroratios <- function(cntgbc, cellmeta_inds,
                                 cellmeta_clusters,
-                                genes, whichind = "R1", whichcluster = c(2),
+                                genes, whichind = NULL, whichcluster = c(2),
                                 rmoutliers = T) {
   if (is.null(whichind)) {
     thecells <- cellmeta_clusters %in% whichcluster
