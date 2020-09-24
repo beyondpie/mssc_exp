@@ -30,7 +30,6 @@ mytitle <- ggplot2::element_text(size = 20, hjust = 0.5,
   color = "black", face = "bold",
   family = "Helvetica")
 
-
 ## * load data
 datadir <- here("data")
 figdir <- here("src", "modelcheck", "figures")
