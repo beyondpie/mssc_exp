@@ -4,7 +4,7 @@ is_outlier <- function(x, up_prob = 0.995) {
 
 grpoutliers <- function(cntgbc) {
   outliers <- apply(cntgbc, 1, is_outlier)
-  invisible(rowSums(outliers) > s)
+  invisible(rowSums(outliers) > 0)
 }
 
 empirical_prob_zero <- function(x, rmoutliers = T) {
