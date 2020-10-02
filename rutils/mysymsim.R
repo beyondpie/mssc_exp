@@ -158,7 +158,8 @@ add_batch_effect <- function(symsimobs, nbatch,
     gmean = gene_mean,
     g2c = batch_factor,
     ongenes = ongenes,
-    sd = sd
+    batch_factor_sd = batch_factor_sd,
+    gene_mean_sd = gene_mean_sd
   )
   invisible(result)
 }
@@ -223,14 +224,20 @@ symsim_de_analysis <- function(true_counts_res, popA_idx, popB_idx) {
   ))
 }
 
-get_symsim_degenes <- function(symsim_dea, nDiffEVF = 1, logFC = 0.6) {
+get_symsim_degenes <- function(symsim_dea,
+                               nDiffEVF = 1, logFC = 0.6) {
   invisible((symsim_dea$nDiffEVF >= nDiffEVF) &
     (symsim_dea$logFC_theoretical >= logFC))
 }
 
-get_symsim_strict_ndegenes <- function(symsim_dea, nDiffEVF = 0, logFC = 0.1) {
-  invisible((symsim_dea$nDiffEV <= nDiffEVF) &
+get_symsim_strict_ndegenes <- function(symsim_dea,
+                                       nDiffEVF = 0, logFC = 0.1) {
+  invisible((symsim_dea$nDiffEVF <= nDiffEVF) &
     (symsim_dea$logFC_theoretical <= logFC))
+}
+
+get_symsim_ndiffevf_genes <- function(symsim_dea, nDiffEVF = 0) {
+  invisible((symsim_dea$nDiffEVF <= nDiffEVF))
 }
 
 plotviolin <- function(symsimdata, genes) {
@@ -254,6 +261,9 @@ plotviolin <- function(symsimdata, genes) {
     tmp <- plotdata[c(gnm[i], "pop")]
     ggplot(tmp, aes_string(x = "pop", y = gnm[i], fill = "pop")) +
       geom_violin() +
+      stat_summary(fun.data = "mean_sdl",
+                   mult = 1, geom = "pointrange", color = "red",
+                   size = 0.2) +
       myggtitle +
       theme(
         legend.position = "none",

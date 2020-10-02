@@ -86,3 +86,7 @@ vignettes/*.pdf
 /exps
 /jobs/UVM/PreprocessingOutput.png
 /src/pipline/PreprocessingOutput.png
+/src/sysim/symsim_simu_5cellpop_umi/
+/src/sysim/twostage_be_symsim/
+/src/modelcheck/stan_binary/
+/src/modelcheck/test_gsea.grp

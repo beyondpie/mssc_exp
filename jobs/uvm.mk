@@ -1,7 +1,3 @@
-#!make
-# use gmake
-
-# root ?= /home/labszu/git-recipes/mssc
 .PHONY: install pybagwiff_data rm_bagwiff_data sample combchains vi \
         test_filter debulk rmbulk rdumpbagwiff \
         visum sc2cellpops pseudo_samplede pseudo_cellpops
@@ -126,15 +122,6 @@ vi: ${cmdstan_dir}/${vi}.sh ${stan_bin} ${mybagwiffdata}
 stan_analyzer := 2-1_stan_vi_analyzer.R
 visum:
 	Rscript ${pipline_dir}/${stan_analyzer}
-
-# * pseudo-bulk analysis
-pseudeseq_analyzer := 2-2_sc_pseudobulk.R
-pseudo_sampled:
-	Rscript ${pipline_dir}/${pseudeseq_analyzer} --scdataf sampled_scRNAseq_summary.rds
-
-pseudo_cellpops:
-	Rscript ${pipline_dir}/${pseudeseq_analyzer} --scdataf scRNAseq_no_malignant.rds
-	Rscript ${pipline_dir}/${pseudeseq_analyzer} --scdataf scRNAseq_allcell.rds
 
 clean_uvm:
 	-rm ${uvm_mc_outdir}/*.log

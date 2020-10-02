@@ -22,8 +22,8 @@ option_list <- list(
 )
 
 args <- option_list %>%
-    OptionParser(option_list = .) %>%
-    parse_args()
+  OptionParser(option_list = .) %>%
+  parse_args()
 
 message("load arguments: ")
 message(str(args))
@@ -62,58 +62,58 @@ ubatches <- unique(mybatches)
 uconds <- ubatches %>% myconds[.]
 
 mypsedobulk <- ubatches %>%
-    map(
-        .f = function(batch) {
-            rowSums(sc_data_list$cnt[, mybatches %in% batch])
-        }
-    ) %>%
-    do.call(what = cbind, args = .)
+  map(
+    .f = function(batch) {
+      rowSums(sc_data_list$cnt[, mybatches %in% batch])
+    }
+  ) %>%
+  do.call(what = cbind, args = .)
 
 colnames(mypsedobulk) <- ubatches
 
 deseqds <- DESeq2::DESeqDataSetFromMatrix(
-    countData = mypsedobulk,
-    colData = data.frame(uconds),
-    design = ~uconds
+  countData = mypsedobulk,
+  colData = data.frame(uconds),
+  design = ~uconds
 )
 
 deseqres <- DESeq2::DESeq(deseqds) %>%
-    DESeq2::results() %>%
-    data.frame()
+  DESeq2::results() %>%
+  data.frame()
 
 ## * eval result
 getndegnms <- function(myndegnm = "extreme") {
-    if (myndegnm == "extreme") {
-        ndegnms <- tndegnms
-    }
-    if (myndegnm == "nearpositive") {
-        ndegnms <- fpdegnms
-    }
-    if (myndegnm == "all") {
-        ndegnms <- c(tndegnms, fpdegnms)
-    }
-    message(str_glue("using {myndegnm} negatives"))
-    return(ndegnms)
+  if (myndegnm == "extreme") {
+    ndegnms <- tndegnms
+  }
+  if (myndegnm == "nearpositive") {
+    ndegnms <- fpdegnms
+  }
+  if (myndegnm == "all") {
+    ndegnms <- c(tndegnms, fpdegnms)
+  }
+  message(str_glue("using {myndegnm} negatives"))
+  return(ndegnms)
 }
 
 evalDESeq2 <- function(scorecol = "pvalue",
                        myndegnm = "extreme", mydegnms = degnms) {
-    ndegnms <- getndegnms(myndegnm)
-    mybackend <- c(rep(TRUE, length(mydegnms)), rep(FALSE, length(ndegnms)))
-    bgnms <- c(mydegnms, ndegnms)
-    names(mybackend) <- bgnms
+  ndegnms <- getndegnms(myndegnm)
+  mybackend <- c(rep(TRUE, length(mydegnms)), rep(FALSE, length(ndegnms)))
+  bgnms <- c(mydegnms, ndegnms)
+  names(mybackend) <- bgnms
 
-    scores <- deseqres[[scorecol]]
-    names(scores) <- rownames(deseqres)
-    scores[is.na(scores)] <- 1.0
-    myauc <- myt$fmtflt(caTools::colAUC(scores[bgnms], mybackend))
-    message(str_glue("use DESeq2 results col {scorecol}"))
-    message(str_glue("AUC: {myauc}"))
-    return(list(auc = myauc, sts = scores))
+  scores <- deseqres[[scorecol]]
+  names(scores) <- rownames(deseqres)
+  scores[is.na(scores)] <- 1.0
+  myauc <- myt$fmtflt(caTools::colAUC(scores[bgnms], mybackend))
+  message(str_glue("use DESeq2 results col {scorecol}"))
+  message(str_glue("AUC: {myauc}"))
+  return(list(auc = myauc, sts = scores))
 }
 
 for (myndeg in c("extreme", "nearpositive", "all")) {
-    for (mycol in c("padj", "pvalue")) {
-        tmp <- evalDESeq2(mycol, myndeg)
-    }
+  for (mycol in c("padj", "pvalue")) {
+    tmp <- evalDESeq2(mycol, myndeg)
+  }
 }
