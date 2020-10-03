@@ -23,6 +23,16 @@ get_celltype_specific_scdata <- function(cntmat, mresponses,
     ct = mcelltypes[select_cols]))
 }
 
+get_minum_of_inds <- function(inds) {
+  ## get the minimum number of individuals given
+  ## an array of individuals.
+  ## this function can be used for any array of strings.
+
+  min(sapply(unique(inds), FUN = function(name) {
+    length(which(inds == name))
+  }))
+}
+
 show_sc_stat <- function(inds, resp) {
   ## show the numbers of cells in the individuals or
   ## responses groups.
@@ -67,7 +77,7 @@ extract_from_seurat <- function(pbmc_seurat) {
   invisible(list(cnt = cntmat,
     resp = mresponses,
     inds = mpatients,
-    ctyps = mcelltypes,
+    ct = mcelltypes,
     uctyps = uniqcelltypes,
     cstat = cellstats))
 }
