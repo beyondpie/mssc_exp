@@ -19,6 +19,7 @@ options(warn = 0)
 cell_type <- "Naive CD4+ T"
 num_top_gene <- 1000L
 cmdstan_version <- "2.24.1"
+mssc_stan_fnm <- "v3-1.stan"
 
 ## * load cmdstan
 library(cmdstanr)
@@ -75,4 +76,28 @@ mssc_resp <- resp
 mssc_totcnt <- colsumcnt
 
 ## * mssc
+## TODO: setting the initial values for the models.
+
+## pack up the data for stan usage
+mssc_stan_data <- myt$to_bagwiff_r(mssc_cnt, mssc_inds,
+  mssc_resp, mssc_totcnt)
+## load mssc stan model
+mssc_stan_model <- cmdstanr::cmdstan_model(
+  stan_file = here("src", "stan", mssc_stan_fnm),
+  compile = T,
+  stanc_options = list(include-paths = here("scr", "stan")),
+  dir = here("exps", "stanbin")
+  )
+## using stan vi method
+mssc_stan_model$variational(
+                  data = mssc_stan_data,
+                  seed = 355133L,
+                  init = NULL,
+                  refresh = 200,
+                  algorithm = "meanfield",
+                  output_samples = 1000,
+                  save_latent_dynamics = F,
+                  output_dir = here("exps", "pbmc", "vi")
+                  )
+## result analysis
 
