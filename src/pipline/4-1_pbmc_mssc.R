@@ -20,11 +20,52 @@ cell_type <- "Naive CD4+ T"
 num_top_gene <- 1000L
 cmdstan_version <- "2.23.0"
 mssc_stan_fnm <- "v3-1.stan"
+output_stan_fnm <- "pbmc_naivecd4t_top1000_stan_v3-1_vi.rds"
 
 ## * load cmdstan
 library(cmdstanr)
 set_cmdstan_path(path = paste(Sys.getenv("HOME"), "softwares",
   paste0("cmdstan-", cmdstan_version), sep = "/"))
+
+library(bayesplot)
+library(posterior)
+
+## * functions
+get_stan_variable_nms <- function(geneid, numinds, varnm = "MuCond") {
+  ## get variable names in stan models
+  ## given the gene id and the individual number.
+  ## Return: vector of strings.
+
+  invisible(vapply(seq_len(numinds),
+    FUN = function(j) {
+      paste0(varnm, "[", geneid, ",", j, "]")
+    },
+    FUN.VALUE = varnm))
+}
+get_posterior_condiff <- function(stan_res_df, genenms, geneindex,
+                                  numconds = 2, varnm = "MuCond") {
+  ## get the posterior diff (first - second)
+  ## Return list of two elements:
+  ## conds: sample_num x 3 colm(Cond1, Cond2, delta)
+  ## gds: gene deltas: dataframe sample_num x genenms
+  ## posterior samples.
+
+  res <- lapply(geneindex,
+    FUN = function(i) {
+      indcols <- get_stan_variable_nms(i, numconds, varnm)
+      tmp <- stan_res_df[, indcols]
+      colnames(tmp) <- paste0(varnm, seq_len(numconds))
+      tmp$delta <- (tmp[, 1] - tmp[, 2])[, 1]
+      invisible(tmp)
+    })
+  names(res) <- genenms
+  deltas <- vapply(res, FUN = function(x) {
+    invisible(x$delta)
+  }, FUN.VALUE = res[[1]]$delta)
+  ## gd <- do.call(cbind, deltas)
+  invisible(list(conds = res, gds = deltas))
+}
+
 
 ## * load data
 pbmc_seurat <- mypbmc$load_pbmc_seurat() %>%
@@ -87,17 +128,28 @@ mssc_stan_model <- cmdstanr::cmdstan_model(
   compile = T,
   stanc_options = list(include_paths = here("src", "stan")),
   dir = here("exps", "stanbin")
-  )
+)
 ## using stan vi method
-mssc_stan_model$variational(
-                  data = mssc_stan_data,
-                  seed = 355133L,
-                  init = NULL,
-                  refresh = 200,
-                  algorithm = "meanfield",
-                  output_samples = 1000,
-                  save_latent_dynamics = F,
-                  output_dir = here("exps", "pbmc", "vi")
-                  )
+mssc_stanvi_obj <- mssc_stan_model$variational(
+  data = mssc_stan_data,
+  seed = 355133L,
+  init = NULL,
+  refresh = 200,
+  algorithm = "meanfield",
+  output_samples = 1000,
+  save_latent_dynamics = F,
+  output_dir = here("exps", "pbmc", "vi")
+)
 ## result analysis
+mssc_res_df <- posterior::as_draws_df(mssc_stanvi_obj$draws())
+mucond_sum <- get_posterior_condiff(stan_res_df = mssc_res_df,
+  genenms = rownames(mssc_cnt),
+  geneindex = seq_len(nrow(mssc_cnt)),
+  numconds = 2,
+  varnm = "MuCond")
+mucond_t <- myt$calt(mucond_sum$gd)
 
+saveRDS(object = list(mssc_res_df = mssc_res_df,
+                      mucond_sum = mucond_sum,
+                      mucond_t = mucond_t),
+        file = here("exps", "pbmc", "vi", output_stan_fnm))
