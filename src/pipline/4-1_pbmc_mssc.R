@@ -85,7 +85,7 @@ mssc_stan_data <- myt$to_bagwiff_r(mssc_cnt, mssc_inds,
 mssc_stan_model <- cmdstanr::cmdstan_model(
   stan_file = here("src", "stan", mssc_stan_fnm),
   compile = T,
-  stanc_options = list(include-paths = here("scr", "stan")),
+  stanc_options = list(include_paths = here("scr", "stan")),
   dir = here("exps", "stanbin")
   )
 ## using stan vi method
