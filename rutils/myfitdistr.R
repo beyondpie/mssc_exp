@@ -3,7 +3,7 @@ is_outlier <- function(x, up_prob = 0.995) {
 }
 
 grpoutliers <- function(cntgbc) {
-  outliers <- apply(cntgbc, 1, is_outlier)
+  outliers <- sapply(cntgbc, 1, is_outlier)
   invisible(rowSums(outliers) > 0)
 }
 
