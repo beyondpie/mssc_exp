@@ -100,4 +100,16 @@ mssc_stan_model$variational(
                   output_dir = here("exps", "pbmc", "vi")
                   )
 ## result analysis
+mssc_res_df <- posterior::as_draws_df(mssc_stanvi_obj$draws())
+mucond_sum <- get_posterior_condiff(stan_res_df = mssc_res_df,
+  genenms = rownames(mssc_cnt),
+  geneindex = seq_len(nrow(mssc_cnt)),
+  numconds = 2,
+  varnm = "MuCond")
+mucond_t <- myt$calt(mucond_sum$gd)
 
+
+saveRDS(object = list(mssc_res_df = mssc_res_df,
+  mucond_sum = mucond_sum,
+  mucond_t = mucond_t),
+file = here("exps", "pbmc", "vi", output_stan_fnm))
