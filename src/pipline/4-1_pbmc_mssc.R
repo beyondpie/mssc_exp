@@ -146,6 +146,7 @@ diff_wilcoxp <- apply(pseudobulk, 1,
 
 ## select top ranked genes
 top_ranked_index <- order(diff_wilcoxp, decreasing = FALSE)[1:num_top_gene]
+pseudo_diff_wilcoxp <- diff_wilcoxp[top_ranked_index]
 
 ## final data
 mssc_cnt <- cnt[top_ranked_index, ]
@@ -219,5 +220,6 @@ saveRDS(object = list(
   mug = mug_sum,
   kappa2g = kappa2g_sum,
   tau2g = tau2g_sum,
-  phi2g = phi2g_sum),
+  phi2g = phi2g_sum,
+  pseudwilcoxp = pseudo_diff_wilcoxp),
 file = here("exps", "pbmc", "vi", output_stan_fnm))
