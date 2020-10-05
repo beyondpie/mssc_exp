@@ -42,9 +42,11 @@ get_stan_variable_nms <- function(geneid, numinds, varnm = "MuCond") {
     },
     FUN.VALUE = varnm))
 }
+
 get_posterior_condiff <- function(stan_res_df, genenms, geneindex,
                                   numconds = 2, varnm = "MuCond") {
-  ## get the posterior diff (first - second)
+  ## get the posterior diff (first - second) between different conditions
+  ## Assume 2 in this case
   ## Return list of two elements:
   ## conds: sample_num x 3 colm(Cond1, Cond2, delta)
   ## gds: gene deltas: dataframe sample_num x genenms
@@ -66,6 +68,41 @@ get_posterior_condiff <- function(stan_res_df, genenms, geneindex,
   invisible(list(conds = res, gds = deltas))
 }
 
+get_posterior_indeff <- function(stan_res_df, genenms, geneindex,
+                                 numinds = 10, varnm = "MuInd") {
+  ## get the posterior individual effects.
+  ## Return
+  ## indeff: List of gene num, each is a df/tibble: sample_num x numinds.
+
+  res <- lapply(geneindex,
+    FUN = function(i) {
+      indcols <- get_stan_variable_nms(i, numinds, varnm)
+      tmp <- stan_res_df[, indcols]
+      colnames(tmp) <- paste0(varnm, seq_len(numinds))
+      invisible(tmp)
+    })
+  names(res) <- genenms
+  invisible(res)
+}
+
+
+get_posterior_intercept <- function(stan_res_df, genenms,
+                                    geneindex, varnm = "MuG") {
+  ## get the posterior intercept, i.e. the average
+  ## expression level removing
+  ## individual effect and conditional effects.
+  ## Return
+  ## a df: sample_num x gene_num
+  ## this function can be used for variance summary
+  ## i.e., Kappa2G, Tau2G, Phi2G
+
+  res <- vapply(geneindex,
+    FUN = function(i) {
+      stan_res_df[, paste0(varnm, "[", i, "]"), drop = T]
+    }, FUN.VALUE = stan_res_df[, paste0(varnm,"[1]"), drop = T])
+  colnames(res) <- genenms
+  invisible(res)
+}
 
 ## * load data
 pbmc_seurat <- mypbmc$load_pbmc_seurat() %>%
@@ -149,7 +186,38 @@ mucond_sum <- get_posterior_condiff(stan_res_df = mssc_res_df,
   varnm = "MuCond")
 mucond_t <- myt$calt(mucond_sum$gd)
 
-saveRDS(object = list(mssc_res_df = mssc_res_df,
-                      mucond_sum = mucond_sum,
-                      mucond_t = mucond_t),
-        file = here("exps", "pbmc", "vi", output_stan_fnm))
+muind_sum <- get_posterior_indeff(stan_res_df = mssc_res_df,
+  genenms = rownames(mssc_cnt),
+  geneindex = seq_len(nrow(mssc_cnt)),
+  numinds = 10,
+  varnm = "MuInd")
+
+mug_sum <- get_posterior_intercept(stan_res_df = mssc_res_df,
+  genenms = rownames(mssc_cnt),
+  geneindex = seq_len(nrow(mssc_cnt)),
+  varnm = "MuG")
+
+kappa2g_sum <- get_posterior_intercept(stan_res_df = mssc_res_df,
+  genenms = rownames(mssc_cnt),
+  geneindex = seq_len(nrow(mssc_cnt)),
+  varnm = "Kappa2G")
+
+tau2g_sum <- get_posterior_intercept(stan_res_df = mssc_res_df,
+  genenms = rownames(mssc_cnt),
+  geneindex = seq_len(nrow(mssc_cnt)),
+  varnm = "Tau2G")
+
+phi2g_sum <- get_posterior_intercept(stan_res_df = mssc_res_df,
+  genenms = rownames(mssc_cnt),
+  geneindex = seq_len(nrow(mssc_cnt)),
+  varnm = "Phi2G")
+
+saveRDS(object = list(
+  mucond = mucond_sum,
+  mucondt = mucond_t,
+  muind = muind_sum,
+  mug = mug_sum,
+  kappa2g = kappa2g_sum,
+  tau2g = tau2g_sum,
+  phi2g = phi2g_sum),
+file = here("exps", "pbmc", "vi", output_stan_fnm))
