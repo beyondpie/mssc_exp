@@ -1,8 +1,4 @@
 * Difficult: differential gene analysis across multiple scRNAseq datasets
-** Project document:
-   - Overleaf
-     https://www.overleaf.com/project/5ee29d0cb1cef1000176047d
-** Project presentation:
-   - Overleaf
-     https://www.overleaf.com/project/5e93204f3a9e4a0001e23770
+
+This is an on-going project. The newest code is in the simu branch.
     
