@@ -90,11 +90,11 @@ prob_zero_nb <- function(x, rmoutliers = T) {
   ##    "Droplet scRNA-Seq is not zero-inflated." Nature Biotech, 2020
   ## -- r as dispersion in stan
   ## Here we choose r as dispersion following stan.
-  r <- nbfit$estimate["size"]
-  mu <- nbfit$estimate["mu"]
-  p <- r / (r + mu)
-  v <- mu + mu^2 / r
-  p0 <- (r / (r + mu))^r
+  r <- unname(nbfit$estimate["size"])
+  mu <- unname(nbfit$estimate["mu"])
+  p <- uname(r / (r + mu))
+  v <- unname(mu + mu^2 / r)
+  p0 <- uname((r / (r + mu))^r)
 
   invisible(list(
     size = r, r = r, dispersion_stan = r,
