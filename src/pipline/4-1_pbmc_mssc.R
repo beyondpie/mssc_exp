@@ -114,7 +114,7 @@ subscdata <- mypbmc$get_celltype_specific_scdata(pbmc_seurat$cnt,
   pbmc_seurat$resp,
   pbmc_seurat$inds,
   pbmc_seurat$ct,
-  "CXCR4+ NK")
+  cell_type)
 
 ## * data preprocessing
 ## sample cell numbers to keep each ind
