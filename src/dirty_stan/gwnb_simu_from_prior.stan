@@ -7,20 +7,19 @@ data {
 	int J; // num_of_cond
 	vector<lower=100>[N] S; // cells' sum_of_cnt
 	int<lower=1, upper=K> Ind[N];
-	int<lower=1, upper=J> Cond[N]; // cond from 1.
+  int<lower=1, upper=J> Cond[N]; // cond from 1.
+	real<lower=0> sigmaG0;
+	real<lower=0> alphaKappa2G;
+	real<lower=0> betaKappa2G;
+
+	real<lower=0> alphaTau2G;
+	real<lower=0> betaTau2G;
+
+	real<lower=0> alphaPhi2G;
+	real<lower=0> betaPhi2G;
 }
 
 transformed data {
-	real<lower=0> sigmaG0 = 10.0;
-	real<lower=0> alphaKappa2G = 1.0;
-	real<lower=0> betaKappa2G = 1.0;
-
-	real<lower=0> alphaTau2G = 1.0;
-	real<lower=0> betaTau2G = 1.0;
-
-	real<lower=0> alphaPhi2G = 1.0;
-	real<lower=0> betaPhi2G = 1.0;
-
 	matrix[N, 1 + J + K] X = rep_matrix(0.0, N, 1+J+K);
 	for (i in 1:N) {
 		X[i, 1] = 1.0;
@@ -54,7 +53,7 @@ transformed data {
 
 	int y[N];
 	for (i in 1:N) {
-		y[i] = neg_binomial_2_log_rng(logS[i] +
+		y[i] = neg_binomial_2_log_rng(logS[i] + mug + 
 																	muind[Ind[i]] + mucond[Cond[i]],
 																	phi2g);
 	}
