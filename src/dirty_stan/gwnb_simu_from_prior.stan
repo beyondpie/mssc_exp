@@ -6,8 +6,8 @@ data {
 	int K; // num_of_ind
 	int J; // num_of_cond
 	vector<lower=100>[N] S; // cells' sum_of_cnt
-	vector<lower=1, upper=K> Ind;
-	vector<lower=1, upper=J> Cond; // cond from 1.
+	int<lower=1, upper=K> Ind[N];
+	int<lower=1, upper=J> Cond[N]; // cond from 1.
 }
 
 transformed data {
@@ -54,7 +54,7 @@ transformed data {
 
 	int y[N];
 	for (i in 1:N) {
-		y[i] = neg_binomial_2_log_rng(logS[i],
+		y[i] = neg_binomial_2_log_rng(logS[i] +
 																	muind[Ind[i]] + mucond[Cond[i]],
 																	phi2g);
 	}
@@ -73,8 +73,8 @@ parameters{
 transformed parameters {
 	vector[K] MuInd;
 	vector[J] MuCond;
-	MuInd = sqrt(Kappa2G) .* MuIndRaw;
-	MuCond = sqrt(Tau2G) .* MuCondRaw;
+	MuInd = sqrt(Kappa2G) * MuIndRaw;
+	MuCond = sqrt(Tau2G) * MuCondRaw;
 }
 
 model {
@@ -97,6 +97,10 @@ generated quantities {
 	lt_sim[2] = Tau2G < tau2g;
 	lt_sim[3] = Phi2G < phi2g;
 	lt_sim[4] = MuG < mug;
-	lt_sim[(4+1): (4+K)] = MuInd < muind;
-	lt_sim[(4+K+1): (4+K+J)] = MuCond < mucond;
+	for (k in 1: K) {
+		lt_sim[4 + k]  = (MuInd[k] < muind[k]);
+	}
+	for (j in 1:J) {
+		lt_sim[4+K+j] = (MuCond[j] < mucond[j]);
+	}
 }

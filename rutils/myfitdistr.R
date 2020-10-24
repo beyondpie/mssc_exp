@@ -92,9 +92,9 @@ prob_zero_nb <- function(x, rmoutliers = T) {
   ## Here we choose r as dispersion following stan.
   r <- unname(nbfit$estimate["size"])
   mu <- unname(nbfit$estimate["mu"])
-  p <- uname(r / (r + mu))
+  p <- unname(r / (r + mu))
   v <- unname(mu + mu^2 / r)
-  p0 <- uname((r / (r + mu))^r)
+  p0 <- unname((r / (r + mu))^r)
 
   invisible(list(
     size = r, r = r, dispersion_stan = r,
