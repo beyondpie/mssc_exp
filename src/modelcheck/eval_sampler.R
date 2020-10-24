@@ -149,31 +149,37 @@ mydata <- list(
   J = num_of_cond,
   S = d1g_sumcnt,
   Ind = Ind,
-  Cond = Cond
+  Cond = Cond,
+  sigmaG0 = 5.0,
+  alphaKappa2G  =1.0,
+  betaKappa2G = 1.0,
+  alphaTau2G = 1.0,
+  betaTau2G = 1.0,
+  alphaPhi2G = 1.0,
+  betaPhi2G = 1.0
 )
 ## * analyze simulation-based calibration
 sbc_gwnb_model <- cmdstan_model(here(
-    "src", "dirty_stan",
-    "gwnb_simu_from_prior.stan"
+  "src", "dirty_stan",
+  "gwnb_simu_from_prior.stan"
 ),
-  compile = T,
-  force_recompile = T
+compile = T,
+force_recompile = T
 )
 
+sbc_gwnb_mle <- sbc_gwnb_model$optimize(
+  data = mydata,
+  seed = 1)
 
 
+sbc_gwnb_vi_sampler <- sbc_gwnb_model$variational(
+                                        data = mydata,
+                                        seed = 1)
+
+sbc_gwnb_vi_draws <- sbc_gwnb_vi_sampler$draws()
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+sbc_gwnb_mcmc_sampler <- sbc_gwnb_model$sample(
+  data = mydata,
+  seed = 1)
+sbc_gwnb_mcmc_draws <- sbc_gwnb_mcmc_sampler$draws()
