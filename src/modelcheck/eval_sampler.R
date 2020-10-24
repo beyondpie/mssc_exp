@@ -27,11 +27,11 @@ options(mc.cores = 3)
 set.seed(355113)
 
 ## ## set cmdstan path
-set_cmdstan_path(path = paste(Sys.getenv("HOME"),
-  "softwares",
-  "cmdstan-2.23.0",
-  sep = "/"
-))
+## set_cmdstan_path(path = paste(Sys.getenv("HOME"),
+##   "softwares",
+##   "cmdstan-2.23.0",
+##   sep = "/"
+## ))
 
 ## * load pbmc for parameter estimate and setting.
 ## classical genes as DE
