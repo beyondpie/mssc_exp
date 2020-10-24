@@ -7,7 +7,20 @@ data {
 	int J; // num_of_cond
 	vector<lower=100>[N] S; // cells' sum_of_cnt
 	int<lower=1, upper=K> Ind[N];
-  int<lower=1, upper=J> Cond[N]; // cond from 1.
+  int<lower=1, upper=J> Cond[N]; // cond from 1
+
+	// simulate model parameters from prior
+	real<lower=0> kappa2g;
+	real<lower=0> tau2g;
+	real<lower=0> phi2g;
+	real mug;
+	vector[K] muind;
+	vector[J] mucond;
+	int y[N];
+
+
+	// hyper parameters
+	real muG0;
 	real<lower=0> sigmaG0;
 	real<lower=0> alphaKappa2G;
 	real<lower=0> betaKappa2G;
@@ -29,35 +42,35 @@ transformed data {
 
 	vector[N] logS = log(S);
 
-	real<lower=0> kappa2g = inv_gamma_rng(alphaKappa2G, betaKappa2G);
-	real<lower=0> tau2g = inv_gamma_rng(alphaTau2G, betaTau2G);
-	real<lower=0> phi2g = inv_gamma_rng(alphaPhi2G, betaPhi2G);
-	real mug = normal_rng(0.0, sigmaG0);
+	// real<lower=0> kappa2g = inv_gamma_rng(alphaKappa2G, betaKappa2G);
+	// real<lower=0> tau2g = inv_gamma_rng(alphaTau2G, betaTau2G);
+	// real<lower=0> phi2g = inv_gamma_rng(alphaPhi2G, betaPhi2G);
+	// real mug = normal_rng(0.0, sigmaG0);
 
-	print("Sample Kappa2G from prior:", kappa2g);
-	print("Sample Tau2G from prior:", tau2g);
-	print("Sample Phi2G from prior:", phi2g);
-	print("Sample MuG from prior:", mug);
+	// print("Sample Kappa2G from prior:", kappa2g);
+	// print("Sample Tau2G from prior:", tau2g);
+	// print("Sample Phi2G from prior:", phi2g);
+	// print("Sample MuG from prior:", mug);
 
-	vector[K] muind;
-	vector[J] mucond;
-	for (k in 1:K) {
-		muind[k] = normal_rng(0.0, sqrt(kappa2g));
-	}
-	for (j in 1:J) {
-		mucond[j] = normal_rng(0.0, sqrt(tau2g));
-	}
+	// vector[K] muind;
+	// vector[J] mucond;
+	// for (k in 1:K) {
+	// 	muind[k] = normal_rng(0.0, sqrt(kappa2g));
+	// }
+	// for (j in 1:J) {
+	// 	mucond[j] = normal_rng(0.0, sqrt(tau2g));
+	// }
 
-	print("Sample MuInd from prior:", muind);
-	print("Sample MuCond from prior:", mucond);
+	// print("Sample MuInd from prior:", muind);
+	// print("Sample MuCond from prior:", mucond);
 
-	int y[N];
-	for (i in 1:N) {
-		y[i] = neg_binomial_2_log_rng(logS[i] + mug + 
-																	muind[Ind[i]] + mucond[Cond[i]],
-																	phi2g);
-	}
-	print("Generate y:", y);
+	// int y[N];
+	// for (i in 1:N) {
+	// 	y[i] = neg_binomial_2_log_rng(logS[i] + mug + 
+	// 																muind[Ind[i]] + mucond[Cond[i]],
+	// 																phi2g);
+	// }
+	// print("Generate y:", y);
 }
 
 parameters{
@@ -81,13 +94,19 @@ model {
 	Tau2G ~ inv_gamma(alphaTau2G, betaTau2G);
 	Phi2G ~ inv_gamma(alphaPhi2G, betaPhi2G);
 
-	MuG ~ normal(0.0, sigmaG0);
+	MuG ~ normal(muG0, sigmaG0);
 	MuIndRaw ~ std_normal(); //implicit MuInd[,k] ~ normal(0, diag(KappaG))
 	MuCondRaw ~ std_normal(); //implicit MuCond[,j] ~ normal(0.0, diag(TauG))
 
-	vector[1+2+K] W = append_row(MuG,
-															 append_row(MuInd, MuCond));
-	target += neg_binomial_2_log_glm_lpmf(y | X, logS, W, Phi2G);
+	// vector[1+2+K] W = append_row(MuG,
+	// 														 append_row(MuInd, MuCond));
+	real nb_mu[N];
+	for (i in 1:N) {
+		nb_mu[i] = logS[i] + MuG + MuInd[Ind[i]] + MuCond[Cond[i]];
+	}
+	real nb_r[N] =  rep_array(phi2g, N);
+	y ~ neg_binomial_2_log(nb_mu, nb_r);
+	// target += neg_binomial_2_log_glm_lpmf(y | X, logS, W, Phi2G);
 }
 
 generated quantities {

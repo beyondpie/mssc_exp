@@ -1,8 +1,25 @@
+---
+title: "Check gene-wise negative binomial model in MSSC"
+author: Songpeng Zu
+date: "`r format(Sys.time(), '%d %B %Y')`"
+urlcolor: blue
+fontsize: 12pt
+output:
+  html_document
+---
+
+# Abstract
+Following Jun's suggestions, here we eval the sampler firstly by generating from the prior. 
+
+# Set R environment
+
+```{r, cache = True}
 ## Following Jun's suggestions
 ## Eval the sampler firstly by generating from the prior.
 
 import::from(here, here)
 suppressPackageStartupMessages(library(tidyverse))
+library(MCMCpack)
 library(cmdstanr)
 ## detach("package:cmdstanr", unload = TRUE)
 ## library(cmdstanr)
@@ -10,7 +27,6 @@ library(bayesplot)
 library(posterior)
 library(bbmle)
 library(sads)
-
 
 ## local modules
 options("import.path" = here("rutils"))
@@ -26,24 +42,19 @@ options(warn = 0)
 options(mc.cores = 3)
 set.seed(355113)
 
-## ## set cmdstan path
-## set_cmdstan_path(path = paste(Sys.getenv("HOME"),
-##   "softwares",
-##   "cmdstan-2.23.0",
-##   sep = "/"
-## ))
+```
 
-## * load pbmc for parameter estimate and setting.
-## classical genes as DE
-## SNHG16, OASL, NAMPT, NFKB1, BCL2L11, TRAF4, ICAM1,
-## XCL2, XCL1, CCL3L3, CCL3L1
-
-## strong individual effect genes
-## HBA1, HBA2, HBD
-
+# load pbmc for parameter estimate and setting.
+## Classical genes as DE
+   - SNHG16, OASL, NAMPT, NFKB1, BCL2L11, TRAF4, ICAM1, XCL2, XCL1, CCL3L3, CCL3L1
+   
+## Strong individual effect genes 
+   - HBA1, HBA2, HBD
+   
 ## possible non-DE
-## TOX, YIPF5, CCL3, KDM6A, HDDC2
+   - TOX, YIPF5, CCL3, KDM6A, HDDC2
 
+```{r cache = TRUE}
 cell_type <- "Naive CD4+ T"
 sample_cellnum <- 280
 num_of_ind <- 10
@@ -128,8 +139,11 @@ mu_case <- log(nb_fit_case$nbfit$estimate["mu"] /
 mu_case_ind <- nb_fit_case_ind_mu -
   log(nb_fit_case$nbfit$estimate["mu"] / median(d1g_sumcnt[d1g_resp == 1]))
 
+```
 
-## * set data for eval model from prior
+# set data for check model from prior
+
+```{r cache=TRUE}
 Ind <- c(vapply(seq_len(num_of_ind),
   FUN = function(x) {
     rep(x, sample_cellnum)
@@ -143,6 +157,57 @@ Cond <- c(vapply(seq_len(num_of_cond),
   FUN.VALUE = c(rep(0.0, sample_cellnum * num_of_ind / 2))
 ))
 
+## * set gwnb hyper prior
+## for muG
+muG0 <- mu0
+sigmaG0 <- 4.0
+
+## for MuInd
+alphaKappa2G <- 1.0
+betaKappa2G <- 1.0
+
+## for MuCond
+alphaTau2G <- 1.0
+betaTau2G <- 1.0
+
+## for NB
+alphaPhi2G <- 1.0
+betaPhi2G <- 1.0
+
+## * sampling parameters from the prior
+mug <- rnorm(1, mean = muG0, sd = sigmaG0)
+kappa2g <- rinvgamma(1,
+  shape = alphaKappa2G,
+  scale = betaKappa2G
+)
+tau2g <- rinvgamma(1,
+  shape = alphaTau2G,
+  scale = betaTau2G
+)
+phi2g <- rinvgamma(1,
+  shape = alphaPhi2G,
+  scale = betaPhi2G
+)
+
+muind <- rnorm(num_of_ind,
+  mean = 0.0,
+  sd = sqrt(kappa2g)
+)
+mucond <- rnorm(num_of_cond,
+  mean = 0.0,
+  sd = sqrt(tau2g)
+)
+y <- vapply(seq_len(sample_cellnum * num_of_ind),
+  FUN = function(i) {
+    rnbinom(
+      n = 1,
+      mu = d1g_sumcnt[i] * exp(mug + muind[Ind[i]] + mucond[Cond[i]]),
+      size = phi2g
+    )
+  },
+  FUN.VALUE = 0.0
+)
+
 mydata <- list(
   N = sample_cellnum * num_of_ind,
   K = num_of_ind,
@@ -150,36 +215,56 @@ mydata <- list(
   S = d1g_sumcnt,
   Ind = Ind,
   Cond = Cond,
-  sigmaG0 = 5.0,
-  alphaKappa2G  =1.0,
-  betaKappa2G = 1.0,
-  alphaTau2G = 1.0,
-  betaTau2G = 1.0,
-  alphaPhi2G = 1.0,
-  betaPhi2G = 1.0
+  kappa2g = kappa2g,
+  tau2g = tau2g,
+  phi2g = phi2g,
+  mug = mug,
+  muind = muind,
+  mucond = mucond,
+  y = y,
+  muG0 = muG0,
+  sigmaG0 = sigmaG0,
+  alphaKappa2G = alphaKappa2G,
+  betaKappa2G = betaKappa2G,
+  alphaTau2G = alphaTau2G,
+  betaTau2G = betaTau2G,
+  alphaPhi2G = alphaPhi2G,
+  betaPhi2G = betaPhi2G
 )
-## * analyze simulation-based calibration
+```
+
+# Load and compile the stan model
+```{r cache = TRUE}
 sbc_gwnb_model <- cmdstan_model(here(
   "src", "dirty_stan",
   "gwnb_simu_from_prior.stan"
-),
-compile = T,
-force_recompile = T
-)
+), compile = T, force_recompile = T)
 
-sbc_gwnb_mle <- sbc_gwnb_model$optimize(
-  data = mydata,
-  seed = 1)
+```
 
 
+# analyze simulation-based calibration
+
+## analyze the variational inference
+```{r cache = TRUE}
+## sbc_gwnb_mle <- sbc_gwnb_model$optimize(
+##   data = mydata,
+##   seed = 1
+## )
 sbc_gwnb_vi_sampler <- sbc_gwnb_model$variational(
-                                        data = mydata,
-                                        seed = 1)
-
+  data = mydata,
+  seed = 1
+)
 sbc_gwnb_vi_draws <- sbc_gwnb_vi_sampler$draws()
+```
 
-
+## analyze the mcmc inference
+```{r eval=FALSE}
 sbc_gwnb_mcmc_sampler <- sbc_gwnb_model$sample(
   data = mydata,
-  seed = 1)
+  seed = 1
+  )
+
 sbc_gwnb_mcmc_draws <- sbc_gwnb_mcmc_sampler$draws()
+```
+ 
