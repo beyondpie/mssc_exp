@@ -15,6 +15,7 @@ knitr::opts_chunk$set(cache = TRUE, warning = FALSE,
                       collapse = TRUE, comment = "##")
 ```
 
+# Set R environment
 ```{r cache=TRUE}
 ## Set R environment
 import::from(here, here)
@@ -48,7 +49,8 @@ options(error = traceback)
 options(warn = 0)
 options(mc.cores = 3)
 set.seed(355113)
-
+``` 
+```{r cache = TRUE}
 # Setting functions
 get_fitted_mu <- function(y, vec_of_cond,
                           vec_of_ind_under_cond,
@@ -98,20 +100,27 @@ get_fitted_mu <- function(y, vec_of_cond,
     mu_ind = c(mu_control_ind, mu_case_ind)
   ))
 }
+```
 
-## * load pbmc for parameter estimate and setting.
+# load pbmc for parameter estimate and setting.
+
+
 ## Classical genes as DE
-##   - SNHG16, OASL, NAMPT, NFKB1, BCL2L11, TRAF4, ICAM1, XCL2, XCL1, CCL3L3, CCL3L1
-## Strong individual effect genes
-##   - HBA1, HBA2, HBD
-## possible non-DE
-##   - TOX, YIPF5, CCL3, KDM6A, HDDC2
+   - SNHG16, OASL, NAMPT, NFKB1, BCL2L11, TRAF4, ICAM1, XCL2, XCL1, CCL3L3, CCL3L1
 
+## Strong individual effect genes
+   - HBA1, HBA2, HBD
+
+## possible non-DE
+   - TOX, YIPF5, CCL3, KDM6A, HDDC2
+
+```{r cache= TRUE}
 cell_type <- "Naive CD4+ T"
 num_of_cell_per_ind <- 280
 num_of_ind <- 10
 num_of_ind_per_cond <- 5
 num_of_cond <- 2
+
 # a DE gene: DE one gene
 d1g <- "NFKB1"
 
@@ -159,15 +168,24 @@ d1g_fitted_mu <- get_fitted_mu(d1g_cnt,
 ## fit NB for a list of genes, add see the distribution
 ## of the dispersion.
 ## -------
+```
 
-## * STAN Model setting
-## ** load stan model
-sbc_gwnb_model <- cmdstan_model(here(
+# STAN Model setting
+
+## load stan model
+```{r mssc,cache=TRUE}
+sbc_gwnb_model <- cmdstan_model(here::here(
   "src", "dirty_stan",
   "gwnb_simu_from_prior.stan"
-), compile = T, force_recompile = T)
+), compile = T)
 
-## * set gwnb hyper prior
+## show the stan content
+sbc_gwnb_model$print()
+```
+
+## set data and initial values
+
+```{r sample_Data_from_prior, cache= TRUE}
 vec_of_cond <- c(rep(1, num_of_cell_per_ind * num_of_ind_per_cond),
   rep(2, num_of_cell_per_ind * num_of_ind_per_cond))
 vec_of_ind_under_cond <- c(paste0("NR",
@@ -232,9 +250,21 @@ y <- vapply(seq_len(num_of_cell_per_ind * num_of_ind),
     )
   },
   FUN.VALUE = 0.0
-)
+  )
+
+## print the values
+mug
+kappa2g
+tau2g
+phi2g
+muind
+mucond
+str(y)
+```
+
 
 ## set the initial values
+```{r set_init_param, cache=TRUE}
 sbc_mu_list <- get_fitted_mu(y, vec_of_cond, vec_of_ind_under_cond,
   vec_of_s = d1g_sumcnt,
   label_of_control = 1)
@@ -243,6 +273,7 @@ kappa2g <- 1.0
 tau2g <- 1.0
 phi2g <- 1.0
 
+## Finally set the initial values for the parameters
 init_params <- list(
   MuG = sbc_mu_list$mu0,
   MuIndRaw = sbc_mu_list$mu_ind / sqrt(kappa2g),
@@ -251,7 +282,12 @@ init_params <- list(
   Tau2G = tau2g,
   Phi2G = phi2g
 )
+## print the values
+init_params
+```
 
+```{r mydata, cache=TRUE, echo=FALSE}
+## Finally set the data for mssc.
 mydata <- list(
   N = num_of_cell_per_ind * num_of_ind,
   K = num_of_ind,
@@ -278,8 +314,9 @@ mydata <- list(
 ```
 
 # Analyze the variational inference
+
 ## Use arbitrary initial values
-```{r cache=TRUE}
+```{r sbc_gwnb_vi_randinit, cache=TRUE}
 sbc_randinit_vi_sampler <- sbc_gwnb_model$variational(
   data = mydata,
   seed = 355113,
@@ -289,11 +326,15 @@ sbc_randinit_vi_sampler <- sbc_gwnb_model$variational(
   eval_elbo = 10,
   adapt_engaged = TRUE
   )
+
+```
+### Results using random initial values
+```{r sum_sbc_gwnb_vi_randinit, cache = TRUE}
 sbc_randinit_vi_draws <- sbc_randinit_vi_sampler$draws()
 ```
 
 ## use the estimated values as initials 
-```{r cache=TRUE}
+```{r sbc_gwnb_vi, cache=TRUE}
 sbc_vi_sampler <- sbc_gwnb_model$variational(
   data = mydata,
   seed = 355113,
@@ -304,6 +345,11 @@ sbc_vi_sampler <- sbc_gwnb_model$variational(
   adapt_engaged = TRUE,
   init = list(init_params)
   )
+
+```
+
+### Results with initial values
+```{r sum_sbc_gwnb_vi, cache=TRUE}
 sbc_vi_draws <- sbc_vi_sampler$draws()
 
 bayesplot::mcmc_hist(sbc_vi_draws, pars = c("MuG"))
