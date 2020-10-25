@@ -125,72 +125,47 @@ colsumcnt <- colSums(cnt)
 d1g_cnt <- cnt[d1g, ]
 outliers <- myfit$is_outlier(d1g_cnt)
 d1g_cnt <- d1g_cnt[!outliers]
+d1g_inds <- inds[!outliers]
+d1g_resp <- resp[!outliers]
+d1g_sumcnt <- colsumcnt[!outliers]
 
 par(mfrow = c(1, 2))
 hist(d1g_cnt[resp == 1])
 hist(d1g_cnt[resp == 0])
 
-## remove outliers
-d1g_inds <- inds[!outliers]
-d1g_resp <- resp[!outliers]
-d1g_sumcnt <- colsumcnt[!outliers]
-
 ## fit NB dist
-nb_fit_all <- myfit$prob_zero_nb(d1g_cnt, F)
-nb_fit_control <- myfit$prob_zero_nb(d1g_cnt[d1g_resp == 0], F)
-nb_fit_case <- myfit$prob_zero_nb(d1g_cnt[d1g_resp == 1], F)
-
-nb_fit_case_ind_mu <- vapply(
-  paste0("R", seq_len(5)),
-  FUN = function(x) {
-    fit <- myfit$prob_zero_nb(d1g_cnt[d1g_inds == x])
-    invisible(log(fit$nbfit$estimate["mu"] / median(d1g_sumcnt[d1g_inds == x])))
-  },
-  FUN.VALUE = 0.0
-)
-
-nb_fit_control_ind_mu <- vapply(
-  paste0("NR", seq_len(5)),
-  FUN = function(x) {
-    fit <- myfit$prob_zero_nb(d1g_cnt[d1g_inds == x])
-    invisible(log(fit$nbfit$estimate["mu"] / median(d1g_sumcnt[d1g_inds == x])))
-  }, FUN.VALUE = 0.0
-)
-
+d1g_fitted_mu <- get_fitted_mu(d1g_cnt,
+                               d1g_resp,
+                               d1g_inds,
+                               d1g_sumcnt)
 ## -------
 ## fit NB for a list of genes, add see the distribution
 ## of the dispersion.
 ## -------
 
-## estimate the mu in the model.
-mu0 <- log(nb_fit_all$nbfit$estimate["mu"] / median(d1g_sumcnt))
-mu_control <- log(nb_fit_control$nbfit$estimate["mu"] /
-  median(d1g_sumcnt[d1g_resp == 0])) - mu0
-mu_control_ind <- nb_fit_control_ind_mu -
-  log(nb_fit_control$nbfit$estimate["mu"] / median(d1g_sumcnt[d1g_resp == 0]))
-mu_case <- log(nb_fit_case$nbfit$estimate["mu"] /
-  median(d1g_sumcnt[d1g_resp == 1])) - mu0
-mu_case_ind <- nb_fit_case_ind_mu -
-  log(nb_fit_case$nbfit$estimate["mu"] / median(d1g_sumcnt[d1g_resp == 1]))
-
-
-# set data for check model from prior
-Ind <- c(vapply(seq_len(num_of_ind),
-  FUN = function(x) {
-    rep(x, num_of_cell_per_ind)
-  },
-  FUN.VALUE = c(rep(0.0, num_of_cell_per_ind))
-))
-
-## * load stan model
+## * STAN Model setting
+## ** load stan model
 sbc_gwnb_model <- cmdstan_model(here(
   "src", "dirty_stan",
   "gwnb_simu_from_prior.stan"
 ), compile = T, force_recompile = T)
 
 ## * set gwnb hyper prior
+vec_of_cond <- c(rep(1, num_of_cell_per_ind * num_of_ind_per_cond),
+  rep(2, num_of_cell_per_ind * num_of_ind_per_cond))
+vec_of_ind_under_cond <- c(paste0("NR",
+  rep(seq_len(num_of_ind_per_cond),
+    num_of_cell_per_ind)),
+  paste0("R", rep(seq_len(num_of_ind_per_cond), num_of_cell_per_ind)))
+vec_of_ind <- c(vapply(seq_len(num_of_ind),
+  FUN = function(x) {
+    rep(x, num_of_cell_per_ind)
+  },
+  FUN.VALUE = c(rep(0.0, num_of_cell_per_ind))
+))
+
 ## for muG
-muG0 <- mu0
+muG0 <- d1g_fitted_mu$mu0
 sigmaG0 <- 4.0
 
 ## for MuInd
@@ -228,11 +203,14 @@ mucond <- rnorm(num_of_cond,
   mean = 0.0,
   sd = sqrt(tau2g)
 )
+
 y <- vapply(seq_len(num_of_cell_per_ind * num_of_ind),
   FUN = function(i) {
     rnbinom(
       n = 1,
-      mu = d1g_sumcnt[i] * exp(mug + muind[Ind[i]] + mucond[Cond[i]]),
+      mu = d1g_sumcnt[i] * exp(
+                             mug + muind[vec_of_ind[i]] +
+                             mucond[vec_of_cond[i]]),
       size = phi2g
     )
   },
@@ -240,13 +218,6 @@ y <- vapply(seq_len(num_of_cell_per_ind * num_of_ind),
 )
 
 ## set the initial values
-vec_of_cond <- c(rep(1, num_of_cell_per_ind * num_of_ind_per_cond),
-  rep(2, num_of_cell_per_ind * num_of_ind_per_cond))
-vec_of_ind_under_cond <- c(paste0("NR",
-                                  rep(seq_len(num_of_ind_per_cond),
-                                      num_of_cell_per_ind)),
-  paste0("R", rep(seq_len(num_of_ind_per_cond), num_of_cell_per_ind)))
-
 sbc_mu_list <- get_fitted_mu(y, vec_of_cond, vec_of_ind_under_cond,
   vec_of_s = d1g_sumcnt,
   label_of_control = 1)
@@ -257,20 +228,12 @@ phi2g <- 1.0
 
 init_params <- list(
   MuG = sbc_mu_list$mu0,
-  MuIndRaw = sbc_mu_list$mu_ind / sqrt(kapp2g),
+  MuIndRaw = sbc_mu_list$mu_ind / sqrt(kappa2g),
   MuCondRaw = sbc_mu_list$mu_cond / sqrt(tau2g),
-  Kappa2G = kapp2g,
+  Kappa2G = kappa2g,
   Tau2G = tau2g,
   Phi2G = phi2g
 )
-
-## set the data
-vec_of_ind <- c(vapply(seq_len(num_of_ind),
-  FUN = function(x) {
-    rep(x, num_of_cell_per_ind)
-  },
-  FUN.VALUE = c(rep(0.0, num_of_cell_per_ind))
-))
 
 mydata <- list(
   N = num_of_cell_per_ind * num_of_ind,
@@ -297,9 +260,31 @@ mydata <- list(
 )
 
 ## ** analyze the variational inference
+
+## *** with initial values
 sbc_gwnb_vi_sampler <- sbc_gwnb_model$variational(
   data = mydata,
-  seed = 1,
+  seed = 355113,
+  refresh = 10,
+  output_samples = 1000,
+  iter = 1000,
+  eval_elbo = 10,
+  adapt_engaged = TRUE,
   init = list(init_params)
-)
+  )
+
 sbc_gwnb_vi_draws <- sbc_gwnb_vi_sampler$draws()
+hist(sbc_gwnb_vi_draws[ , "MuG"])
+bayesplot::mcmc_hist(sbc_gwnb_vi_draws,
+                     regex_pars = c("MuInd\\["))
+bayesplot::mcmc_hist(sbc_gwnb_vi_draws,
+                     regex_pars = c("MuCond\\["))
+
+bayesplot::mcmc_hist(sbc_gwnb_vi_draws,
+  regex_pars = c("Kappa2G"))
+bayesplot::mcmc_hist(sbc_gwnb_vi_draws,
+  regex_pars = c("Tau2G"))
+bayesplot::mcmc_hist(sbc_gwnb_vi_draws,
+  regex_pars = c("Phi2G"))
+
+
