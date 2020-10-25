@@ -175,19 +175,18 @@ mu_case_ind <- nb_fit_case_ind_mu -
 
 
 # set data for check model from prior
-
 Ind <- c(vapply(seq_len(num_of_ind),
   FUN = function(x) {
     rep(x, num_of_cell_per_ind)
   },
   FUN.VALUE = c(rep(0.0, num_of_cell_per_ind))
 ))
-Cond <- c(vapply(seq_len(num_of_cond),
-  FUN = function(x) {
-    rep(x, num_of_cell_per_ind * num_of_ind / 2)
-  },
-  FUN.VALUE = c(rep(0.0, num_of_cell_per_ind * num_of_ind / 2))
-))
+
+## * load stan model
+sbc_gwnb_model <- cmdstan_model(here(
+  "src", "dirty_stan",
+  "gwnb_simu_from_prior.stan"
+), compile = T, force_recompile = T)
 
 ## * set gwnb hyper prior
 ## for muG
@@ -240,13 +239,46 @@ y <- vapply(seq_len(num_of_cell_per_ind * num_of_ind),
   FUN.VALUE = 0.0
 )
 
+## set the initial values
+vec_of_cond <- c(rep(1, num_of_cell_per_ind * num_of_ind_per_cond),
+  rep(2, num_of_cell_per_ind * num_of_ind_per_cond))
+vec_of_ind_under_cond <- c(paste0("NR",
+                                  rep(seq_len(num_of_ind_per_cond),
+                                      num_of_cell_per_ind)),
+  paste0("R", rep(seq_len(num_of_ind_per_cond), num_of_cell_per_ind)))
+
+sbc_mu_list <- get_fitted_mu(y, vec_of_cond, vec_of_ind_under_cond,
+  vec_of_s = d1g_sumcnt,
+  label_of_control = 1)
+
+kappa2g <- 1.0
+tau2g <- 1.0
+phi2g <- 1.0
+
+init_params <- list(
+  MuG = sbc_mu_list$mu0,
+  MuIndRaw = sbc_mu_list$mu_ind / sqrt(kapp2g),
+  MuCondRaw = sbc_mu_list$mu_cond / sqrt(tau2g),
+  Kappa2G = kapp2g,
+  Tau2G = tau2g,
+  Phi2G = phi2g
+)
+
+## set the data
+vec_of_ind <- c(vapply(seq_len(num_of_ind),
+  FUN = function(x) {
+    rep(x, num_of_cell_per_ind)
+  },
+  FUN.VALUE = c(rep(0.0, num_of_cell_per_ind))
+))
+
 mydata <- list(
   N = num_of_cell_per_ind * num_of_ind,
   K = num_of_ind,
   J = num_of_cond,
   S = d1g_sumcnt,
-  Ind = Ind,
-  Cond = Cond,
+  Ind = vec_of_ind,
+  Cond = vec_of_cond,
   kappa2g = kappa2g,
   tau2g = tau2g,
   phi2g = phi2g,
@@ -264,32 +296,10 @@ mydata <- list(
   betaPhi2G = betaPhi2G
 )
 
-# Load and compile the stan model
-vec_of_cond <- rep(1, )
-sbc_gwnb_model <- cmdstan_model(here(
-  "src", "dirty_stan",
-  "gwnb_simu_from_prior.stan"
-), compile = T, force_recompile = T)
-
-
-
-# analyze simulation-based calibration
-
-## setting the initial values
-vec_of_cond <- c(rep(1, num_of_cell_per_ind * num_of_ind_per_cond),
-  rep(2, num_of_cell_per_ind * num_of_ind_per_cond))
-vec_of_ind_under_cond <- c(paste0("NR",
-                                  rep(seq_len(num_of_ind_per_cond),
-                                      num_of_cell_per_ind)),
-  paste0("R", rep(seq_len(num_of_ind_per_cond), num_of_cell_per_ind)))
-
-sbc_mu_list <- get_fitted_mu(y, vec_of_cond, vec_of_ind_under_cond,
-  vec_of_s = d1g_sumcnt,
-  label_of_control = 1)
-
-## analyze the variational inference
+## ** analyze the variational inference
 sbc_gwnb_vi_sampler <- sbc_gwnb_model$variational(
   data = mydata,
-  seed = 1
+  seed = 1,
+  init = list(init_params)
 )
 sbc_gwnb_vi_draws <- sbc_gwnb_vi_sampler$draws()
