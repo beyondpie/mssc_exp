@@ -109,16 +109,16 @@ model {
 	// target += neg_binomial_2_log_glm_lpmf(y | X, logS, W, Phi2G);
 }
 
-generated quantities {
-	int<lower=0, upper=1> lt_sim[4 + K + J];
-	lt_sim[1] = Kappa2G < kappa2g;
-	lt_sim[2] = Tau2G < tau2g;
-	lt_sim[3] = Phi2G < phi2g;
-	lt_sim[4] = MuG < mug;
-	for (k in 1: K) {
-		lt_sim[4 + k]  = (MuInd[k] < muind[k]);
-	}
-	for (j in 1:J) {
-		lt_sim[4+K+j] = (MuCond[j] < mucond[j]);
-	}
-}
+// generated quantities {
+// 	int<lower=0, upper=1> lt_sim[4 + K + J];
+// 	lt_sim[1] = Kappa2G < kappa2g;
+// 	lt_sim[2] = Tau2G < tau2g;
+// 	lt_sim[3] = Phi2G < phi2g;
+// 	lt_sim[4] = MuG < mug;
+// 	for (k in 1: K) {
+// 		lt_sim[4 + k]  = (MuInd[k] < muind[k]);
+// 	}
+// 	for (j in 1:J) {
+// 		lt_sim[4+K+j] = (MuCond[j] < mucond[j]);
+// 	}
+// }

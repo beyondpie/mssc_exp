@@ -1,18 +1,35 @@
-# Following Jun's suggestions, here we check
-# the sampler firstly by generating from the prior.
+---
+title: "Check MSSC"
+author: Songpeng Zu
+date: "`r format(Sys.time(), '%d %B %Y')`"
+urlcolor: blue
+fontsize: 12pt
+output:
+  html_document
+---
 
-# Set R environment
+```{r setup, include=FALSE}
+library(knitr)
+knitr::opts_chunk$set(cache = TRUE, warning = FALSE,
+                      message = FALSE, cache.lazy = FALSE,
+                      collapse = TRUE, comment = "##")
+```
 
-## Following Jun's suggestions
-## Eval the sampler firstly by generating from the prior.
-
+```{r cache=TRUE}
+## Set R environment
 import::from(here, here)
 suppressPackageStartupMessages(library(tidyverse))
 library(MCMCpack)
 library(cmdstanr)
+
+## use the code below to reload the library
 ## detach("package:cmdstanr", unload = TRUE)
 ## library(cmdstanr)
+
 library(bayesplot)
+## for bayesplot plotting
+## color_scheme_set("brewer-Spectral")
+
 library(posterior)
 library(bbmle)
 library(sads)
@@ -21,6 +38,7 @@ library(sads)
 options("import.path" = here("rutils"))
 myt <- modules::import("transform")
 myfit <- modules::import("myfitdistr")
+## use the code below to reload the modules
 ## modules::reload(myfit)
 mypseudo <- modules::import("pseudobulk")
 mypbmc <- modules::import("pbmc")
@@ -257,11 +275,26 @@ mydata <- list(
   alphaPhi2G = alphaPhi2G,
   betaPhi2G = betaPhi2G
 )
+```
 
-## ** analyze the variational inference
+# Analyze the variational inference
+## Use arbitrary initial values
+```{r cache=TRUE}
+sbc_randinit_vi_sampler <- sbc_gwnb_model$variational(
+  data = mydata,
+  seed = 355113,
+  refresh = 10,
+  output_samples = 1000,
+  iter = 1000,
+  eval_elbo = 10,
+  adapt_engaged = TRUE
+  )
+sbc_randinit_vi_draws <- sbc_randinit_vi_sampler$draws()
+```
 
-## *** with initial values
-sbc_gwnb_vi_sampler <- sbc_gwnb_model$variational(
+## use the estimated values as initials 
+```{r cache=TRUE}
+sbc_vi_sampler <- sbc_gwnb_model$variational(
   data = mydata,
   seed = 355113,
   refresh = 10,
@@ -271,19 +304,18 @@ sbc_gwnb_vi_sampler <- sbc_gwnb_model$variational(
   adapt_engaged = TRUE,
   init = list(init_params)
   )
+sbc_vi_draws <- sbc_vi_sampler$draws()
 
-sbc_gwnb_vi_draws <- sbc_gwnb_vi_sampler$draws()
-hist(sbc_gwnb_vi_draws[ , "MuG"])
-bayesplot::mcmc_hist(sbc_gwnb_vi_draws,
-                     regex_pars = c("MuInd\\["))
-bayesplot::mcmc_hist(sbc_gwnb_vi_draws,
-                     regex_pars = c("MuCond\\["))
+bayesplot::mcmc_hist(sbc_vi_draws, pars = c("MuG"))
+bayesplot::mcmc_hist(sbc_vi_draws,
+  regex_pars = c("MuInd\\["))
+bayesplot::mcmc_hist(sbc_vi_draws,
+  regex_pars = c("MuCond\\["))
 
-bayesplot::mcmc_hist(sbc_gwnb_vi_draws,
+bayesplot::mcmc_hist(sbc_vi_draws,
   regex_pars = c("Kappa2G"))
-bayesplot::mcmc_hist(sbc_gwnb_vi_draws,
+bayesplot::mcmc_hist(sbc_vi_draws,
   regex_pars = c("Tau2G"))
-bayesplot::mcmc_hist(sbc_gwnb_vi_draws,
+bayesplot::mcmc_hist(sbc_vi_draws,
   regex_pars = c("Phi2G"))
-
-
+```
