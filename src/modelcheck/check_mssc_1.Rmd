@@ -76,26 +76,26 @@ get_fitted_mu <- function(y, vec_of_cond,
   mu_control <- log(y_control_fit$nbfit$estimate["mu"] /
     median(vec_of_s[index_of_cond])) - mu0
 
-  mu_control_ind <- vapply(
-    paste0(nm_of_control, seq_len(num_of_ind_per_cond)),
-    FUN = function(x) {
-      index <- vec_of_ind_under_cond == x
-      fit <- myfit$prob_zero_nb(y[index], F)
-      invisible(log(fit$nbfit$estimate["mu"] /
-        median(vec_of_s[index])) - mu_control - mu0)
-    },
-    FUN.VALUE = 0.0
-  )
+  ## mu_control_ind <- vapply(
+  ##   paste0(nm_of_control, seq_len(num_of_ind_per_cond)),
+  ##   FUN = function(x) {
+  ##     index <- vec_of_ind_under_cond == x
+  ##     fit <- myfit$prob_zero_nb(y[index], F)
+  ##     invisible(log(fit$nbfit$estimate["mu"] /
+  ##       median(vec_of_s[index])) - mu_control - mu0)
+  ##   },
+  ##   FUN.VALUE = 0.0
+  ## )
 
-  r_control_ind <- vapply(
-    paste0(nm_of_control, seq_len(num_of_ind_per_cond)),
-    FUN = function(x) {
-      index <- vec_of_ind_under_cond == x
-      fit <- myfit$prob_zero_nb(y[index], F)
-      invisible(fit$r)
-    },
-    FUN.VALUE = 0.0
-  )
+  ## r_control_ind <- vapply(
+  ##   paste0(nm_of_control, seq_len(num_of_ind_per_cond)),
+  ##   FUN = function(x) {
+  ##     index <- vec_of_ind_under_cond == x
+  ##     fit <- myfit$prob_zero_nb(y[index], F)
+  ##     invisible(fit$r)
+  ##   },
+  ##   FUN.VALUE = 0.0
+  ## )
 
 
   index_of_case <- vec_of_cond != label_of_control
@@ -104,34 +104,34 @@ get_fitted_mu <- function(y, vec_of_cond,
   mu_case <- log(y_case_fit$nbfit$estimate["mu"] /
     median(vec_of_s[index_of_case])) - mu0
 
-  mu_case_ind <- vapply(
-    paste0(nm_of_case, seq_len(num_of_ind_per_cond)),
-    FUN = function(x) {
-      index <- vec_of_ind_under_cond == x
-      fit <- myfit$prob_zero_nb(y[index], F)
-      invisible(log(fit$nbfit$estimate["mu"] /
-        median(vec_of_s[index])) - mu_case - mu0)
-    },
-    FUN.VALUE = 0.0
-  )
+  ## mu_case_ind <- vapply(
+  ##   paste0(nm_of_case, seq_len(num_of_ind_per_cond)),
+  ##   FUN = function(x) {
+  ##     index <- vec_of_ind_under_cond == x
+  ##     fit <- myfit$prob_zero_nb(y[index], F)
+  ##     invisible(log(fit$nbfit$estimate["mu"] /
+  ##       median(vec_of_s[index])) - mu_case - mu0)
+  ##   },
+  ##   FUN.VALUE = 0.0
+  ## )
 
-  r_case_ind <- vapply(
-    paste0(nm_of_case, seq_len(num_of_ind_per_cond)),
-    FUN = function(x) {
-      index <- vec_of_ind_under_cond == x
-      fit <- myfit$prob_zero_nb(y[index], F)
-      invisible(fit$r)
-    },
-    FUN.VALUE = 0.0
-  )
+  ## r_case_ind <- vapply(
+  ##   paste0(nm_of_case, seq_len(num_of_ind_per_cond)),
+  ##   FUN = function(x) {
+  ##     index <- vec_of_ind_under_cond == x
+  ##     fit <- myfit$prob_zero_nb(y[index], F)
+  ##     invisible(fit$r)
+  ##   },
+  ##   FUN.VALUE = 0.0
+  ## )
 
   ## return the list
   invisible(list(
     mu0 = mu0, r0 = y_fit$r,
     mu_cond = c(mu_control, mu_case),
-    r_cond = c(y_control_fit$r, y_case_fit$r),
-    mu_ind = c(mu_control_ind, mu_case_ind),
-    r_ind = c(r_control_ind, r_case_ind)
+    r_cond = c(y_control_fit$r, y_case_fit$r)
+    ## mu_ind = c(mu_control_ind, mu_case_ind),
+    ## r_ind = c(r_control_ind, r_case_ind)
   ))
 }
 ```
@@ -207,22 +207,22 @@ d1g_fitted_mu
 ## -------
 ```
 
-# STAN model setting: with individual mean
+# Stan model: random effect
+In this model, we integrate out the individual effects. In this way, the $\mu |
+(\mu_0, \mu_{cond})
+\sim \mathcal{N}(\mu_0 + \mu_{cond}, \sigma_{ind})$.
 
-## load stan model
-```{r mssc,cache=TRUE}
-sbc_gwnb_model <- cmdstan_model(here::here(
-  "src", "dirty_stan",
-  "gwnb_simu_from_prior.stan"
-), compile = T)
-
-## show the stan content
-sbc_gwnb_model$print()
+## load the stan script.
+```{r gwnb_rndeffect, cache=TRUE}
+sbc_gwnb_rndeff_model <- cmdstan_model(
+  here::here("src", "dirty_stan", "gwnb_rndeffect.stan"),
+  compile = T
+)
+sbc_gwnb_rndeff_model$print()
 ```
 
-## set data and initial values
-
-```{r sample_Data_from_prior, cache= TRUE}
+## estimate the hyper parameters from the known dataset
+```{r hyper_from_pbmc, cache=TRUE}
 vec_of_cond <- c(
   rep(1, num_of_cell_per_ind * num_of_ind_per_cond),
   rep(2, num_of_cell_per_ind * num_of_ind_per_cond)
@@ -237,6 +237,7 @@ vec_of_ind_under_cond <- c(
   ),
   paste0("R", rep(seq_len(num_of_ind_per_cond), num_of_cell_per_ind))
 )
+
 vec_of_ind <- c(vapply(seq_len(num_of_ind),
   FUN = function(x) {
     rep(x, num_of_cell_per_ind)
@@ -244,179 +245,22 @@ vec_of_ind <- c(vapply(seq_len(num_of_ind),
   FUN.VALUE = c(rep(0.0, num_of_cell_per_ind))
 ))
 
-## for muG
-muG0 <- d1g_fitted_mu$mu0
-sigmaG0 <- 4.0
-
-## for MuInd
+## for muInd
+## This can be estimated based on other genes
 alphaKappa2G <- 1.0
+## based on inv-gamma mode = beta/(alpha + 1)
+## betaKappa2G <- (alphaKappa2G + 1) * var(d1g_fitted_mu$mu_ind)
 betaKappa2G <- 1.0
 
 ## for MuCond
+## This can be estimated based on other genes.
 alphaTau2G <- 1.0
+## betaTau2G <- (alphaTau2G + 1) * var(d1g_fitted_mu$mu_cond)
 betaTau2G <- 1.0
 
-## for NB
-alphaPhi2G <- 1.0
-betaPhi2G <- 1.0
-
-## * sampling parameters from the prior
-mug <- rnorm(1, mean = muG0, sd = sigmaG0)
-kappa2g <- rinvgamma(1,
-  shape = alphaKappa2G,
-  scale = betaKappa2G
-)
-tau2g <- rinvgamma(1,
-  shape = alphaTau2G,
-  scale = betaTau2G
-)
-phi2g <- rinvgamma(1,
-  shape = alphaPhi2G,
-  scale = betaPhi2G
-)
-
-muind <- rnorm(num_of_ind,
-  mean = 0.0,
-  sd = sqrt(kappa2g)
-)
-mucond <- rnorm(num_of_cond,
-  mean = 0.0,
-  sd = sqrt(tau2g)
-)
-
-y <- vapply(seq_len(num_of_cell_per_ind * num_of_ind),
-  FUN = function(i) {
-    rnbinom(
-      n = 1,
-      mu = d1g_sumcnt[i] * exp(
-        mug + muind[vec_of_ind[i]] +
-          mucond[vec_of_cond[i]]
-      ),
-      size = phi2g
-    )
-  },
-  FUN.VALUE = 0.0
-)
-
-## print the values
-mug
-kappa2g
-tau2g
-phi2g
-muind
-mucond
-str(y)
-```
-
-
-## set the initial values
-```{r set_init_param, cache=TRUE}
-sbc_mu_list <- get_fitted_mu(y, vec_of_cond, vec_of_ind_under_cond,
-  vec_of_s = d1g_sumcnt,
-  label_of_control = 1
-)
-
-kappa2g <- 1.0
-tau2g <- 1.0
-phi2g <- 1.0
-
-## Finally set the initial values for the parameters
-init_params <- list(
-  MuG = sbc_mu_list$mu0,
-  MuIndRaw = sbc_mu_list$mu_ind / sqrt(kappa2g),
-  MuCondRaw = sbc_mu_list$mu_cond / sqrt(tau2g),
-  Kappa2G = kappa2g,
-  Tau2G = tau2g,
-  Phi2G = phi2g
-)
-## print the values
-init_params
-```
-
-```{r mydata, cache=TRUE, echo=FALSE}
-## Finally set the data for mssc.
-mydata <- list(
-  N = num_of_cell_per_ind * num_of_ind,
-  K = num_of_ind,
-  J = num_of_cond,
-  S = d1g_sumcnt,
-  Ind = vec_of_ind,
-  Cond = vec_of_cond,
-  kappa2g = kappa2g,
-  tau2g = tau2g,
-  phi2g = phi2g,
-  mug = mug,
-  muind = muind,
-  mucond = mucond,
-  y = y,
-  muG0 = muG0,
-  sigmaG0 = sigmaG0,
-  alphaKappa2G = alphaKappa2G,
-  betaKappa2G = betaKappa2G,
-  alphaTau2G = alphaTau2G,
-  betaTau2G = betaTau2G,
-  alphaPhi2G = alphaPhi2G,
-  betaPhi2G = betaPhi2G
-)
-```
-
-# Analyze the variational inference
-
-## Use arbitrary initial values
-```{r sbc_gwnb_vi_randinit, cache=TRUE}
-sbc_randinit_vi_sampler <- sbc_gwnb_model$variational(
-  data = mydata,
-  seed = 355113,
-  refresh = 10,
-  output_samples = 1000,
-  iter = 1000,
-  eval_elbo = 10,
-  adapt_engaged = TRUE
-)
-```
-### Results using random initial values
-```{r sum_sbc_gwnb_vi_randinit, cache = TRUE}
-sbc_randinit_vi_draws <- sbc_randinit_vi_sampler$draws()
-```
-
-## use the estimated values as initials
-```{r sbc_gwnb_vi, cache=TRUE}
-sbc_vi_sampler <- sbc_gwnb_model$variational(
-  data = mydata,
-  seed = 355113,
-  refresh = 10,
-  output_samples = 1000,
-  iter = 1000,
-  eval_elbo = 10,
-  adapt_engaged = TRUE,
-  init = list(init_params)
-)
-```
-
-### Results with initial values
-```{r sum_sbc_gwnb_vi, cache=TRUE}
-sbc_vi_draws <- sbc_vi_sampler$draws()
-
-bayesplot::mcmc_hist(sbc_vi_draws, pars = c("MuG"))
-bayesplot::mcmc_hist(sbc_vi_draws,
-  regex_pars = c("MuInd\\[")
-)
-bayesplot::mcmc_hist(sbc_vi_draws,
-  regex_pars = c("MuCond\\[")
-)
-
-bayesplot::mcmc_hist(sbc_vi_draws,
-  regex_pars = c("Kappa2G")
-)
-bayesplot::mcmc_hist(sbc_vi_draws,
-  regex_pars = c("Tau2G")
-)
-bayesplot::mcmc_hist(sbc_vi_draws,
-  regex_pars = c("Phi2G")
-)
-```
-
-muG0 <- d1g_fitted_mu$mu0
+## for muG
+## muG0 <- d1g_fitted_mu$mu0
+muG0 <- -7.0
 ## This can be estiamted based on other genes.
 sigmaG0 <- 2.0
 
@@ -429,7 +273,7 @@ betaPhi2G <- (alphaPhi2G + 1) * d1g_fitted_mu$r0
 ## Sampling from the prior after setting the hyper parameters.
 ```{r cache=TRUE}
 set.seed(1)
-mug <- rnorm(1, mean = muG0, sd = sigmaG0)
+mug <- muG0
 set.seed(1)
 kappa2g <- rinvgamma(1,
   shape = alphaKappa2G,
@@ -446,11 +290,11 @@ phi2g <- rinvgamma(1,
   scale = betaPhi2G
 )
 
-set.seed(1)
-muind <- rnorm(num_of_ind,
-  mean = 0.0,
-  sd = sqrt(kappa2g)
-)
+## set.seed(1)
+## muind <- rnorm(num_of_ind,
+##   mean = 0.0,
+##   sd = sqrt(kappa2g)
+## )
 set.seed(1)
 mucond <- rnorm(num_of_cond,
   mean = 0.0,
@@ -460,12 +304,12 @@ mucond <- rnorm(num_of_cond,
 y <- vapply(seq_len(num_of_cell_per_ind * num_of_ind),
   FUN = function(i) {
     set.seed(1)
+    logmu <- rnorm(1, mean = mug + mucond[vec_of_cond[i]],
+                   sd = sqrt(kappa2g))
+    set.seed(1)
     rnbinom(
       n = 1,
-      mu = d1g_sumcnt[i] * exp(
-        mug + muind[vec_of_ind[i]] +
-          mucond[vec_of_cond[i]]
-      ),
+      mu = d1g_sumcnt[i] * exp(logmu),
       size = phi2g
     )
   },
@@ -476,7 +320,7 @@ mug
 kappa2g
 tau2g
 phi2g
-muind
+## muind
 mucond
 str(y)
 
@@ -490,7 +334,8 @@ sbc_mu_list <- get_fitted_mu(
   label_of_control = 1
 )
 
-kappa2g <- var(sbc_mu_list$mu_ind)
+## kappa2g <- var(sbc_mu_list$mu_ind)
+kappa2g <- 1.0
 tau2g <- var(sbc_mu_list$mu_cond)
 phi2g <- sbc_mu_list$r0
 
@@ -506,6 +351,7 @@ init_params <- list(
 )
 ## print the values
 str(init_params)
+
 ```
 
 ```{r cache=TRUE}
