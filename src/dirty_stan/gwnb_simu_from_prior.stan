@@ -14,7 +14,7 @@ data {
 	real<lower=0> tau2g;
 	real<lower=0> phi2g;
 	real mug;
-	vector[K] muind;
+	// vector[K] muind;
 	vector[J] mucond;
 	int y[N];
 

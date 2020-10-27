@@ -125,7 +125,6 @@ d1g_fitted_mu
 ## fit NB for a list of genes, add see the distribution
 ## of the dispersion.
 ## -------
-
 ```
 
 # STAN model setting: with individual mean
@@ -197,10 +196,6 @@ phi2g <- rinvgamma(1,
   scale = betaPhi2G
 )
 
-muind <- rnorm(num_of_ind,
-  mean = 0.0,
-  sd = sqrt(kappa2g)
-)
 mucond <- rnorm(num_of_cond,
   mean = 0.0,
   sd = sqrt(tau2g)
@@ -208,24 +203,25 @@ mucond <- rnorm(num_of_cond,
 
 y <- vapply(seq_len(num_of_cell_per_ind * num_of_ind),
   FUN = function(i) {
+    logmu <- rnorm(1,
+      mean = mug + mucond[vec_of_cond[i]],
+      sd = sqrt(kappa2g)
+    )
     rnbinom(
       n = 1,
-      mu = d1g_sumcnt[i] * exp(
-        mug + muind[vec_of_ind[i]] +
-          mucond[vec_of_cond[i]]
-      ),
+      mu = d1g_sumcnt[i] * exp(logmu),
       size = phi2g
     )
   },
   FUN.VALUE = 0.0
 )
 
+
 ## print the values
 mug
 kappa2g
 tau2g
 phi2g
-muind
 mucond
 str(y)
 ```
@@ -234,11 +230,11 @@ str(y)
 ## set the initial values
 ```{r set_init_param, cache=TRUE}
 sbc_mu_list <- myfit$fit_gwnb_s2_till_cond_level(
-                       y = y,
-                       y_control = y[vec_of_cond == 1],
-                       y_case = y[vec_of_cond == 2],
-                       scale_of_s = median(d1g_sumcnt)
-                     )
+  y = y,
+  y_control = y[vec_of_cond == 1],
+  y_case = y[vec_of_cond == 2],
+  scale_of_s = median(d1g_sumcnt)
+)
 
 
 kappa2g <- 1.0
@@ -249,7 +245,6 @@ phi2g <- sbc_mu_list$r0
 N <- num_of_cell_per_ind * num_of_ind
 init_params <- list(
   MuG = sbc_mu_list$mu0,
-  ## MuIndRaw = sbc_mu_list$mu_ind / sqrt(kappa2g),
   MuIndRaw = rnorm(N, 0.0, sqrt(kappa2g)),
   MuCondRaw = sbc_mu_list$mu_cond / sqrt(tau2g),
   Kappa2G = kappa2g,
@@ -273,7 +268,7 @@ mydata <- list(
   tau2g = tau2g,
   phi2g = phi2g,
   mug = mug,
-  muind = muind,
+  ## muind = muind,
   mucond = mucond,
   y = y,
   muG0 = muG0,
@@ -285,7 +280,6 @@ mydata <- list(
   alphaPhi2G = alphaPhi2G,
   betaPhi2G = betaPhi2G
 )
-
 ```
 
 # Analyze the variational inference
@@ -308,7 +302,6 @@ sbc_randinit_vi_draws <- sbc_randinit_vi_sampler$draws()
 ## use the estimated values as initials
 
 ```{r sbc_gwnb_vi, cache=TRUE}
-
 sbc_vi_sampler <- sbc_gwnb_model$variational(
   data = mydata,
   seed = 355113,
@@ -318,7 +311,7 @@ sbc_vi_sampler <- sbc_gwnb_model$variational(
   eval_elbo = 10,
   adapt_engaged = TRUE,
   init = list(init_params)
-  )
+)
 
 sbc_vi_draws <- sbc_vi_sampler$draws()
 

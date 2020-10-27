@@ -109,13 +109,6 @@ hist(d1g_cnt[resp == 1])
 hist(d1g_cnt[resp == 0])
 
 ## fit NB dist
-d1g_fitted_mu <- get_fitted_mu(
-  d1g_cnt,
-  d1g_resp,
-  d1g_inds,
-  d1g_sumcnt
-)
-
 d1g_fitted_mu <- myfit$fit_gwnb_s2_till_cond_level(
   y = d1g_cnt,
   y_control = d1g_cnt[d1g_resp == 0],
@@ -141,7 +134,7 @@ sbc_gwnb_rndeff_model <- cmdstan_model(
   here::here("src", "dirty_stan", "gwnb_rndeffect.stan"),
   compile = T
 )
-sbc_gwnb_rndeff_model$print()
+## sbc_gwnb_rndeff_model$print()
 ```
 
 ## estimate the hyper parameters from the known dataset
