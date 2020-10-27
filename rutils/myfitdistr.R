@@ -103,8 +103,91 @@ prob_zero_nb <- function(x, rmoutliers = T) {
   ))
 }
 
-## modification sads::dpoilog
+nbfit_mur <- function(x) {
+  ## r or its reciprocal 1/r is also called dispersion
+  ## -- 1/r as dispersion  in the paper
+  ##    "Droplet scRNA-Seq is not zero-inflated." Nature Biotech, 2020
+  ## -- r as dispersion in stan
+  ## Here we choose r as dispersion following stan.
+  fit <- tryCatch({
+    MASS::fitdistr(x, densfun = "negative binomial",
+      lower = c(0.00001, 0.00001))
+  }, error = function(cond) {
+    message(cond)
+    return(NULL)
+  })
+  if (is.null(fit)) {
+    return(invisible(list(mu = NaN, r = NaN)))
+  }
+  return(invisible(list(mu = fit$estimate["mu"],
+    r = fit$estimate["size"])))
+}
+
+
+fit_gwnb_s2_till_cond_level <- function(y, y_control, y_case,
+                                        scale_of_s) {
+  ## fit negative binomial, and get the mean and dispersion.
+  ## negative binommial scaled (s) and mean in log level (2 as in STAN).
+  ## only global and conditional level, no individuals.
+  ## no outlier detection.
+
+  ## a simple version for scaled negative binomial estimation.
+  ## i.e, fit the nb, then divided by the scale of s.
+
+  result <- list(mu0 = NaN, r0 = NaN,
+    mu_cond = c(NaN, NaN),
+    r_cond = c(NaN, NaN))
+
+  mur_all <- nbfit_mur(y)
+  if (is.nan(mur_all$mu)) {
+    message("Cannot fit negative binomial for the overall mean.")
+    return(invisible(result))
+  }
+
+  result$mu0 <- log(mur_all$mu / scale_of_s)
+  result$r0 <- mur_all$r
+
+  mur_control <- nbfit_mur(y_control)
+  if (!is.nan(mur_control$mu)) {
+    ## both of mus divided by scale_of_s inner log, then that part
+    ## is cancelled.
+    result$mu_cond[1] <- log(mur_control$mu) - log(mur_all$mu)
+    result$r_cond[1] <- mur_control$r
+  }
+
+  mur_case <- nbfit_mur(y_case)
+  if (!is.nan(mur_case$mu)) {
+    ## both of mus divided by scale_of_s inner log, then that part
+    ## is cancelled.
+    result$mu_cond[2] <- log(mur_case$mu) - log(mur_all$mu)
+    result$r_cond[2] <- mur_case$r
+  }
+  return(invisible(result))
+}
+
+fit_gwnb_s2_ind_mu <- function(y, vec_of_ind_under_cond,
+                            mu0, mu_cond, scale_of_s) {
+  ## given fitted mu0 and the mu_cond(either case or control)
+  ## we estimate the mu_ind by minus mu0 and mu_cond
+
+  nms <- unique(sort(vec_of_ind_under_cond))
+  a <- vapply(
+    nms, function(nm) {
+      mur <- nbfit_mur(y[vec_of_ind_under_cond == nm])
+      if (is.nan(mur$mu)) {
+        return(c(NaN, NaN))
+      }
+      return(c(log(nbfit_mur$mu / scale_of_s) - mu0 - mu_cond))
+    },
+    c(0.0, 0.0)
+  )
+  colnames(a) <- nms
+  rownames(a) <- c("mu", "r")
+  invisible(a)
+}
+
 dpoilog <- function(x, mu, sig, log = F, verbose = F) {
+  ## modification sads::dpoilog
   #### FIX: poilog::dpoilog throws an error if an invalid parameter is entered
   #### so we have to circumvent the error here:
   if (length(mu) > 1 | length(sig) > 1) {
@@ -200,11 +283,11 @@ poislog_negsumlld <- function(mu, sig, cnt, tcnt) {
 }
 
 
-## modification sads::fitpoilog
-## we add sequence depth per cell as scale factor
-## x is the count for a specific gene;
-## s is the total count for the cells
 prob_zero_poislognm <- function(x, s, rmoutliers = T, method = "L-BFGS-B") {
+  ## modification sads::fitpoilog
+  ## we add sequence depth per cell as scale factor
+  ## x is the count for a specific gene;
+  ## s is the total count for the cells
   if (length(x) != length(s)) {
     stop("x and s are unequal lengths.")
   }
