@@ -48,23 +48,43 @@ mssc_gwnb_rndeff_model <- cmdstan_model(
   here::here("src", "dirty_stan", "gwnb_rndeffect.stan"),
   compile = T)
 
+## * load the dataset
+pbmc_seurat <- mypbmc$load_pbmc_seurat() %>%
+  mypbmc$extract_from_seurat(pbmc_seurat = .)
+
+subscdata <- mypbmc$get_celltype_specific_scdata(
+  pbmc_seurat$cnt,
+  pbmc_seurat$resp,
+  pbmc_seurat$inds,
+  pbmc_seurat$ct,
+  ## limit to the cell type
+  "Naive CD4+ T"
+)
+
+## sample cell numbers
+sample_cells <- mypbmc$sample_cells_per_ind(
+  subscdata$inds,
+  num_of_cell_per_ind
+)
+## note individual order is changed according to sample_cells
+cnt <- subscdata$cnt[, sample_cells]
+inds <- subscdata$inds[sample_cells]
+resp <- subscdata$resp[sample_cells]
+sumcnt <- colSums(cnt)
+
 ## * configs
 ## for simulation
 num_of_cell_per_ind <- 280
 num_of_ind <- 10
 num_of_ind_per_cond <- 5
 num_of_cond <- 2
-
-## for the PBMC dataset
-cell_type <- "Naive CD4+ T"
 sgn <- "NFKB1"
 
-
 ## functions
-fit_singlegene_nb <- function(gn = "NFKB1", cnt = cnt,
-                              inds = inds,
-                              resp = resp,
-                              sumcnt = sumcnt) {
+fit_singlegene_nb <- function(gn = "NFKB1", cnt,
+                              inds,
+                              resp,
+                              sumcnt) {
   ## get mu0, mucond, r as in mssc gwnb model
   ## from the real dataset
 
@@ -197,50 +217,31 @@ set_init_params <- function(simu_data, hp) {
   ))
 }
 
-## ** load the dataset
-pbmc_seurat <- mypbmc$load_pbmc_seurat() %>%
-  mypbmc$extract_from_seurat(pbmc_seurat = .)
+set_gwnb_env <- function(sgn, cnt, inds, resp, sumcnt) {
+  ## given a single gene name, and the corresponding real data
+  ## - estimate the hyper params
+  ## - sampling params from the prior
+  ## - generate the data
+  ## - init the params
 
-subscdata <- mypbmc$get_celltype_specific_scdata(
-  pbmc_seurat$cnt,
-  pbmc_seurat$resp,
-  pbmc_seurat$inds,
-  pbmc_seurat$ct,
-  ## limit to the cell type
-  cell_type
-)
+  ## use pbmc to estimate and set the parameters.
+  pbmc_sg_fit <- fit_singlegene_nb(sgn, cnt,
+    inds, resp, sumcnt)
+  ## par(mfrow = c(1, 2))
+  ## hist(pbmc_sg_fit$cnt[pbmc_sg_fit$resp == 0])
+  ## hist(pbmc_sg_fit$cnt[pbmc_sg_fit$resp == 1])
 
-## sample cell numbers
-sample_cells <- mypbmc$sample_cells_per_ind(
-  subscdata$inds,
-  num_of_cell_per_ind
-)
-## note individual order is changed according to sample_cells
-cnt <- subscdata$cnt[, sample_cells]
-inds <- subscdata$inds[sample_cells]
-resp <- subscdata$resp[sample_cells]
-sumcnt <- colSums(cnt)
 
-## ** use pbmc to estimate and set the parameters.
-pbmc_sg_fit <- fit_singlegene_nb(gn = sgn)
+  ## simulation from prior
+  gwnb_hyperparmas <- set_gwnb_hyper_params(pbmc_sg_fit, sigmaG0 = 4.0)
+  params_from_prior <- simulate_from_gwnb_prior(gwnb_hyperparmas)
+  gwnb_genrt_data <- generate_gwnc_y(params_from_prior$mug,
+    params_from_prior$mucond,
+    params_from_prior$kappa2g,
+    vec_sumcnt = sumcnt)
 
-## summary of the fit
-str(pbmc_sg_fit)
-
-par(mfrow = c(1, 2))
-hist(pbmc_sg_fit$cnt[pbmc_sg_fit$resp == 0])
-hist(pbmc_sg_fit$cnt[pbmc_sg_fit$resp == 1])
-
-## * simulation from prior
-gwnb_hyperparmas <- set_gwnb_hyper_params(pbmc_sg_fit, sigmaG0 = 4.0)
-params_from_prior <- simulate_from_gwnb_prior(gwnb_hyperparmas)
-gwnb_genrt_data <- generate_gwnc_y(params_from_prior$mug,
-  params_from_prior$mucond,
-  params_from_prior$kappa2g,
-  vec_sumcnt = sumcnt)
-
-## set data for mssc.
-input_data <- c(list(
+  ## set data for mssc.
+  input_data <- c(list(
     N = gwnb_genrt_data$n,
     K = num_of_ind,
     J = num_of_cond,
@@ -250,12 +251,146 @@ input_data <- c(list(
     y = gwnb_genrt_data$y),
   gwnb_hyperparmas)
 
-## * set initial params
-init_params <- set_init_params(gwnb_genrt_data,
-  gwnb_hyperparmas)
+  ## set initial params
+  init_params <- set_init_params(gwnb_genrt_data,
+    gwnb_hyperparmas)
+  invisible(list(sg_nbfit = pbmc_sg_fit,
+    hp = gwnb_hyperparmas,
+    params_from_prior = params_from_prior,
+    data = input_data,
+    init_params = init_params))
+}
+
+run_stan_vi <- function(model, model_env) {
+  vi <- model$variational(
+    data = model_env$data,
+    init = list(model_env$init_params),
+    seed = 355113,
+    refresh = 10,
+    iter = 1000,
+    eval_elbo = 100,
+    adapt_engaged = TRUE
+  )
+  noi_vi <- model$variational(
+    data = model_env$data,
+    seed = 355113,
+    refresh = 10,
+    iter = 1000,
+    eval_elbo = 100,
+    adapt_engaged = TRUE
+  )
+
+  opt <- model$optimize(
+    data = model_env$data,
+    init = list(model_env$init_params),
+    seed = 355113,
+    refresh = 10,
+    iter = 1000,
+    algorithm = 'lbfgs'
+  )
+  noi_opt <- model$optimize(
+    data = model_env$data,
+    init = list(model_env$init_params),
+    seed = 355113,
+    refresh = 10,
+    iter = 1000,
+    algorithm = 'lbfgs'
+  )
+  invisible(list(vi = vi,
+    noi_vi = noi_vi,
+    opt = opt,
+    noi_opt = noi_opt))
+}
+
+hist_vi_opt <- function(vi, opt, gwnb_env, varnm,
+                        lsize = 1.2 * c(1, 0.5, 1.5),
+                        lalpha = 0.75,
+                        lcolor = "gray20",
+                        ltype = c(2, 2, 1)) {
+  if (varnm == "MuG") {
+    value_from_prior <- gwnb_env$params_from_prior$mug
+  }
+  if (varnm == "MuCond[1]") {
+    value_from_prior <- gwnb_env$params_from_prior$mucond[1]
+  }
+  if (varnm == "MuCond[2]") {
+    value_from_prior <- gwnb_env$params_from_prior$mucond[2]
+  }
+  if (varnm == "Kappa2G") {
+    value_from_prior <- gwnb_env$params_from_prior$kappa2g
+  }
+  if (varnm == "Tau2G") {
+    value_from_prior <- gwnb_env$params_from_prior$tau2g
+  }
+  if (varnm == "Phi2G") {
+    value_from_prior <- gwnb_env$params_from_prior$phi2g
+  }
+  p <- bayesplot::mcmc_hist(vi$draws(varnm)) +
+    bayesplot::vline_at(c(opt$mle(varnm),
+      gwnb_env$init_params[[varnm]],
+      value_from_prior),
+    size = lsize,
+    alpha = lalpha,
+    color = lcolor,
+    linetype = ltype
+    ) +
+    bayesplot::facet_text(size = 15, hjust = 0.5)
+  invisible(p)
+}
+
+visualize_vi_init <- function(vi, gwnb_env,
+                              varnms = c("MuG", "MuCond[1]", "MuCond[2]",
+                                "Kappa2G", "Tau2G", "Phi2G")) {
+  l <- lapply(varnms, function(varnm) {
+    p <- bayesplot::bayesplot_grid(
+      plots = list(
+        without_init_vi = hist_vi_opt(vi$noi_vi, vi$noi_opt, gwnb_env,
+          "MuG"),
+        with_init_vi = hist_vi_opt(vi$vi, vi$opt, gwnb_env,
+          "MuG")),
+      grid_args = list(nrow = 1))
+    invisible(p)
+  })
+  invisible(l)
+}
+
+compare_vi <- function(vi1, vi2, gwnb_env, vi_nms,
+                       varnms = c("MuG", "MuCond[1]", "MuCond[2]",
+                         "Kappa2G", "Tau2G", "Phi2G")) {
+  l <- lapply(varnms, function(varnm) {
+    plots <- list(
+      vi1 = hist_vi_opt(vi1$vi, vi1$opt, gwnb_env,
+        "MuG"),
+      vi2 = hist_vi_opt(vi2$vi, vi2$opt, gwnb_env,
+        "MuG"))
+    names(plots) <- vi_nms
+
+    p <- bayesplot::bayesplot_grid(
+      plots = plots,
+      grid_args = list(nrow = 1))
+    invisible(p)
+  })
+  invisible(l)
+}
+
+
+## * set hyper param, data, and init values for gwnb mssc
+gwnb_env <- set_gwnb_env(sgn = sgn, cnt = cnt,
+  inds = inds,
+  resp = resp,
+  sumcnt = sumcnt)
 
 ## * run models
-## ** hmc
-## ** optmize
 ## ** vi
+muind_vi <- run_stan_vi(mssc_gwnb_muind_model, gwnb_env)
+rndeff_vi <- run_stan_vi(mssc_gwnb_rndeff_model, gwnb_env)
+
+## ** initilization plays important roles
+muind_vi_init <- visualize_vi_init(muind_vi, gwnb_env)
+rndeff_vi_init <- visualize_vi_init(rndeff_vi, gwnb_env)
+
+## ** compare different vi models
+comp_vis <- comapre_vi(muind_vi, rndeff_vi, gwnb_env,
+                       c("Model individual mean", "Random effect model"))
+
 
