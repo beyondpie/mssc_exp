@@ -28,6 +28,8 @@ library(bayesplot)
 library(posterior)
 library(bbmle)
 library(sads)
+## install_github("olafmersmann/truncnorm")
+library(truncnorm)
 
 ## local modules
 options("import.path" = here("rutils"))
@@ -172,6 +174,39 @@ get_vec_of_repeat_int <- function(to_int, repeatimes, from_int = 1) {
   )))
 }
 
+simulate_from_gwnb_prior <- function(hp, num_of_cond = 2) {
+  ## sampling the parameters from the prior
+  ## defined by the hyper parameters.
+
+  ## limit tau size
+  tau2g <- min(10.0, rinvgamma(1,
+    shape = hp$alphaTau2G,
+    scale = hp$betaTau2G
+    ))
+  ## in reality, mucond should be in different signs.
+  mucond <- c(truncnorm::rtruncnorm(1, a= -Inf, b = 0.0, mean = 0.0, sd = sqrt(tau2g)),
+              truncnorm::rtruncnorm(1, a = 0.0, b = Inf, mean = 0.0, sd = sqrt(tau2g)))
+  
+  ## mucond <- rnorm(num_of_cond, 0.0, sqrt(tau2g))
+
+  invisible(list(
+    mug = max(
+      -6.0,
+      rnorm(1, hp$muG0, hp$sigmaG0)
+    ),
+    kappa2g = min(10.0, rinvgamma(1,
+      shape = hp$alphaKappa2G,
+      scale = hp$betaKappa2G
+    )),
+    tau2g = tau2g,
+    phi2g = min(10.0, rinvgamma(1,
+      shape = hp$alphaPhi2G,
+      scale = hp$betaPhi2G
+    )),
+    mucond = mucond
+  ))
+}
+
 generate_gwnc_y <- function(mug, mucond, kappa2g, phi2g, vec_sumcnt) {
   ## geneerate data based on the gwnb model
   ## given the parameters.
@@ -212,34 +247,6 @@ generate_gwnc_y <- function(mug, mucond, kappa2g, phi2g, vec_sumcnt) {
   ))
 }
 
-simulate_from_gwnb_prior <- function(hp, num_of_cond = 2) {
-  ## sampling the parameters from the prior
-  ## defined by the hyper parameters.
-
-  ## limit tau size
-  tau2g <- min(10.0, rinvgamma(1,
-    shape = hp$alphaTau2G,
-    scale = hp$betaTau2G
-  ))
-  mucond <- rnorm(num_of_cond, 0.0, sqrt(tau2g))
-
-  invisible(list(
-    mug = max(
-      -6.0,
-      rnorm(1, hp$muG0, hp$sigmaG0)
-    ),
-    kappa2g = min(10.0, rinvgamma(1,
-      shape = hp$alphaKappa2G,
-      scale = hp$betaKappa2G
-    )),
-    tau2g = tau2g,
-    phi2g = min(10.0, rinvgamma(1,
-      shape = hp$alphaPhi2G,
-      scale = hp$betaPhi2G
-    )),
-    mucond = mucond
-  ))
-}
 
 set_init_params <- function(simu_data, hp, default_control_value = 1.0,
                             default_case_value = -2.0) {
