@@ -10,8 +10,10 @@
 import::from(here, here)
 suppressPackageStartupMessages(library(tidyverse))
 library(MCMCpack)
-library(cmdstanr)
 
+## develop version of cmdstanr
+## devtools::install_github("stan-dev/cmdstanr")
+library(cmdstanr)
 ## use the code below to reload the library
 ## detach("package:cmdstanr", unload = TRUE)
 ## library(cmdstanr)
@@ -38,6 +40,15 @@ options(error = traceback)
 options(warn = 0)
 options(mc.cores = 3)
 
+## * configs
+## for simulation
+num_of_cell_per_ind <- 280
+num_of_ind <- 10
+num_of_ind_per_cond <- 5
+num_of_cond <- 2
+sgn <- "NFKB1"
+
+
 ## * load stan models
 mssc_gwnb_muind_model <- cmdstan_model(here::here(
   "src", "dirty_stan",
@@ -62,6 +73,9 @@ subscdata <- mypbmc$get_celltype_specific_scdata(
 )
 
 ## sample cell numbers
+## will sort the individuals
+## sort(unique(inds))
+## "NR1" "NR2" "NR3" "NR4" "NR5" "R1"  "R2"  "R3"  "R4"  "R5"
 sample_cells <- mypbmc$sample_cells_per_ind(
   subscdata$inds,
   num_of_cell_per_ind
@@ -72,14 +86,6 @@ inds <- subscdata$inds[sample_cells]
 resp <- subscdata$resp[sample_cells]
 sumcnt <- colSums(cnt)
 
-## * configs
-## for simulation
-num_of_cell_per_ind <- 280
-num_of_ind <- 10
-num_of_ind_per_cond <- 5
-num_of_cond <- 2
-sgn <- "NFKB1"
-
 ## functions
 fit_singlegene_nb <- function(gn = "NFKB1", cnt,
                               inds,
@@ -87,6 +93,8 @@ fit_singlegene_nb <- function(gn = "NFKB1", cnt,
                               sumcnt) {
   ## get mu0, mucond, r as in mssc gwnb model
   ## from the real dataset
+
+  ## may fail to fit due to the sparsity of the data.
 
   d1g_cnt <- cnt[gn, ]
   outliers <- myfit$is_outlier(d1g_cnt)
@@ -111,7 +119,9 @@ fit_singlegene_nb <- function(gn = "NFKB1", cnt,
   ))
 }
 
-set_gwnb_hyper_params <- function(sg_mur, sigmaG0 = 4.0) {
+set_gwnb_hyper_params <- function(sg_mur, sigmaG0 = 4.0,
+                                  default_control_value = 1.0,
+                                  defalt_case_value = -2.0) {
   ## set hyper params based on the fitted sg_mur
   ## from a real dataset
 
@@ -123,7 +133,15 @@ set_gwnb_hyper_params <- function(sg_mur, sigmaG0 = 4.0) {
   ## we fix the alpha as 1.0
   alphaTau2G <- 1.0
   ## we use the max absolute value, and cover it by 1.5 fold
-  betaTau2G <- (alphaTau2G + 1) * max(abs(sg_mur$mu_cond)) * 1.5
+  mu_control <- sg_mur$mur$mu_cond[1]
+  if (is.nan(sg_mur$mur$mu_cond[1])) {
+    mu_control <- default_control_value
+  }
+  mu_case <- sg_mur$mur$mu_cond[2]
+  if (is.nan(sg_mur$mur$mu_cond[2])) {
+    mu_case <- default_case_value
+  }
+  betaTau2G <- (alphaTau2G + 1) * max(abs(c(mu_control, mu_case))) * 1.5
   alphaPhi2G <- 1.0
   betaPhi2G <- min(5.0, (alphaPhi2G + 1) * sg_mur$r0)
 
@@ -147,7 +165,7 @@ get_vec_of_repeat_int <- function(to_int, repeatimes, from_int = 1) {
   ))
 }
 
-generate_gwnc_y <- function(mug, mucond, kappa2g, vec_sumcnt) {
+generate_gwnc_y <- function(mug, mucond, kappa2g, phi2g, vec_sumcnt) {
   ## geneerate data based on the gwnb model
   ## given the parameters.
 
@@ -157,7 +175,7 @@ generate_gwnc_y <- function(mug, mucond, kappa2g, vec_sumcnt) {
   index_of_ind_per_cond <- get_vec_of_repeat_int(num_of_ind_per_cond,
     num_of_cell_per_ind)
   vec_of_ind_under_cond <- c(paste0("NR", index_of_ind_per_cond),
-    paste0("R", index_of_indi_per_cond))
+    paste0("R", index_of_ind_per_cond))
   vec_of_ind <- get_vec_of_repeat_int(num_of_ind, num_of_cell_per_ind)
   y <- vapply(seq_len(n),
     function(i) {
@@ -168,14 +186,14 @@ generate_gwnc_y <- function(mug, mucond, kappa2g, vec_sumcnt) {
       rnbinom(
         1, mu = vec_sumcnt[i] * exp(logmu), size = phi2g
       )
-    }, 0L)
+    }, 0.0)
 
-  invisible(n = n,
+  invisible(list(n = n,
     vec_of_cond = vec_of_cond,
     vec_ind_under_cond = vec_of_ind_under_cond,
     vec_of_ind = vec_of_ind,
     s = vec_sumcnt,
-    y = y)
+    y = y))
 }
 
 simulate_from_gwnb_prior <- function(hp, num_of_cond = 2) {
@@ -189,7 +207,7 @@ simulate_from_gwnb_prior <- function(hp, num_of_cond = 2) {
     rnorm(1, hp$muG0, hp$sigmaG0)),
   kappa2g = rinvgamma(1, shape = hp$alphaKappa2G,
     scale = hp$betaKappa2G),
-  tau2g = taug2g,
+  tau2g = tau2g,
   phi2g = rinvgamma(1, shape = hp$alphaPhi2G,
     scale = hp$betaPhi2G),
   mucond = mucond
@@ -209,7 +227,8 @@ set_init_params <- function(simu_data, hp) {
   tau2g <- max(abs(fit_mur$mu_cond)) * 1.5
   invisible(list(
     MuG = fit_mur$mu0,
-    MuIndRaw = rnom(simu_data$n, 0.0, sqrt(kappa2g)),
+    MuIndRaw = rnorm(simu_data$n, 0.0, sqrt(kappa2g)),
+    MuCond = fit_mur$mu_cond,
     MuCondRaw = fit_mur$mu_cond / sqrt(tau2g),
     Kappa2G = 1.0,
     Tau2G = tau2g,
@@ -238,6 +257,7 @@ set_gwnb_env <- function(sgn, cnt, inds, resp, sumcnt) {
   gwnb_genrt_data <- generate_gwnc_y(params_from_prior$mug,
     params_from_prior$mucond,
     params_from_prior$kappa2g,
+    params_from_prior$phi2g,
     vec_sumcnt = sumcnt)
 
   ## set data for mssc.
@@ -262,12 +282,14 @@ set_gwnb_env <- function(sgn, cnt, inds, resp, sumcnt) {
 }
 
 run_stan_vi <- function(model, model_env) {
+
+  iter <- 5000
   vi <- model$variational(
     data = model_env$data,
     init = list(model_env$init_params),
     seed = 355113,
     refresh = 10,
-    iter = 1000,
+    iter = iter,
     eval_elbo = 100,
     adapt_engaged = TRUE
   )
@@ -275,7 +297,7 @@ run_stan_vi <- function(model, model_env) {
     data = model_env$data,
     seed = 355113,
     refresh = 10,
-    iter = 1000,
+    iter = iter,
     eval_elbo = 100,
     adapt_engaged = TRUE
   )
@@ -284,16 +306,17 @@ run_stan_vi <- function(model, model_env) {
     data = model_env$data,
     init = list(model_env$init_params),
     seed = 355113,
-    refresh = 10,
-    iter = 1000,
-    algorithm = 'lbfgs'
+    refresh = 100,
+    iter = iter,
+    algorithm = 'lbfgs',
+
   )
   noi_opt <- model$optimize(
     data = model_env$data,
     init = list(model_env$init_params),
     seed = 355113,
     refresh = 10,
-    iter = 1000,
+    iter = iter,
     algorithm = 'lbfgs'
   )
   invisible(list(vi = vi,
@@ -302,6 +325,48 @@ run_stan_vi <- function(model, model_env) {
     noi_opt = noi_opt))
 }
 
+hist_vi <- function(vi, gwnb_env, varnm,
+                        lsize = 1.2 * c(0.5, 1.5),
+                        lalpha = 0.75,
+                        lcolor = "gray20",
+                        ltype = c(2, 1)) {
+  if (varnm == "MuG") {
+    value_from_prior <- gwnb_env$params_from_prior$mug
+    init_value <- gwnb_env$init_params[[varnm]]
+  }
+  if (varnm == "MuCond[1]") {
+    value_from_prior <- gwnb_env$params_from_prior$mucond[1]
+    init_value <- gwnb_env$init_params[["MuCond"]][1]
+  }
+  if (varnm == "MuCond[2]") {
+    value_from_prior <- gwnb_env$params_from_prior$mucond[2]
+    init_value <- gwnb_env$init_params[["MuCond"]][2]
+  }
+  if (varnm == "Kappa2G") {
+    value_from_prior <- gwnb_env$params_from_prior$kappa2g
+    init_value <- gwnb_env$init_params[[varnm]]
+  }
+  if (varnm == "Tau2G") {
+    value_from_prior <- gwnb_env$params_from_prior$tau2g
+    init_value <- gwnb_env$init_params[[varnm]]
+  }
+  if (varnm == "Phi2G") {
+    value_from_prior <- gwnb_env$params_from_prior$phi2g
+    init_value <- gwnb_env$init_params[[varnm]]
+  }
+  p <- bayesplot::mcmc_hist(vi$draws(varnm)) +
+    bayesplot::vline_at(c(init_value,
+      value_from_prior),
+    size = lsize,
+    alpha = lalpha,
+    color = lcolor,
+    linetype = ltype
+    ) +
+    bayesplot::facet_text(size = 15, hjust = 0.5)
+  invisible(p)
+}
+
+
 hist_vi_opt <- function(vi, opt, gwnb_env, varnm,
                         lsize = 1.2 * c(1, 0.5, 1.5),
                         lalpha = 0.75,
@@ -309,25 +374,31 @@ hist_vi_opt <- function(vi, opt, gwnb_env, varnm,
                         ltype = c(2, 2, 1)) {
   if (varnm == "MuG") {
     value_from_prior <- gwnb_env$params_from_prior$mug
+    init_value <- gwnb_env$init_params[[varnm]]
   }
   if (varnm == "MuCond[1]") {
     value_from_prior <- gwnb_env$params_from_prior$mucond[1]
+    init_value <- gwnb_env$init_params[["MuCond"]][1]
   }
   if (varnm == "MuCond[2]") {
     value_from_prior <- gwnb_env$params_from_prior$mucond[2]
+    init_value <- gwnb_env$init_params[["MuCond"]][2]
   }
   if (varnm == "Kappa2G") {
     value_from_prior <- gwnb_env$params_from_prior$kappa2g
+    init_value <- gwnb_env$init_params[[varnm]]
   }
   if (varnm == "Tau2G") {
     value_from_prior <- gwnb_env$params_from_prior$tau2g
+    init_value <- gwnb_env$init_params[[varnm]]
   }
   if (varnm == "Phi2G") {
     value_from_prior <- gwnb_env$params_from_prior$phi2g
+    init_value <- gwnb_env$init_params[[varnm]]
   }
   p <- bayesplot::mcmc_hist(vi$draws(varnm)) +
     bayesplot::vline_at(c(opt$mle(varnm),
-      gwnb_env$init_params[[varnm]],
+      init_value,
       value_from_prior),
     size = lsize,
     alpha = lalpha,
@@ -345,9 +416,9 @@ visualize_vi_init <- function(vi, gwnb_env,
     p <- bayesplot::bayesplot_grid(
       plots = list(
         without_init_vi = hist_vi_opt(vi$noi_vi, vi$noi_opt, gwnb_env,
-          "MuG"),
+          varnm),
         with_init_vi = hist_vi_opt(vi$vi, vi$opt, gwnb_env,
-          "MuG")),
+          varnm)),
       grid_args = list(nrow = 1))
     invisible(p)
   })
@@ -359,10 +430,10 @@ compare_vi <- function(vi1, vi2, gwnb_env, vi_nms,
                          "Kappa2G", "Tau2G", "Phi2G")) {
   l <- lapply(varnms, function(varnm) {
     plots <- list(
-      vi1 = hist_vi_opt(vi1$vi, vi1$opt, gwnb_env,
-        "MuG"),
-      vi2 = hist_vi_opt(vi2$vi, vi2$opt, gwnb_env,
-        "MuG"))
+      vi1 = hist_vi(vi1$vi, gwnb_env,
+        varnm),
+      vi2 = hist_vi(vi2$vi, gwnb_env,
+        varnm))
     names(plots) <- vi_nms
 
     p <- bayesplot::bayesplot_grid(
@@ -375,6 +446,7 @@ compare_vi <- function(vi1, vi2, gwnb_env, vi_nms,
 
 
 ## * set hyper param, data, and init values for gwnb mssc
+## may also have failed fitting
 gwnb_env <- set_gwnb_env(sgn = sgn, cnt = cnt,
   inds = inds,
   resp = resp,
@@ -390,7 +462,7 @@ muind_vi_init <- visualize_vi_init(muind_vi, gwnb_env)
 rndeff_vi_init <- visualize_vi_init(rndeff_vi, gwnb_env)
 
 ## ** compare different vi models
-comp_vis <- comapre_vi(muind_vi, rndeff_vi, gwnb_env,
+comp_vis <- compare_vi(muind_vi, rndeff_vi, gwnb_env,
                        c("Model individual mean", "Random effect model"))
 
 

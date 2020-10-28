@@ -10,9 +10,9 @@ data {
   int<lower=1, upper=J> Cond[N]; // cond from 1
 
 	// simulate model parameters from prior
-	real<lower=0> kappa2g;
-	real<lower=0> tau2g;
-	real<lower=0> phi2g;
+	// real<lower=0> kappa2g;
+	// real<lower=0> tau2g;
+	// real<lower=0> phi2g;
 	// real mug;
 	// vector[K] muind;
 	// vector[J] mucond;
@@ -104,8 +104,7 @@ model {
 	for (i in 1:N) {
 		nb_mu[i] = logS[i] + MuG + MuInd[Ind[i]] + MuCond[Cond[i]];
 	}
-	real nb_r[N] =  rep_array(phi2g, N);
-	y ~ neg_binomial_2_log(nb_mu, nb_r);
+	y ~ neg_binomial_2_log(nb_mu, Phi2G);
 	// target += neg_binomial_2_log_glm_lpmf(y | X, logS, W, Phi2G);
 }
 
