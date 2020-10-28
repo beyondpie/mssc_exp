@@ -13,9 +13,9 @@ data {
 	real<lower=0> kappa2g;
 	real<lower=0> tau2g;
 	real<lower=0> phi2g;
-	real mug;
+	// real mug;
 	// vector[K] muind;
-	vector[J] mucond;
+	// vector[J] mucond;
 	int y[N];
 
 
