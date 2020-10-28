@@ -252,11 +252,11 @@ set_init_params <- function(simu_data, hp, default_control_value = 1.0,
     scale_of_s = median(simu_data$s)
   )
 
-  if (is.nan(fit_mur$mucond[1])) {
+  if (is.nan(fit_mur$mu_cond[1])) {
     fit_mur$mucond[1] <- default_control_value
   }
 
-  if (is.nan(fit_mur$mucond[2])) {
+  if (is.nan(fit_mur$mu_cond[2])) {
     fit_mur$mucond[2] <- default_case_value
   }
 
