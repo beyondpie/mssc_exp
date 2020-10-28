@@ -295,7 +295,7 @@ run_stan_vi <- function(model, model_env,
     data = model_env$data,
     init = list(model_env$init_params),
     seed = 355113,
-    refresh = 10,
+    refresh = 100,
     iter = iter,
     eval_elbo = 100,
     adapt_engaged = TRUE
@@ -303,7 +303,7 @@ run_stan_vi <- function(model, model_env,
   noi_vi <- model$variational(
     data = model_env$data,
     seed = 355113,
-    refresh = 10,
+    refresh = 100,
     iter = iter,
     eval_elbo = 100,
     adapt_engaged = TRUE
@@ -320,7 +320,7 @@ run_stan_vi <- function(model, model_env,
   noi_opt <- model$optimize(
     data = model_env$data,
     seed = 355113,
-    refresh = 10,
+    refresh = 100,
     iter = iter,
     algorithm = 'lbfgs'
   )
@@ -412,108 +412,104 @@ vis_compare_vi <- function(vi1, vi2, gwnb_env, vi_nms,
   invisible(l)
 }
 
+run_and_view_variational <- function(sgn = "NFKB1", cnt = cnt, inds = inds,
+                                     resp = resp, sumcnt = sumcnt,
+                                     tag = 1) {
 
-## * set hyper param, data, and init values for gwnb mssc
-## may also have failed fitting
-gwnb_env <- set_gwnb_env(sgn = sgn, cnt = cnt,
-  inds = inds,
-  resp = resp,
-  sumcnt = sumcnt)
+  ## set hyper param, data, and init values for gwnb mssc
+  ## may also have failed fitting
+  gwnb_env <- set_gwnb_env(sgn = sgn, cnt = cnt,
+    inds = inds,
+    resp = resp,
+    sumcnt = sumcnt)
 
-## * run models
-## ** vi
-muind_vi <- run_stan_vi(mssc_gwnb_muind_model, gwnb_env)
-rndeff_vi <- run_stan_vi(mssc_gwnb_rndeff_model, gwnb_env)
+  ## run vi
+  muind_vi <- run_stan_vi(mssc_gwnb_muind_model, gwnb_env)
+  rndeff_vi <- run_stan_vi(mssc_gwnb_rndeff_model, gwnb_env)
 
-## ** summary the results of vi
-## *** initilization plays important roles
+  ## summary the results of vi
+  ## initilization plays important roles
 
-## init with showing opt, model muind.
-visualize_muind_vi_init <- do.call(rbind,
-  visualize_vi_init(muind_vi, gwnb_env,
-    init_show_opt = TRUE))
-p_muind_vi_init <- gridExtra::grid.arrange(visualize_muind_vi_init,
-  top = grid::textGrob(paste0("MSSC: model individual mean"),
-    gp = grid::gpar(fontsize = 20, font = 3)),
-  bottom = grid::textGrob(paste0("Left column: without init params. ",
-    "Right column: with designed init params.\n",
-    "Red line is simulated truth; ",
-    "blue dotted line is the init param;",
-    "gray dotted line is the MAP estimation."
-), gp = grid::gpar(fontsize = 15)))
+  ## init with showing opt, model muind.
+  visualize_muind_vi_init <- do.call(rbind,
+    visualize_vi_init(muind_vi, gwnb_env,
+      init_show_opt = TRUE))
+  p_muind_vi_init <- gridExtra::grid.arrange(visualize_muind_vi_init,
+    top = grid::textGrob(paste0("MSSC: model individual mean"),
+      gp = grid::gpar(fontsize = 20, font = 3)),
+    bottom = grid::textGrob(paste0("Left column: without init params. ",
+      "Right column: with designed init params.\n",
+      "Red line is simulated truth; ",
+      "blue dotted line is the init param;",
+      "gray dotted line is the MAP estimation."
+  ), gp = grid::gpar(fontsize = 15)))
 
-grid::grid.newpage()
-grid::grid.draw(p_muind_vi_init)
-ggplot2::ggsave(filename = "init_param_gwnb_model_indmu.pdf",
-  plot = p_muind_vi_init,
-  path = here::here("src", "modelcheck", "figures"),
+  ## init with showing opt, rand eff
+  visualize_rndeff_vi_init <- do.call(rbind,
+    visualize_vi_init(rndeff_vi, gwnb_env,
+      init_show_opt = TRUE))
+  p_rndeff_vi_init <- gridExtra::grid.arrange(visualize_rndeff_vi_init,
+    top = grid::textGrob(paste0("MSSC: model rand effect"),
+      gp = grid::gpar(fontsize = 20, font = 3)),
+    bottom = grid::textGrob(paste0("Left column: without init params. ",
+      "Right column: with designed init params.\n",
+      "Red line is simulated truth; ",
+      "blue dotted line is the init param;",
+      "gray dotted line is the MAP estimation."
+  ), gp = grid::gpar(fontsize = 15)))
+
+  ## init without showing opt, rand eff
+  visualize_rndeff_vi_init_nopt <- do.call(rbind,
+    visualize_vi_init(rndeff_vi, gwnb_env, init_show_opt = FALSE))
+  p_rndeff_vi_init_nopt <- gridExtra::grid.arrange(visualize_rndeff_vi_init_nopt,
+    top = grid::textGrob(paste0("MSSC: model rand effect"),
+      gp = grid::gpar(fontsize = 20, font = 3)),
+    bottom = grid::textGrob(paste0("Left column: without init params. ",
+      "Right column: with designed init params.\n",
+      "Red line is simulated truth; ",
+      "blue dotted line is the init param;",
+      "gray dotted line is the MAP estimation."
+  ), gp = grid::gpar(fontsize = 15)))
+
+  ## compare different vi models
+  ## muind: mle estimation is more robust
+
+  visualize_comp_vi <- do.call(rbind,
+    vis_compare_vi(muind_vi, rndeff_vi, gwnb_env,
+      c("Model individual mean", "Random effect model")))
+
+  p_compare_vi <- gridExtra::grid.arrange(visualize_comp_vi,
+    top = grid::textGrob(paste0("MSSC"),
+      gp = grid::gpar(fontsize = 20, font = 3)),
+    bottom = grid::textGrob(paste0("Left column: model individual mean. ",
+      "Right column: model individual effect as random effect.\n",
+      "Red line is simulated truth; ",
+      "blue dotted line is the init param;",
+      "gray dotted line is the MAP estimation."
+  ), gp = grid::gpar(fontsize = 15)))
+
+  pdf(paste0(here::here("src", "modelcheck", "figures"),
+    "/", tag, "_check_mssc_hp_ref", sgn, "_pbmc.pdf"),
   width = 12,
   height = 10)
+  grid::grid.newpage()
+  grid::grid.draw(p_muind_vi_init)
+  grid::grid.newpage()
+  grid::grid.draw(p_rndeff_vi_init)
+  grid::grid.newpage()
+  grid::grid.draw(p_rndeff_vi_init_nopt)
+  grid::grid.newpage()
+  grid::grid.draw(p_compare_vi)
+  dev.off()
+}
 
-## init with showing opt, rand eff
-visualize_rndeff_vi_init <- do.call(rbind,
-  visualize_vi_init(rndeff_vi, gwnb_env,
-    init_show_opt = TRUE))
-p_rndeff_vi_init <- gridExtra::grid.arrange(visualize_rndeff_vi_init,
-  top = grid::textGrob(paste0("MSSC: model rand effect"),
-    gp = grid::gpar(fontsize = 20, font = 3)),
-  bottom = grid::textGrob(paste0("Left column: without init params. ",
-    "Right column: with designed init params.\n",
-    "Red line is simulated truth; ",
-    "blue dotted line is the init param;",
-    "gray dotted line is the MAP estimation."
-), gp = grid::gpar(fontsize = 15)))
-
-grid::grid.newpage()
-grid::grid.draw(p_rndeff_vi_init)
-ggplot2::ggsave(filename = "init_param_gwnb_model_rndeff.pdf",
-  plot = p_rndeff_vi_init,
-  path = here::here("src", "modelcheck", "figures"),
-  width = 12,
-  height = 10)
-
-## init without showing opt, rand eff
-visualize_rndeff_vi_init_nopt <- do.call(rbind,
-  visualize_vi_init(rndeff_vi, gwnb_env, init_show_opt = FALSE))
-p_rndeff_vi_init_nopt <- gridExtra::grid.arrange(visualize_rndeff_vi_init_nopt,
-  top = grid::textGrob(paste0("MSSC: model rand effect"),
-    gp = grid::gpar(fontsize = 20, font = 3)),
-  bottom = grid::textGrob(paste0("Left column: without init params. ",
-    "Right column: with designed init params.\n",
-    "Red line is simulated truth; ",
-    "blue dotted line is the init param;",
-    "gray dotted line is the MAP estimation."
-), gp = grid::gpar(fontsize = 15)))
-
-grid::grid.newpage()
-grid::grid.draw(p_rndeff_vi_init_nopt)
-ggplot2::ggsave(filename = "init_param_gwnb_model_rndeff_nopt.pdf",
-  plot = p_rndeff_vi_init_nopt,
-  path = here::here("src", "modelcheck", "figures"),
-  width = 12,
-  height = 10)
-
-## *** compare different vi models
-## muind: mle estimation is more robust
-
-visualize_comp_vi <- do.call(rbind,
-  vis_compare_vi(muind_vi, rndeff_vi, gwnb_env,
-    c("Model individual mean", "Random effect model")))
-
-p_compare_vi <- gridExtra::grid.arrange(visualize_comp_vi,
-  top = grid::textGrob(paste0("MSSC"),
-    gp = grid::gpar(fontsize = 20, font = 3)),
-  bottom = grid::textGrob(paste0("Left column: model individual mean. ",
-    "Right column: model individual effect as random effect.\n",
-    "Red line is simulated truth; ",
-    "blue dotted line is the init param;",
-    "gray dotted line is the MAP estimation."
-), gp = grid::gpar(fontsize = 15)))
-
-grid::grid.newpage()
-grid::grid.draw(p_compare_vi)
-ggplot2::ggsave(filename = "compare_vi.pdf",
-  plot = p_compare_vi,
-  path = here::here("src", "modelcheck", "figures"),
-  width = 12,
-  height = 10)
+lapply(seq_len(10), function(i) {
+  result <- tryCatch({
+    run_and_view_variational(sgn = "NFKB1", cnt = cnt, inds = inds,
+      resp = resp, sumcnt = sumcnt,
+      tag = i)
+    0L
+  }, error = function(e) {
+    message(e)
+    1L
+  })})
