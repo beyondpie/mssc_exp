@@ -41,36 +41,6 @@ transformed data {
 	}
 
 	vector[N] logS = log(S);
-
-	// real<lower=0> kappa2g = inv_gamma_rng(alphaKappa2G, betaKappa2G);
-	// real<lower=0> tau2g = inv_gamma_rng(alphaTau2G, betaTau2G);
-	// real<lower=0> phi2g = inv_gamma_rng(alphaPhi2G, betaPhi2G);
-	// real mug = normal_rng(0.0, sigmaG0);
-
-	// print("Sample Kappa2G from prior:", kappa2g);
-	// print("Sample Tau2G from prior:", tau2g);
-	// print("Sample Phi2G from prior:", phi2g);
-	// print("Sample MuG from prior:", mug);
-
-	// vector[K] muind;
-	// vector[J] mucond;
-	// for (k in 1:K) {
-	// 	muind[k] = normal_rng(0.0, sqrt(kappa2g));
-	// }
-	// for (j in 1:J) {
-	// 	mucond[j] = normal_rng(0.0, sqrt(tau2g));
-	// }
-
-	// print("Sample MuInd from prior:", muind);
-	// print("Sample MuCond from prior:", mucond);
-
-	// int y[N];
-	// for (i in 1:N) {
-	// 	y[i] = neg_binomial_2_log_rng(logS[i] + mug + 
-	// 																muind[Ind[i]] + mucond[Cond[i]],
-	// 																phi2g);
-	// }
-	// print("Generate y:", y);
 }
 
 parameters{
@@ -98,14 +68,11 @@ model {
 	MuIndRaw ~ std_normal(); //implicit MuInd[,k] ~ normal(0, diag(KappaG))
 	MuCondRaw ~ std_normal(); //implicit MuCond[,j] ~ normal(0.0, diag(TauG))
 
-	// vector[1+2+K] W = append_row(MuG,
-	// 														 append_row(MuInd, MuCond));
 	real nb_mu[N];
 	for (i in 1:N) {
 		nb_mu[i] = logS[i] + MuG + MuInd[Ind[i]] + MuCond[Cond[i]];
 	}
 	y ~ neg_binomial_2_log(nb_mu, Phi2G);
-	// target += neg_binomial_2_log_glm_lpmf(y | X, logS, W, Phi2G);
 }
 
 // generated quantities {

@@ -18,6 +18,9 @@ library(cmdstanr)
 ## detach("package:cmdstanr", unload = TRUE)
 ## library(cmdstanr)
 
+library(grid)
+library(gtable)
+library(gridExtra)
 library(bayesplot)
 ## for bayesplot plotting
 ## color_scheme_set("brewer-Spectral")
@@ -36,7 +39,8 @@ mypseudo <- modules::import("pseudobulk")
 mypbmc <- modules::import("pbmc")
 
 ## warnings/errors traceback settings
-options(error = traceback)
+
+## options(error = traceback)
 options(warn = 0)
 options(mc.cores = 3)
 
@@ -48,8 +52,8 @@ num_of_ind_per_cond <- 5
 num_of_cond <- 2
 sgn <- "NFKB1"
 
-
 ## * load stan models
+## if compiling not work, try rebuild_cmdstan()
 mssc_gwnb_muind_model <- cmdstan_model(here::here(
   "src", "dirty_stan",
   "gwnb_simu_from_prior.stan"
@@ -281,9 +285,12 @@ set_gwnb_env <- function(sgn, cnt, inds, resp, sumcnt) {
     init_params = init_params))
 }
 
-run_stan_vi <- function(model, model_env) {
+run_stan_vi <- function(model, model_env,
+                        iter = 5000) {
+  ## run vi and MAP (maximum a posterior mode) method
+  ## in addition, we also run the corresponding methods without
+  ## initial values.
 
-  iter <- 5000
   vi <- model$variational(
     data = model_env$data,
     init = list(model_env$init_params),
@@ -308,12 +315,10 @@ run_stan_vi <- function(model, model_env) {
     seed = 355113,
     refresh = 100,
     iter = iter,
-    algorithm = 'lbfgs',
-
+    algorithm = 'lbfgs'
   )
   noi_opt <- model$optimize(
     data = model_env$data,
-    init = list(model_env$init_params),
     seed = 355113,
     refresh = 10,
     iter = iter,
@@ -325,53 +330,13 @@ run_stan_vi <- function(model, model_env) {
     noi_opt = noi_opt))
 }
 
-hist_vi <- function(vi, gwnb_env, varnm,
-                        lsize = 1.2 * c(0.5, 1.5),
-                        lalpha = 0.75,
-                        lcolor = "gray20",
-                        ltype = c(2, 1)) {
-  if (varnm == "MuG") {
-    value_from_prior <- gwnb_env$params_from_prior$mug
-    init_value <- gwnb_env$init_params[[varnm]]
-  }
-  if (varnm == "MuCond[1]") {
-    value_from_prior <- gwnb_env$params_from_prior$mucond[1]
-    init_value <- gwnb_env$init_params[["MuCond"]][1]
-  }
-  if (varnm == "MuCond[2]") {
-    value_from_prior <- gwnb_env$params_from_prior$mucond[2]
-    init_value <- gwnb_env$init_params[["MuCond"]][2]
-  }
-  if (varnm == "Kappa2G") {
-    value_from_prior <- gwnb_env$params_from_prior$kappa2g
-    init_value <- gwnb_env$init_params[[varnm]]
-  }
-  if (varnm == "Tau2G") {
-    value_from_prior <- gwnb_env$params_from_prior$tau2g
-    init_value <- gwnb_env$init_params[[varnm]]
-  }
-  if (varnm == "Phi2G") {
-    value_from_prior <- gwnb_env$params_from_prior$phi2g
-    init_value <- gwnb_env$init_params[[varnm]]
-  }
-  p <- bayesplot::mcmc_hist(vi$draws(varnm)) +
-    bayesplot::vline_at(c(init_value,
-      value_from_prior),
-    size = lsize,
-    alpha = lalpha,
-    color = lcolor,
-    linetype = ltype
-    ) +
-    bayesplot::facet_text(size = 15, hjust = 0.5)
-  invisible(p)
-}
-
+run_stan_hmc <- function() {}
 
 hist_vi_opt <- function(vi, opt, gwnb_env, varnm,
-                        lsize = 1.2 * c(1, 0.5, 1.5),
-                        lalpha = 0.75,
-                        lcolor = "gray20",
-                        ltype = c(2, 2, 1)) {
+                        lsize = 1.2 * c(1.5, 0.7, 1.2),
+                        lalpha = c(0.75, 0.75, 0.75),
+                        lcolor = c("red", "gray20", "blue"),
+                        ltype = c(1, 2, 2), show_opt = FALSE) {
   if (varnm == "MuG") {
     value_from_prior <- gwnb_env$params_from_prior$mug
     init_value <- gwnb_env$init_params[[varnm]]
@@ -397,43 +362,46 @@ hist_vi_opt <- function(vi, opt, gwnb_env, varnm,
     init_value <- gwnb_env$init_params[[varnm]]
   }
   p <- bayesplot::mcmc_hist(vi$draws(varnm)) +
-    bayesplot::vline_at(c(opt$mle(varnm),
-      init_value,
-      value_from_prior),
-    size = lsize,
-    alpha = lalpha,
-    color = lcolor,
-    linetype = ltype
-    ) +
-    bayesplot::facet_text(size = 15, hjust = 0.5)
+    bayesplot::vline_at(value_from_prior, size = lsize[1], alpha = lalpha[1],
+      color = lcolor[1], linetype = ltype[1]) +
+    bayesplot::vline_at(init_value, size = lsize[2], alpha = lalpha[2],
+      color = lcolor[2], linetype = ltype[2])
+
+  if (show_opt) {
+    p <- p +
+      bayesplot::vline_at(opt$mle(varnm), size = lsize[3],
+        alpha = lalpha[3], color = lcolor[3], linetype = ltype[3])
+  }
+  p <- p + bayesplot::facet_text(size = 15, hjust = 0.5)
   invisible(p)
 }
 
 visualize_vi_init <- function(vi, gwnb_env,
                               varnms = c("MuG", "MuCond[1]", "MuCond[2]",
-                                "Kappa2G", "Tau2G", "Phi2G")) {
+                                "Kappa2G", "Tau2G", "Phi2G"),
+                              init_show_opt = TRUE) {
   l <- lapply(varnms, function(varnm) {
     p <- bayesplot::bayesplot_grid(
       plots = list(
         without_init_vi = hist_vi_opt(vi$noi_vi, vi$noi_opt, gwnb_env,
-          varnm),
+          varnm, show_opt = init_show_opt),
         with_init_vi = hist_vi_opt(vi$vi, vi$opt, gwnb_env,
-          varnm)),
+          varnm, show_opt = init_show_opt)),
       grid_args = list(nrow = 1))
     invisible(p)
   })
   invisible(l)
 }
 
-compare_vi <- function(vi1, vi2, gwnb_env, vi_nms,
-                       varnms = c("MuG", "MuCond[1]", "MuCond[2]",
-                         "Kappa2G", "Tau2G", "Phi2G")) {
+vis_compare_vi <- function(vi1, vi2, gwnb_env, vi_nms,
+                           varnms = c("MuG", "MuCond[1]", "MuCond[2]",
+                             "Kappa2G", "Tau2G", "Phi2G")) {
   l <- lapply(varnms, function(varnm) {
     plots <- list(
-      vi1 = hist_vi(vi1$vi, gwnb_env,
-        varnm),
-      vi2 = hist_vi(vi2$vi, gwnb_env,
-        varnm))
+      vi1 = hist_vi_opt(vi1$vi, vi1$opt, gwnb_env,
+        varnm, show_opt = FALSE),
+      vi2 = hist_vi_opt(vi2$vi, vi2$opt, gwnb_env,
+        varnm, show_opt = FALSE))
     names(plots) <- vi_nms
 
     p <- bayesplot::bayesplot_grid(
@@ -457,12 +425,95 @@ gwnb_env <- set_gwnb_env(sgn = sgn, cnt = cnt,
 muind_vi <- run_stan_vi(mssc_gwnb_muind_model, gwnb_env)
 rndeff_vi <- run_stan_vi(mssc_gwnb_rndeff_model, gwnb_env)
 
-## ** initilization plays important roles
-muind_vi_init <- visualize_vi_init(muind_vi, gwnb_env)
-rndeff_vi_init <- visualize_vi_init(rndeff_vi, gwnb_env)
+## ** summary the results of vi
+## *** initilization plays important roles
 
-## ** compare different vi models
-comp_vis <- compare_vi(muind_vi, rndeff_vi, gwnb_env,
-                       c("Model individual mean", "Random effect model"))
+## init with showing opt, model muind.
+visualize_muind_vi_init <- do.call(rbind,
+  visualize_vi_init(muind_vi, gwnb_env,
+    init_show_opt = TRUE))
+p_muind_vi_init <- gridExtra::grid.arrange(visualize_muind_vi_init,
+  top = grid::textGrob(paste0("MSSC: model individual mean"),
+    gp = grid::gpar(fontsize = 20, font = 3)),
+  bottom = grid::textGrob(paste0("Left column: without init params. ",
+    "Right column: with designed init params.\n",
+    "Red line is simulated truth; ",
+    "blue dotted line is the init param;",
+    "gray dotted line is the MAP estimation."
+), gp = grid::gpar(fontsize = 15)))
 
+grid::grid.newpage()
+grid::grid.draw(p_muind_vi_init)
+ggplot2::ggsave(filename = "init_param_gwnb_model_indmu.pdf",
+  plot = p_muind_vi_init,
+  path = here::here("src", "modelcheck", "figures"),
+  width = 12,
+  height = 10)
 
+## init with showing opt, rand eff
+visualize_rndeff_vi_init <- do.call(rbind,
+  visualize_vi_init(rndeff_vi, gwnb_env,
+    init_show_opt = TRUE))
+p_rndeff_vi_init <- gridExtra::grid.arrange(visualize_rndeff_vi_init,
+  top = grid::textGrob(paste0("MSSC: model rand effect"),
+    gp = grid::gpar(fontsize = 20, font = 3)),
+  bottom = grid::textGrob(paste0("Left column: without init params. ",
+    "Right column: with designed init params.\n",
+    "Red line is simulated truth; ",
+    "blue dotted line is the init param;",
+    "gray dotted line is the MAP estimation."
+), gp = grid::gpar(fontsize = 15)))
+
+grid::grid.newpage()
+grid::grid.draw(p_rndeff_vi_init)
+ggplot2::ggsave(filename = "init_param_gwnb_model_rndeff.pdf",
+  plot = p_rndeff_vi_init,
+  path = here::here("src", "modelcheck", "figures"),
+  width = 12,
+  height = 10)
+
+## init without showing opt, rand eff
+visualize_rndeff_vi_init_nopt <- do.call(rbind,
+  visualize_vi_init(rndeff_vi, gwnb_env, init_show_opt = FALSE))
+p_rndeff_vi_init_nopt <- gridExtra::grid.arrange(visualize_rndeff_vi_init_nopt,
+  top = grid::textGrob(paste0("MSSC: model rand effect"),
+    gp = grid::gpar(fontsize = 20, font = 3)),
+  bottom = grid::textGrob(paste0("Left column: without init params. ",
+    "Right column: with designed init params.\n",
+    "Red line is simulated truth; ",
+    "blue dotted line is the init param;",
+    "gray dotted line is the MAP estimation."
+), gp = grid::gpar(fontsize = 15)))
+
+grid::grid.newpage()
+grid::grid.draw(p_rndeff_vi_init_nopt)
+ggplot2::ggsave(filename = "init_param_gwnb_model_rndeff_nopt.pdf",
+  plot = p_rndeff_vi_init_nopt,
+  path = here::here("src", "modelcheck", "figures"),
+  width = 12,
+  height = 10)
+
+## *** compare different vi models
+## muind: mle estimation is more robust
+
+visualize_comp_vi <- do.call(rbind,
+  vis_compare_vi(muind_vi, rndeff_vi, gwnb_env,
+    c("Model individual mean", "Random effect model")))
+
+p_compare_vi <- gridExtra::grid.arrange(visualize_comp_vi,
+  top = grid::textGrob(paste0("MSSC"),
+    gp = grid::gpar(fontsize = 20, font = 3)),
+  bottom = grid::textGrob(paste0("Left column: model individual mean. ",
+    "Right column: model individual effect as random effect.\n",
+    "Red line is simulated truth; ",
+    "blue dotted line is the init param;",
+    "gray dotted line is the MAP estimation."
+), gp = grid::gpar(fontsize = 15)))
+
+grid::grid.newpage()
+grid::grid.draw(p_compare_vi)
+ggplot2::ggsave(filename = "compare_vi.pdf",
+  plot = p_compare_vi,
+  path = here::here("src", "modelcheck", "figures"),
+  width = 12,
+  height = 10)
