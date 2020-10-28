@@ -503,9 +503,19 @@ run_and_view_variational <- function(sgn = "NFKB1", cnt = cnt, inds = inds,
   dev.off()
 }
 
+## Classical genes as DE
+##   - SNHG16, OASL, NAMPT, NFKB1, BCL2L11, TRAF4, ICAM1, XCL2, XCL1, CCL3L3, CCL3L1
+
+## Strong individual effect genes
+##   - HBA1, HBA2, HBD
+
+## possible non-DE
+##   - TOX, YIPF5, CCL3, KDM6A, HDDC2
+
+
 lapply(seq_len(10), function(i) {
   result <- tryCatch({
-    run_and_view_variational(sgn = "NFKB1", cnt = cnt, inds = inds,
+    run_and_view_variational(sgn = "SNHG16", cnt = cnt, inds = inds,
       resp = resp, sumcnt = sumcnt,
       tag = i)
     0L
@@ -513,3 +523,4 @@ lapply(seq_len(10), function(i) {
     message(e)
     1L
   })})
+
