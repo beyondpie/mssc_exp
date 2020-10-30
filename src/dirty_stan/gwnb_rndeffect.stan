@@ -47,7 +47,8 @@ transformed parameters {
 model {
 	Kappa2G ~ inv_gamma(alphaKappa2G, betaKappa2G);
 	Tau2G ~ inv_gamma(alphaTau2G, betaTau2G);
-	Phi2G ~ inv_gamma(alphaPhi2G, betaPhi2G);
+	// Phi2G ~ inv_gamma(alphaPhi2G, betaPhi2G);
+	Phi2G ~ gamma(alphaPhi2G, betaPhi2G);
 
 	MuG ~ normal(muG0, sigmaG0);
 	MuCondRaw ~ std_normal(); // implicit MuCond ~ normal(0, diag(TauG))
@@ -56,3 +57,6 @@ model {
 	vector[N] nb_mu = logS + Mu;
 	y ~ neg_binomial_2_log(nb_mu, Phi2G);
 }
+
+
+

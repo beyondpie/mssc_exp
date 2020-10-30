@@ -56,14 +56,18 @@ sgn <- "NFKB1"
 
 ## * load stan models
 ## if compiling not work, try rebuild_cmdstan()
+
+## cmdstan_make_local(cpp_options = "GCC_PRECOMPILE_PREFIX_HEADER=NO", append = TRUE)
+## rebuild_cmdstan()
+
 mssc_gwnb_muind_model <- cmdstan_model(here::here(
   "src", "dirty_stan",
   "gwnb_simu_from_prior.stan"
-), compile = T)
+), compile = T, quiet = FALSE)
 
 mssc_gwnb_rndeff_model <- cmdstan_model(
   here::here("src", "dirty_stan", "gwnb_rndeffect.stan"),
-  compile = T
+  compile = T, quiet = FALSE
 )
 
 ## * load the dataset
@@ -137,8 +141,6 @@ set_gwnb_hyper_params <- function(sg_mur, sigmaG0 = 4.0,
   ## small when both of them are in the same sign:
   ## - we assume the mean is around zero
 
-  ## we fix the alpha as 1.0
-  alphaTau2G <- 1.0
   ## we use the max absolute value, and cover it by 1.5 fold
   mu_control <- sg_mur$mur$mu_cond[1]
   if (is.nan(sg_mur$mur$mu_cond[1])) {
@@ -148,9 +150,20 @@ set_gwnb_hyper_params <- function(sg_mur, sigmaG0 = 4.0,
   if (is.nan(sg_mur$mur$mu_cond[2])) {
     mu_case <- default_case_value
   }
+
+  alphaTau2G <- 1.0
   betaTau2G <- (alphaTau2G + 1) * max(abs(c(mu_control, mu_case))) * 1.5
-  alphaPhi2G <- 1.0
-  betaPhi2G <- min(5.0, (alphaPhi2G + 1) * sg_mur$r0)
+
+
+  ## when phi2G ~ inv-gamma (alpha, beta)
+  ## alphaPhi2G <- 1.0
+  ## use mode
+  ## betaPhi2G <- min(5.0, (alphaPhi2G + 1) * sg_mur$r0)
+
+  ## when phi2G ~ gamma (alpha, beta)
+  betaPhi2G <- 1.0
+  ## use mean
+  alphaPhi2G <- betaPhi2G * min(10.0, sg_mur$r0)
 
   invisible(list(
     alphaKappa2G = 1.0,
@@ -182,11 +195,13 @@ simulate_from_gwnb_prior <- function(hp, num_of_cond = 2) {
   tau2g <- min(10.0, rinvgamma(1,
     shape = hp$alphaTau2G,
     scale = hp$betaTau2G
-    ))
+  ))
   ## in reality, mucond should be in different signs.
-  mucond <- c(truncnorm::rtruncnorm(1, a= -Inf, b = 0.0, mean = 0.0, sd = sqrt(tau2g)),
-              truncnorm::rtruncnorm(1, a = 0.0, b = Inf, mean = 0.0, sd = sqrt(tau2g)))
-  
+  mucond <- c(
+    truncnorm::rtruncnorm(1, a = -Inf, b = 0.0, mean = 0.0, sd = sqrt(tau2g)),
+    truncnorm::rtruncnorm(1, a = 0.0, b = Inf, mean = 0.0, sd = sqrt(tau2g))
+  )
+
   ## mucond <- rnorm(num_of_cond, 0.0, sqrt(tau2g))
 
   invisible(list(
@@ -413,6 +428,9 @@ hist_vi_opt <- function(vi, opt, gwnb_env, varnm,
     value_from_prior <- gwnb_env$params_from_prior$phi2g
     init_value <- gwnb_env$init_params[[varnm]]
   }
+
+  ## add hist graph with two lines:
+  ## simulation truth and designed init params.
   p <- bayesplot::mcmc_hist(vi$draws(varnm)) +
     bayesplot::vline_at(value_from_prior,
       size = lsize[1], alpha = lalpha[1],
@@ -513,17 +531,31 @@ run_and_view_variational <- function(sgn = "NFKB1", cnt = cnt, inds = inds,
       init_show_opt = TRUE
     )
   )
+
+  comp_init_col_annot <- paste0(
+    "Left: without designed init params. ",
+    "Right: with designed init params."
+  )
+  comp_vi_col_annot <- paste0(
+    "Left: model individual effect on mean. ",
+    "Right: model inidividual effect as variance."
+  )
+  lines_annot <- paste0(
+    "Red line: simulation truth. ",
+    "Gray line: designed init params. ",
+    "Blue line: MAP estimation."
+  )
+
   p_muind_vi_init <- gridExtra::grid.arrange(visualize_muind_vi_init,
     top = grid::textGrob(paste0("MSSC: model individual mean"),
       gp = grid::gpar(fontsize = 20, font = 3)
     ),
-    bottom = grid::textGrob(paste0(
-      "Left column: without init params. ",
-      "Right column: with designed init params.\n",
-      "Red line is simulated truth; ",
-      "blue dotted line is the init param;",
-      "gray dotted line is the MAP estimation."
-    ), gp = grid::gpar(fontsize = 15))
+    bottom = grid::textGrob(paste(comp_init_col_annot,
+      lines_annot,
+      sep = "\n"
+    ),
+    gp = grid::gpar(fontsize = 15)
+    )
   )
 
   ## init with showing opt, rand eff
@@ -537,12 +569,9 @@ run_and_view_variational <- function(sgn = "NFKB1", cnt = cnt, inds = inds,
     top = grid::textGrob(paste0("MSSC: model rand effect"),
       gp = grid::gpar(fontsize = 20, font = 3)
     ),
-    bottom = grid::textGrob(paste0(
-      "Left column: without init params. ",
-      "Right column: with designed init params.\n",
-      "Red line is simulated truth; ",
-      "blue dotted line is the init param;",
-      "gray dotted line is the MAP estimation."
+    bottom = grid::textGrob(paste(comp_init_col_annot,
+      lines_annot,
+      sep = "\n"
     ), gp = grid::gpar(fontsize = 15))
   )
 
@@ -551,17 +580,12 @@ run_and_view_variational <- function(sgn = "NFKB1", cnt = cnt, inds = inds,
     rbind,
     visualize_vi_init(rndeff_vi, gwnb_env, init_show_opt = FALSE)
   )
-  p_rndeff_vi_init_nopt <- gridExtra::grid.arrange(visualize_rndeff_vi_init_nopt,
+  p_rndeff_vi_init_nopt <- gridExtra::grid.arrange(
+    visualize_rndeff_vi_init_nopt,
     top = grid::textGrob(paste0("MSSC: model rand effect"),
       gp = grid::gpar(fontsize = 20, font = 3)
     ),
-    bottom = grid::textGrob(paste0(
-      "Left column: without init params. ",
-      "Right column: with designed init params.\n",
-      "Red line is simulated truth; ",
-      "blue dotted line is the init param;",
-      "gray dotted line is the MAP estimation."
-    ), gp = grid::gpar(fontsize = 15))
+    bottom = grid::textGrob(paste(comp_init_col_annot, lines_annot, sep = "\n"), gp = grid::gpar(fontsize = 15))
   )
 
   ## compare different vi models
@@ -579,17 +603,15 @@ run_and_view_variational <- function(sgn = "NFKB1", cnt = cnt, inds = inds,
     top = grid::textGrob(paste0("MSSC"),
       gp = grid::gpar(fontsize = 20, font = 3)
     ),
-    bottom = grid::textGrob(paste0(
-      "Left column: model individual mean. ",
-      "Right column: model individual effect as random effect.\n",
-      "Red line is simulated truth; ",
-      "blue dotted line is the init param;",
-      "gray dotted line is the MAP estimation."
+    bottom = grid::textGrob(paste(
+      comp_vi_col_annot,
+      lines_annot,
+      sep = "\n"
     ), gp = grid::gpar(fontsize = 15))
   )
 
   pdf(paste0(
-    here::here("src", "modelcheck", "check_gwnb_figures"),
+    here::here("src", "modelcheck", "check_gwnb_gamma_figures"),
     "/", tag, "_check_mssc_hp_ref", sgn, "_pbmc.pdf"
   ),
   width = 12,

@@ -5,7 +5,7 @@ data {
 	int N; // num_of_cell
 	int K; // num_of_ind
 	int J; // num_of_cond
-	vector<lower=100>[N] S; // cells' sum_of_cnt
+	vector<lower=100>[N] S;
 	int<lower=1, upper=K> Ind[N];
   int<lower=1, upper=J> Cond[N]; // cond from 1
 
@@ -62,6 +62,8 @@ transformed parameters {
 model {
 	Kappa2G ~ inv_gamma(alphaKappa2G, betaKappa2G);
 	Tau2G ~ inv_gamma(alphaTau2G, betaTau2G);
+
+	// Phi2G ~ inv_gamma(alphaPhi2G, betaPhi2G);
 	Phi2G ~ inv_gamma(alphaPhi2G, betaPhi2G);
 
 	MuG ~ normal(muG0, sigmaG0);
