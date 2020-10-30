@@ -90,3 +90,6 @@ vignettes/*.pdf
 /src/sysim/twostage_be_symsim/
 /src/modelcheck/stan_binary/
 /src/modelcheck/test_gsea.grp
+/src/modelcheck/Rplots.pdf
+/src/dirty_stan/gwnb_simu_from_prior
+/src/dirty_stan/gwnb_rndeffect
