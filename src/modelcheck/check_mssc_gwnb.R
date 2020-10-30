@@ -6,7 +6,6 @@
 ##   - PBMC dataset
 
 ## * set R environment
-
 import::from(here, here)
 suppressPackageStartupMessages(library(tidyverse))
 library(MCMCpack)
@@ -656,3 +655,28 @@ lapply(seq_len(50), function(i) {
     }
   )
 })
+
+## The optimization for randome effect model:
+## tend to fail, they estimate
+## - realy huge Kappa2G and Phi2G
+## - realy low MuG and Cond
+
+## When Phi2G is high, the NB tend to be Poisson
+## And when MuG is estimated low, this means most of the
+## counts are explained by randomness in the individual effect,
+## And the model tends to have really samll mu.
+
+## Under this situation, Kappa2G will tend to really huge, since
+## it is affected by the wrong estimates log mean between the real ones
+## and the estimated MuG + MuCond
+
+## Random effect model
+## tend to have better estimation of MuG and MuCond than MuInd.
+
+
+## For MuInd model,
+## The optimization is robust, which is usually a better estimation for
+## the ground truth than the VI result.
+## The VI result tends to have not the good estimations of MuG, MuConds.
+## But the trend is kept. The sensitivity of the differences in MuCond are usually
+## lower than modeling the random effect.
