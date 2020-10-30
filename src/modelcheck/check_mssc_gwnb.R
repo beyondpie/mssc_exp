@@ -585,7 +585,9 @@ run_and_view_variational <- function(sgn = "NFKB1", cnt = cnt, inds = inds,
     top = grid::textGrob(paste0("MSSC: model rand effect"),
       gp = grid::gpar(fontsize = 20, font = 3)
     ),
-    bottom = grid::textGrob(paste(comp_init_col_annot, lines_annot, sep = "\n"), gp = grid::gpar(fontsize = 15))
+    bottom = grid::textGrob(paste(comp_init_col_annot,
+                                  lines_annot, sep = "\n"),
+                            gp = grid::gpar(fontsize = 15))
   )
 
   ## compare different vi models
