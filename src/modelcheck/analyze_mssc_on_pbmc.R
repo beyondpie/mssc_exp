@@ -1,4 +1,5 @@
 ## Analyze the mssc vi results on PBMC dataset.
+## Depends on the results from src/pipline/4-1_pbmc_mssc.R
 
 suppressPackageStartupMessages(library(tidyverse))
 import::from(here, here)

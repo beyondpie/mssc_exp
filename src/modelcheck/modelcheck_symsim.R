@@ -45,5 +45,3 @@ myt$to_bagwiff(cnt, batchids, symsimumi$cell_meta$pop,
   totcntpcell,
   outf = paste(todatadir, str_glue("{myseed}.rdump"), sep = "/"),
   rdump = T)
-
-## * check the vi result

@@ -73,9 +73,10 @@ sim_symsim_obs <- function(protocol, symsimtrue) {
 }
 
 
-## consider case and control in setting for cells
-## case and control as two different cell populations.
-assign_batches_2pop <- function(symsimobs, nbatch) {
+assign_batches_2pop <- function(symsimobs, nbatch = 10) {
+  ## consider case and control in setting for cells
+  ## case and control as two different cell populations.
+
   left_max_batch <- floor(nbatch / 2)
   ncell <- ncol(symsimobs$counts)
   cellpops <- symsimobs$cell_meta$pop

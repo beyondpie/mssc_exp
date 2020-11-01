@@ -48,5 +48,14 @@ num_of_cell_per_ind <- 280
 num_of_ind <- 10
 num_of_ind_per_cond <- 5
 num_of_cond <- 2
-sgn <- "NFKB1"
+
+## * load stan models
+## if compiling not work, try rebuild_cmdstan()
+
+mssc_hbnb_rndeff_model <- cmdstan_model(
+  here::here("src", "dirty_stan", "hbnb_rndeff.stan"),
+  compile = T, quiet = FALSE
+)
+
+
 

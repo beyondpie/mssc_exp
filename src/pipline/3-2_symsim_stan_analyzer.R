@@ -96,8 +96,13 @@ symsim2be <- readRDS(
 getauc <- function(resdir, modelvsn = "v1-1", method = "vi", par = "MuCond",
                    degs, ndegs, seed = myseed) {
   stanfit <- myt$load_stan(dirnm = resdir, modelnm = modelvsn, method = method,
-    vi_dir = "vi", mc_dir = "mc")
+                           vi_dir = "vi", mc_dir = "mc")
+
+  ## TODO: check the funtion in transform
+  ## this is using rstan::extract to select the "MuCond" parameters
+  ## which is different with cmdstanr. 
   dcond <- myt$get_ctrlmnscase_par(stanfit, par = par)
+  
   dt <- abs(myt$calt(dcond, fn = colMeans))
   dt <- dt[c(degs, ndegs)]
   labels <- c(rep(1L, length(degs)), rep(0L, length(ndegs)))
@@ -115,7 +120,6 @@ getauc <- function(resdir, modelvsn = "v1-1", method = "vi", par = "MuCond",
 
 ## TODO: merge multiple pairs of degs and ndegs
 symsimvi_auc <- function() {
-  par <- "MuCond"
   symsim_vi_auc_strict <- getauc(resdir = symsim_exp_dir,
     modelvsn = mvrsn, method = "vi", par = "MuCond",
     degs = symsim_degenes, ndegs = symsim_strict_ndegenes,
