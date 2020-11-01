@@ -1,4 +1,6 @@
 * Difficult: differential gene analysis across multiple scRNAseq datasets
 
+A major challenge in scRNA data analysis is that cells from the same sample are not independent. Commonly used differential expression methods fail to account for this pseudoreplication bias, leading to inflated false positives. Several published scRNA results reported differential genes that are not driven by biological differences but by pseudoreplication, which has exacerbated the replicability crisis in the field. To control for false positive due to psuedoreplication, this pipeline(Difficult) uses a Bayesian model (MSSC) to identify differentially expressed genes in scRNA by modeling pseudoreplication. 
+
 This is an on-going project. 
-    
+ 
