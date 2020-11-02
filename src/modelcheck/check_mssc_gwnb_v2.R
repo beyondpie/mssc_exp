@@ -5,9 +5,13 @@
 ## - [hyper] parameters are setted based on a real dataset:
 ##   - PBMC dataset
 
+## in the second version, we use stan to support the
+## negative binomial fitting.
+
 ## * set R environment
 import::from(here, here)
 suppressPackageStartupMessages(library(tidyverse))
+library(optparse)
 library(MCMCpack)
 
 ## develop version of cmdstanr
@@ -47,26 +51,52 @@ options(mc.cores = 3)
 
 ## * configs
 ## for simulation
-num_of_cell_per_ind <- 280
-num_of_ind <- 10
+opts <- list(
+  make_option(c("--ncell", action = "store", type = "integer", default = 200)),
+  make_option(c("--nind", action = "store", type = "integer", default = 10)),
+  make_option(c("--celltype",
+    action = "store", type = "character",
+    default = "Naive CD4+ T"
+  ))
+)
+
+args <- parse_args(OptionParser(option_list = opts))
+num_of_cell_per_ind <- args$ncell
+num_of_ind_per_cond <- args$nind
+num_of_cond <- 2
+num_of_ind <- num_of_ind_per_cond * num_of_cond
+celltype <- args$celltype
+num_top_gene <- 200
+
+## for debug
+num_of_cell_per_ind <- 200
 num_of_ind_per_cond <- 5
 num_of_cond <- 2
+num_of_ind <- num_of_cond * num_of_ind_per_cond
+celltype <- "Naive CD4+ T"
+num_top_gene <- 200
 sgn <- "NFKB1"
 
 ## * load stan models
 ## if compiling not work, try rebuild_cmdstan()
+snbm <- cmdstan_model(
+  here::here("stanutils", "scale_nb.stan"),
+  compile = T, quiet = T
+)
 
-## cmdstan_make_local(cpp_options = "GCC_PRECOMPILE_PREFIX_HEADER=NO", append = TRUE)
-## rebuild_cmdstan()
+snb_fixr_m <- cmdstan_model(
+  here::here("stanutils", "scale_nb_fixed_r.stan"),
+  compile = T, quiet = T
+)
 
 mssc_gwnb_muind_model <- cmdstan_model(here::here(
   "src", "dirty_stan",
   "gwnb_simu_from_prior.stan"
-), compile = T, quiet = FALSE)
+), compile = T, quiet = T)
 
 mssc_gwnb_rndeff_model <- cmdstan_model(
   here::here("src", "dirty_stan", "gwnb_rndeffect.stan"),
-  compile = T, quiet = FALSE
+  compile = T, quiet = T
 )
 
 ## * load the dataset
@@ -79,32 +109,22 @@ subscdata <- mypbmc$get_celltype_specific_scdata(
   pbmc_seurat$inds,
   pbmc_seurat$ct,
   ## limit to the cell type
-  "Naive CD4+ T"
+  celltype
 )
 
-## sample cell numbers
-## will sort the individuals
-## sort(unique(inds))
-## "NR1" "NR2" "NR3" "NR4" "NR5" "R1"  "R2"  "R3"  "R4"  "R5"
-sample_cells <- mypbmc$sample_cells_per_ind(
-  subscdata$inds,
-  num_of_cell_per_ind
-)
-## note individual order is changed according to sample_cells
-cnt <- subscdata$cnt[, sample_cells]
-inds <- subscdata$inds[sample_cells]
-resp <- subscdata$resp[sample_cells]
+cnt <- subscdata$cnt
+inds <- subscdata$inds
+resp <- subscdata$resp
 sumcnt <- colSums(cnt)
 
 ## functions
 fit_singlegene_nb <- function(gn = "NFKB1", cnt,
                               inds,
                               resp,
-                              sumcnt) {
+                              sumcnt){
   ## get mu0, mucond, r as in mssc gwnb model
   ## from the real dataset
-
-  ## may fail to fit due to the sparsity of the data.
+  ## use stan fit
 
   d1g_cnt <- cnt[gn, ]
   outliers <- myfit$is_outlier(d1g_cnt)
@@ -114,11 +134,15 @@ fit_singlegene_nb <- function(gn = "NFKB1", cnt,
   d1g_sumcnt <- sumcnt[!outliers]
 
   ## fit NB dist
-  fit_mur <- myfit$fit_gwnb_s2_till_cond_level(
+  fit_mur <- myfit$stanfit_gwsnb_till_cond_level(
+    s = d1g_sumcnt,
     y = d1g_cnt,
+    s_control = d1g_sumcnt[d1g_resp == 0],
     y_control = d1g_cnt[d1g_resp == 0],
+    s_case = d1g_sumcnt[d1g_resp == 1],
     y_case = d1g_cnt[d1g_resp == 1],
-    scale_of_s = median(d1g_sumcnt)
+    scale_nb_model = snbm,
+    scale_nb_fixed_r_model = snb_fixr_m,
   )
   invisible(list(
     mur = fit_mur,
@@ -180,9 +204,9 @@ set_gwnb_hyper_params <- function(sg_mur, sigmaG0 = 4.0,
 get_vec_of_repeat_int <- function(to_int, repeatimes, from_int = 1) {
   invisible(c(vapply(
     seq(from_int, to_int),
-    function(i) {
+    FUN = function(i) {
       rep(i, repeatimes)
-    }, rep(0L, repeatimes)
+    }, FUN.VALUE=rep(0L, repeatimes)
   )))
 }
 
@@ -224,10 +248,14 @@ simulate_from_gwnb_prior <- function(hp, num_of_cond = 2) {
 generate_gwnc_y <- function(mug, mucond, kappa2g, phi2g, vec_sumcnt) {
   ## geneerate data based on the gwnb model
   ## given the parameters.
-
+  sample_sumcnt <- sample(vec_sumcnt, size = num_of_cell_per_ind * num_of_ind,
+                          replace = TRUE)
   half_n <- num_of_ind_per_cond * num_of_cell_per_ind
   n <- 2 * half_n
+
+  ## cond in simulation start from 1 following stan.
   vec_of_cond <- c(rep(1, half_n), rep(2, half_n))
+
   index_of_ind_per_cond <- get_vec_of_repeat_int(
     num_of_ind_per_cond,
     num_of_cell_per_ind
@@ -246,7 +274,7 @@ generate_gwnc_y <- function(mug, mucond, kappa2g, phi2g, vec_sumcnt) {
       )
       rnbinom(
         1,
-        mu = vec_sumcnt[i] * exp(logmu), size = phi2g
+        mu = sample_sumcnt[i] * exp(logmu), size = phi2g
       )
     }, 0.0
   )
@@ -256,7 +284,7 @@ generate_gwnc_y <- function(mug, mucond, kappa2g, phi2g, vec_sumcnt) {
     vec_of_cond = vec_of_cond,
     vec_ind_under_cond = vec_of_ind_under_cond,
     vec_of_ind = vec_of_ind,
-    s = vec_sumcnt,
+    s = sample_sumcnt,
     y = y
   ))
 }
@@ -264,12 +292,22 @@ generate_gwnc_y <- function(mug, mucond, kappa2g, phi2g, vec_sumcnt) {
 set_init_params <- function(simu_data, hp, default_control_value = 1.0,
                             default_case_value = -2.0) {
   sy <- simu_data$y
+  ss <- simu_data$s
+  resp <- simu_data$vec_of_cond
+
+  ## cond in simulation start from 1 following stan.
+  index_of_control  <- (resp == 1)
+  index_of_case <- (resp != 1)
   kappa2g <- 1.0
-  fit_mur <- myfit$fit_gwnb_s2_till_cond_level(
-    y = sy,
-    y_control = sy[simu_data$vec_of_cond == 1],
-    y_case = sy[simu_data$vec_of_cond != 1],
-    scale_of_s = median(simu_data$s)
+  fit_mur <- myfit$stanfit_gwsnb_till_cond_level(
+                     s = ss,
+                     y = sy,
+                     s_control = ss[index_of_control],
+                     y_control = sy[index_of_control],
+                     s_case = ss[index_of_case],
+                     y_case = sy[index_of_case],
+                     scale_nb_model = snbm,
+                     scale_nb_model = snb_fixr_m
   )
 
   if (is.nan(fit_mur$mu_cond[1])) {
@@ -554,23 +592,6 @@ run_and_view_variational <- function(sgn = "NFKB1", cnt = cnt, inds = inds,
     )
   )
 
-  ## init with showing opt, rand eff
-  visualize_rndeff_vi_init <- do.call(
-    rbind,
-    visualize_vi_init(rndeff_vi, gwnb_env,
-      init_show_opt = TRUE
-    )
-  )
-  p_rndeff_vi_init <- gridExtra::grid.arrange(visualize_rndeff_vi_init,
-    top = grid::textGrob(paste0("MSSC: model rand effect"),
-      gp = grid::gpar(fontsize = 20, font = 3)
-    ),
-    bottom = grid::textGrob(paste(comp_init_col_annot,
-      lines_annot,
-      sep = "\n"
-    ), gp = grid::gpar(fontsize = 15))
-  )
-
   ## init without showing opt, rand eff
   visualize_rndeff_vi_init_nopt <- do.call(
     rbind,
@@ -582,8 +603,11 @@ run_and_view_variational <- function(sgn = "NFKB1", cnt = cnt, inds = inds,
       gp = grid::gpar(fontsize = 20, font = 3)
     ),
     bottom = grid::textGrob(paste(comp_init_col_annot,
-                                  lines_annot, sep = "\n"),
-                            gp = grid::gpar(fontsize = 15))
+      lines_annot,
+      sep = "\n"
+    ),
+    gp = grid::gpar(fontsize = 15)
+    )
   )
 
   ## compare different vi models
@@ -608,17 +632,17 @@ run_and_view_variational <- function(sgn = "NFKB1", cnt = cnt, inds = inds,
     ), gp = grid::gpar(fontsize = 15))
   )
 
-  pdf(paste0(
-    here::here("src", "modelcheck", "check_gwnb_gamma_figures"),
-    "/", tag, "_check_mssc_hp_ref", sgn, "_pbmc.pdf"
-  ),
-  width = 12,
-  height = 10
+  outdir <- here::here(
+    "src", "modelcheck",
+    stringr::str_glue("gwnb_figures")
   )
+  dir.create(outdir, showWarnings = FALSE)
+  pdf(stringr::str_glue("{outdir}/{tag}_{nind}_{ncell}.pdf"),
+    width = 12, height = 10
+  )
+
   grid::grid.newpage()
   grid::grid.draw(p_muind_vi_init)
-  grid::grid.newpage()
-  grid::grid.draw(p_rndeff_vi_init)
   grid::grid.newpage()
   grid::grid.draw(p_rndeff_vi_init_nopt)
   grid::grid.newpage()
@@ -636,7 +660,7 @@ run_and_view_variational <- function(sgn = "NFKB1", cnt = cnt, inds = inds,
 ##   - TOX, YIPF5, CCL3, KDM6A, HDDC2
 
 
-lapply(seq_len(50), function(i) {
+lapply(seq_len(5), function(i) {
   result <- tryCatch(
     {
       run_and_view_variational(
@@ -652,28 +676,3 @@ lapply(seq_len(50), function(i) {
     }
   )
 })
-
-## The optimization for randome effect model:
-## tend to fail, they estimate
-## - realy huge Kappa2G and Phi2G
-## - realy low MuG and Cond
-
-## When Phi2G is high, the NB tend to be Poisson
-## And when MuG is estimated low, this means most of the
-## counts are explained by randomness in the individual effect,
-## And the model tends to have really samll mu.
-
-## Under this situation, Kappa2G will tend to really huge, since
-## it is affected by the wrong estimates log mean between the real ones
-## and the estimated MuG + MuCond
-
-## Random effect model
-## tend to have better estimation of MuG and MuCond than MuInd.
-
-
-## For MuInd model,
-## The optimization is robust, which is usually a better estimation for
-## the ground truth than the VI result.
-## The VI result tends to have not the good estimations of MuG, MuConds.
-## But the trend is kept. The sensitivity of the differences in MuCond are usually
-## lower than modeling the random effect.

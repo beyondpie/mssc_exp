@@ -2,7 +2,7 @@
 // fit one gene at a time.
 
 data{
-	int n; 
+	int n;
 	vector<lower=100>[n] s; // scale factor
 	int<lower=0> y[n]; // count
 }

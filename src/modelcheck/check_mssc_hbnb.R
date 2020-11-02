@@ -124,46 +124,6 @@ resp <- subscdata$resp
 cnt <- subscdata$cnt[top_ranked_index, ]
 
 ## * functions
-fit_scalenb_stan <- function(s, y, scale_nb_model,
-                             seed = 355113, numiter = 5000,
-                             refresh = 500, r_default = 10) {
-  ## mu in scaled log level, and minus log(s)
-  ## use stan to fit
-
-  result <- list(mu = NaN, r = NaN)
-  # fit scaled negative binomial using stan
-  n <- length(s)
-  ## ref: MASS::fitdistr for nb
-  m <- mean(y)
-  v <- var(y)
-  r <- if (v > m) {
-    m^2 / (v - m)
-  } else {
-    r_default
-  }
-  opt <- scale_nb_model$optimize(
-    data = list(n = n, s = s, y = y),
-    seed = seed,
-    refresh = refresh,
-    iter = numiter,
-    init = list(list(
-      mu = log(m) - log(median(s)),
-      r = r
-    )),
-    algorithm = "lbfgs"
-    )
-  if (!opt$runset$procs$is_finished()) {
-    message(str_glue("Gene [gn]: optimization is not finished."))
-  } else if (opt$runset$procs$is_failed()) {
-    message(str_glue("Gene [gn]: optimizaiton failed."))
-  } else {
-    t <- opt$mle()
-    result$mu <- t["mu"]
-    result$r <- t["r"]
-  }
-
-  invisible(result)
-}
 
 fit_singlegene_nb <- function(gn, cnt, resp, sumcnt,
                               scale_nb_model,
@@ -185,7 +145,7 @@ fit_singlegene_nb <- function(gn, cnt, resp, sumcnt,
   s <- sumcnt[!outliers]
 
   ## fit nb distr for mu0
-  mur0 <- fit_scalenb_stan(s, y, scale_nb_model, seed)
+  mur0 <- myfit$stan_fit_scalenb(s, y, scale_nb_model, seed)
   result$mu0  <- mur0$mu
   result$r0 <- mur0$r
 
@@ -196,8 +156,10 @@ fit_singlegene_nb <- function(gn, cnt, resp, sumcnt,
   y_case <- y[conds != id_control]
   s_case <- s[conds != id_control]
 
-  mur_control <- fit_scalenb_stan(s_control, y_control, scale_nb_model, seed)
-  mur_case <- fit_scalenb_stan(s_case, y_case, scale_nb_model, seed)
+  mur_control <- myfit$stan_fit_scalenb(s_control,
+                                        y_control,
+                                        scale_nb_model, seed)
+  mur_case <- myfit$stan_fit_scalenb(s_case, y_case, scale_nb_model, seed)
 
   result$mu_cond <- c(mur_control$mu, mur_case$mu)
   result$r_cond <- c(mur_control$r, mur_case$r)
