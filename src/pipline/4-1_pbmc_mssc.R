@@ -129,6 +129,8 @@ resp <- subscdata$resp[sample_cells]
 colsumcnt <- colSums(cnt)
 
 ## use pseudobulk + wilcox-test
+## FIXME: top rank genes are weired: they have quite few counts.
+
 pseudobulk <- mypseudo$get_pseudobulk(cnt, inds)
 names(resp) <- inds
 pseudoconds <- resp[colnames(pseudobulk)]

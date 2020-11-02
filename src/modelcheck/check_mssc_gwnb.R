@@ -261,7 +261,6 @@ generate_gwnc_y <- function(mug, mucond, kappa2g, phi2g, vec_sumcnt) {
   ))
 }
 
-
 set_init_params <- function(simu_data, hp, default_control_value = 1.0,
                             default_case_value = -2.0) {
   sy <- simu_data$y
@@ -395,8 +394,6 @@ run_stan_vi <- function(model, model_env,
     noi_opt = noi_opt
   ))
 }
-
-run_stan_hmc <- function() {}
 
 hist_vi_opt <- function(vi, opt, gwnb_env, varnm,
                         lsize = 1.2 * c(1.5, 0.7, 1.2),
