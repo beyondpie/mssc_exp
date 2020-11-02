@@ -112,7 +112,8 @@ pseudo_analysis <- mypseudo$pseudobulk_deseq2(
 na_index_from_pseudo <- which(is.na(pseudo_analysis$pvalue) == TRUE)
 pseudo_analysis$pvalue[na_index_from_pseudo] <- 1.0
 
-top_ranked_index <- order(pseudo_analysis$pvalue, decreasing = FALSE)[1:num_top_gene]
+top_ranked_index <- order(pseudo_analysis$pvalue,
+                          decreasing = FALSE)[1:num_top_gene]
 pvalue_pseudo_deseq2 <- pseudo_analysis$pvalue[top_ranked_index]
 
 ## finally used pbmc data
@@ -203,7 +204,17 @@ fit_singlegene_nb <- function(gn, cnt, resp, sumcnt,
   invisible(result)
 }
 
-fit_multgenes_nb <- function() {
-
+fit_multgenes_nb <- function(cnt, resp, sumcnt,
+                             scale_nb_model,
+                             seed = 355113,
+                             id_control = 0) {
+  result <- lapply(seq_len(nrow(cnt)),
+                   FUN = function(i) {
+                     unlist(fit_singlegene_nb(i, cnt, resp, sumcnt,
+                                       scale_nb_model, seed, id_control))
+                   })
+  matres <- do.call(rbind, result)
+  rownames(matres) <- rownames(cnt)
+  invisible(matres)
 }
 
