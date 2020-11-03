@@ -5,7 +5,7 @@ data {
 	int N; // num_of_cell
 	int K; // num_of_ind
 	int J; // num_of_cond
-	vector<lower=100>[N] S;
+	vector<lower=0>[N] S;
 	int<lower=1, upper=K> Ind[N];
   int<lower=1, upper=J> Cond[N]; // cond from 1
 

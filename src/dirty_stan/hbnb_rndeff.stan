@@ -7,7 +7,7 @@ data {
 	int j; // num of cond
 	int g; // num of gene
 
-	vector<lower=100>[n] s; // sum of count in cells
+	vector<lower=0>[n] s; // sum of count in cells
 	int<lower=1, upper=j> cond[n]; // experiment index
 	int<lower=0> y[g, n];
 	// int<lower=0> y[g, n]; // observations

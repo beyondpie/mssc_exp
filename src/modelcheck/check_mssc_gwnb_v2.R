@@ -55,6 +55,7 @@ ninds <- c(5, 10, 15, 20)
 ncond <- 2
 sgn <- "NFKB1"
 celltype <- "Naive CD4+ T"
+scale_factor <- 1e04
 
 ## num_of_cell_per_ind <- args$ncell
 ## num_of_ind_per_cond <- args$nind
@@ -98,7 +99,8 @@ subscdata <- mypbmc$get_celltype_specific_scdata(
 cnt <- subscdata$cnt
 inds <- subscdata$inds
 resp <- subscdata$resp
-sumcnt <- colSums(cnt)
+sumcnt <- colSums(cnt) / scale_factor
+
 
 ## functions
 fit_singlegene_nb <- function(){
@@ -210,10 +212,7 @@ simulate_from_gwnb_prior <- function(hp) {
   )
 
   invisible(list(
-    mug = min(-5.0, max(
-      -6.0,
-      rnorm(1, hp$muG0, hp$sigmaG0)
-    )),
+    mug = rnorm(1, hp$muG0, hp$sigmaG0),
     kappa2g = min(10.0, rinvgamma(1,
       shape = hp$alphaKappa2G,
       scale = hp$betaKappa2G
