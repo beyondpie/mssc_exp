@@ -73,15 +73,10 @@ snb_fixr_m <- cmdstan_model(
   compile = T, quiet = T
 )
 
-mssc_gwnb_muind_model <- cmdstan_model(here::here(
+gwnb_model <- cmdstan_model(here::here(
   "src", "dirty_stan",
   "gwnb_simu_from_prior.stan"
 ), compile = T, quiet = T)
-
-mssc_gwnb_rndeff_model <- cmdstan_model(
-  here::here("src", "dirty_stan", "gwnb_rndeffect.stan"),
-  compile = T, quiet = T
-)
 
 ## * load the dataset
 pbmc_seurat <- mypbmc$load_pbmc_seurat() %>%
@@ -99,6 +94,7 @@ subscdata <- mypbmc$get_celltype_specific_scdata(
 cnt <- subscdata$cnt
 inds <- subscdata$inds
 resp <- subscdata$resp
+## we can save sumcnt as a pool to sample.
 sumcnt <- colSums(cnt) / scale_factor
 
 
@@ -188,7 +184,7 @@ get_vec_of_repeat_int <- function(to_int, repeatimes, from_int = 1) {
     seq(from_int, to_int),
     FUN = function(i) {
       rep(i, repeatimes)
-    }, FUN.VALUE=rep(0L, repeatimes)
+    }, FUN.VALUE = rep(0L, repeatimes)
   )))
 }
 
@@ -196,11 +192,19 @@ simulate_from_gwnb_prior <- function(hp) {
   ## sampling the parameters from the prior
   ## defined by the hyper parameters.
 
+  kappa2g <- min(1.0, rinvgamma(1,
+    shape = hp$alphaKappa2G,
+    scale = hp$betaKappa2G
+  ))
+  muind <- rnorm(nind * ncond, mean = 0.0,
+                 sd = sqrt(kappa2g))
+
   ## limit tau size
   tau2g <- min(10.0, rinvgamma(1,
     shape = hp$alphaTau2G,
     scale = hp$betaTau2G
   ))
+
   ## in reality, mucond should be in different signs.
   mucond <- c(
     max(-2.0,
@@ -213,23 +217,23 @@ simulate_from_gwnb_prior <- function(hp) {
 
   invisible(list(
     mug = rnorm(1, hp$muG0, hp$sigmaG0),
-    kappa2g = min(10.0, rinvgamma(1,
-      shape = hp$alphaKappa2G,
-      scale = hp$betaKappa2G
-    )),
+    mucond = mucond,
+    muind = muind,
+    kappa2g = kappa2g,
     tau2g = tau2g,
     phi2g = min(10.0, rinvgamma(1,
       shape = hp$alphaPhi2G,
       scale = hp$betaPhi2G
-    )),
-    mucond = mucond
+    ))
   ))
 }
 
-generate_gwnc_y <- function(mug, mucond, kappa2g, phi2g,
+generate_gwnc_y <- function(mug, mucond, muind, phi2g,
                             nind, ncell) {
-  ## geneerate data based on the gwnb model
-  ## given the parameters.
+  ## generate data based on the gwnb model
+  ## given the model parameters
+  ## need muind
+
   n <- nind * ncell * 2
   sample_sumcnt <- sample(sumcnt, size = n, replace = TRUE)
 
@@ -245,14 +249,10 @@ generate_gwnc_y <- function(mug, mucond, kappa2g, phi2g,
   y <- vapply(
     seq_len(n),
     function(i) {
-      logmu <- rnorm(1,
-        mean = mug + mucond[vec_of_cond[i]],
-        sd = sqrt(kappa2g)
-      )
-      rnbinom(
-        1,
+      logmu <- mug + mucond[vec_of_cond[i]] + muind[vec_of_ind[i]]
+      invisible(rnbinom(1,
         mu = sample_sumcnt[i] * exp(logmu), size = phi2g
-      )
+      ))
     }, 0.0
   )
   invisible(list(
@@ -274,7 +274,6 @@ set_init_params <- function(simu_data, hp, default_control_value = -1.0,
   ## cond in simulation start from 1 following stan.
   index_of_control  <- (resp == 1)
   index_of_case <- (resp != 1)
-  kappa2g <- 1.0
   fit_mur <- myfit$stanfit_gwsnb_till_cond_level(
                      s = ss,
                      y = sy,
@@ -298,7 +297,7 @@ set_init_params <- function(simu_data, hp, default_control_value = -1.0,
   tau2g <- max(abs(fit_mur$mu_cond)) * 1.5
   invisible(list(
     MuG = fit_mur$mu0,
-    MuIndRaw = rnorm(simu_data$n, 0.0, sqrt(kappa2g)),
+    MuIndRaw = rep(0.0, nind * ncond),
     MuCond = fit_mur$mu_cond,
     MuCondRaw = fit_mur$mu_cond / sqrt(tau2g),
     Kappa2G = 1.0,
@@ -329,7 +328,6 @@ run_gwnb_model <- function(model, model_env,
                            data, method = "vi",
                            use_init = TRUE) {
   ## run the model using VI or MAP with/without init params
-
   init_params <- NULL
   if (use_init) {
     t <- set_init_params(data, model_env$hp)
@@ -443,8 +441,7 @@ run_and_view_variational <- function(tag = 1) {
   )
 
   ## run vi
-  muind_vi <- run_stan_vi(mssc_gwnb_muind_model, gwnb_env)
-  rndeff_vi <- run_stan_vi(mssc_gwnb_rndeff_model, gwnb_env)
+  muind_vi <- run_stan_vi(gwnb_model, gwnb_env)
 
   ## summary the results of vi
   ## initilization plays important roles
@@ -460,10 +457,6 @@ run_and_view_variational <- function(tag = 1) {
   comp_init_col_annot <- paste0(
     "Left: without designed init params. ",
     "Right: with designed init params."
-  )
-  comp_vi_col_annot <- paste0(
-    "Left: model individual effect on mean. ",
-    "Right: model inidividual effect as variance."
   )
   lines_annot <- paste0(
     "Red line: simulation truth. ",
@@ -483,35 +476,6 @@ run_and_view_variational <- function(tag = 1) {
     )
   )
 
-  ## init without showing opt, rand eff
-  visualize_rndeff_vi_init_nopt <- do.call(
-    rbind,
-    visualize_vi_init(rndeff_vi, gwnb_env, init_show_opt = FALSE)
-  )
-  p_rndeff_vi_init_nopt <- gridExtra::grid.arrange(
-    visualize_rndeff_vi_init_nopt,
-    top = grid::textGrob(paste0("MSSC: model rand effect"),
-      gp = grid::gpar(fontsize = 20, font = 3)
-    ),
-    bottom = grid::textGrob(paste(comp_init_col_annot,
-      lines_annot,
-      sep = "\n"
-    ),
-    gp = grid::gpar(fontsize = 15)
-    )
-  )
-
-  ## compare different vi models
-  ## muind: mle estimation is more robust
-
-  visualize_comp_vi <- do.call(
-    rbind,
-    vis_compare_vi(
-      muind_vi, rndeff_vi, gwnb_env,
-      c("Model individual mean", "Random effect model")
-    )
-  )
-
   outdir <- here::here(
     "src", "modelcheck",
     stringr::str_glue("gwnb_figures")
@@ -523,8 +487,6 @@ run_and_view_variational <- function(tag = 1) {
 
   grid::grid.newpage()
   grid::grid.draw(p_muind_vi_init)
-  grid::grid.newpage()
-  grid::grid.draw(p_rndeff_vi_init_nopt)
   dev.off()
 }
 

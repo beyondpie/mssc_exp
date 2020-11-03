@@ -5,6 +5,8 @@
 ## - [hyper] parameters are setted based on a real dataset:
 ##   - PBMC dataset
 
+## IMPORTANT: generate y is wrong.
+
 ## * set R environment
 import::from(here, here)
 suppressPackageStartupMessages(library(tidyverse))
