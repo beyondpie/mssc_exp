@@ -40,6 +40,7 @@ transformed parameters {
 	MuCond = sqrt(Tau2G) * MuCondRaw;
 	vector[N] Mu;
 	for (i in 1:N)  {
+		// this might be wrong.
 		Mu[i] = MuG + MuCond[Cond[i]] + sqrt(Kappa2G) * MuRaw[i];
 	}
 }
