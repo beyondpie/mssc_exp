@@ -154,7 +154,7 @@ set_gwnb_hyper_params <- function(sg_mur, sigmaG0 = 2.0,
   if (is.nan(sg_mur$mu0)) {
     muG0 <- default_muG0
   } else {
-    muG0 <- sg_mur$mu0
+    muG0 <- max(default_muG0, sg_mur$mu0)
   }
 
   ## we use the max absolute value, and cover it by 1.5 fold
@@ -208,21 +208,25 @@ get_vec_of_repeat_int <- function(to_int, repeatimes, from_int = 1) {
   )))
 }
 
-simulate_from_gwnb_prior <- function(hp, nind) {
+simulate_from_gwnb_prior <- function(hp, nind,
+                                     max_kappa2g = 1.0,
+                                     max_tau2g = 2.0,
+                                     max_phi2g = 10.0,
+                                     max_mucond = 1.5) {
   ## sampling the parameters from the prior
   ## defined by the hyper parameters.
 
-  kappa2g <- min(1.0, rinvgamma(1,
+  kappa2g <- min(max_kappa2g, rinvgamma(1,
     shape = hp$alphaKappa2G,
     scale = hp$betaKappa2G
   ))
   muind <- rnorm(nind * 2,
     mean = 0.0,
-    sd = 0.25 * sqrt(kappa2g)
+    sd = sqrt(kappa2g)
   )
 
   ## limit tau size
-  tau2g <- min(10.0, rinvgamma(1,
+  tau2g <- min(max_tau2g, rinvgamma(1,
     shape = hp$alphaTau2G,
     scale = hp$betaTau2G
   ))
@@ -230,14 +234,14 @@ simulate_from_gwnb_prior <- function(hp, nind) {
   ## in reality, mucond should be in different signs.
   mucond <- c(
     max(
-      -2.0,
+      -max_mucond,
       truncnorm::rtruncnorm(1,
         a = -Inf, b = 0.0, mean = 0.0,
         sd = sqrt(tau2g)
       )
     ),
     min(
-      2.0,
+      max_mucond,
       truncnorm::rtruncnorm(1,
         a = 0.0, b = Inf, mean = 0.0,
         sd = sqrt(tau2g)
@@ -251,7 +255,7 @@ simulate_from_gwnb_prior <- function(hp, nind) {
     muind = muind,
     kappa2g = kappa2g,
     tau2g = tau2g,
-    phi2g = min(10.0, rinvgamma(1,
+    phi2g = min(max_phi2g, rinvgamma(1,
       shape = hp$alphaPhi2G,
       scale = hp$betaPhi2G
     ))
@@ -334,6 +338,7 @@ set_init_params <- function(simu_data, hp, nind, default_control_value = -1.0,
 
   ## we use the max absolute value, and cover it by 1.5 fold
   tau2g <- max(abs(fit_mur$mu_cond)) * 1.5
+
   invisible(list(
     MuG = fit_mur$mu0,
     MuIndRaw = rep(0.0, nind * 2),
@@ -364,14 +369,9 @@ set_gwnb_light_env <- function(nind) {
 }
 
 run_gwnb_model <- function(model, model_env,
-                           data, nind, method = "vi",
-                           use_init = TRUE) {
-  ## run the model using VI or MAP with/without init params
-  init_params <- NULL
-  if (use_init) {
-    t <- set_init_params(data, model_env$hp, nind)
-    init_params <- list(t)
-  }
+                           data, init_params = NULL,
+                           method = "vi") {
+  ## run the model using VI or MAP
   if (method == "vi") {
     fit <- model$variational(
       data = data, init = init_params,
@@ -390,7 +390,7 @@ run_gwnb_model <- function(model, model_env,
 }
 
 
-hist_vi_opt <- function(vi, opt, gwnb_env, varnm,
+hist_vi_opt <- function(vi, opt, gwnb_env, init_params, varnm,
                         lsize = 1.2 * c(1.5, 0.7, 1.2),
                         lalpha = c(0.75, 0.75, 0.75),
                         lcolor = c("red", "gray20", "blue"),
@@ -400,27 +400,27 @@ hist_vi_opt <- function(vi, opt, gwnb_env, varnm,
 
   if (varnm == "MuG") {
     ground_truth <- gwnb_env$params_from_prior$mug
-    init_value <- gwnb_env$init_params[[varnm]]
+    init_value <- init_params[[varnm]]
   }
   if (varnm == "MuCond[1]") {
     ground_truth <- gwnb_env$params_from_prior$mucond[1]
-    init_value <- gwnb_env$init_params[["MuCond"]][1]
+    init_value <- init_params[["MuCond"]][1]
   }
   if (varnm == "MuCond[2]") {
     ground_truth <- gwnb_env$params_from_prior$mucond[2]
-    init_value <- gwnb_env$init_params[["MuCond"]][2]
+    init_value <- init_params[["MuCond"]][2]
   }
   if (varnm == "Kappa2G") {
     ground_truth <- gwnb_env$params_from_prior$kappa2g
-    init_value <- gwnb_env$init_params[[varnm]]
+    init_value <- init_params[[varnm]]
   }
   if (varnm == "Tau2G") {
     ground_truth <- gwnb_env$params_from_prior$tau2g
-    init_value <- gwnb_env$init_params[[varnm]]
+    init_value <- init_params[[varnm]]
   }
   if (varnm == "Phi2G") {
     ground_truth <- gwnb_env$params_from_prior$phi2g
-    init_value <- gwnb_env$init_params[[varnm]]
+    init_value <- init_params[[varnm]]
   }
 
   ## add hist graph with two lines:
@@ -430,7 +430,8 @@ hist_vi_opt <- function(vi, opt, gwnb_env, varnm,
       bayesplot::vline_at(ground_truth,
         size = lsize[1], alpha = lalpha[1],
         color = lcolor[1], linetype = ltype[1]
-      )
+        )
+
     if (show_init) {
       p <- p +
         bayesplot::vline_at(init_value,
@@ -454,6 +455,7 @@ hist_vi_opt <- function(vi, opt, gwnb_env, varnm,
 }
 
 hist_vi_opt_varnms <- function(vi, noi_vi, opt, noi_opt, gwnb_env,
+                               init_params,
                                varnms = c(
                                  "MuG", "MuCond[1]", "MuCond[2]",
                                  "Kappa2G", "Tau2G", "Phi2G"
@@ -465,10 +467,11 @@ hist_vi_opt_varnms <- function(vi, noi_vi, opt, noi_opt, gwnb_env,
   l <- lapply(varnms, function(varnm) {
     p <- list(
       noivip = hist_vi_opt(noi_vi, noi_opt, gwnb_env,
+                           init_params,
         varnm,
         show_opt = TRUE, show_init = FALSE
       ),
-      vip = hist_vi_opt(vi, opt, gwnb_env,
+      vip = hist_vi_opt(vi, opt, gwnb_env, init_params,
         varnm,
         show_opt = TRUE,
         show_init = TRUE
@@ -502,32 +505,33 @@ check_model <- function(model = gwnb_model,
         ncell = ncell,
         hp = model_env$hp
       )
+      init_params <- list(set_init_params(data,
+                                          model_env$hp, nind))
+
       vifit <- run_gwnb_model(model,
-        model_env, data, nind, method = "vi",
-        use_init = TRUE
-      )
+                              model_env, data,
+                              init_params = init_params,
+                              method = "vi")
       noi_vifit <- run_gwnb_model(model,
         model_env,
         data,
-        nind,
-        method = "vi",
-        use_init = FALSE)
+        init_params = NULL,
+        method = "vi")
       optfit <- run_gwnb_model(model,
         model_env,
         data,
-        nind,
-        method = "opt",
-        use_init = TRUE
+        init_params = init_params,
+        method = "opt"
       )
       noi_optfit <- run_gwnb_model(model,
         model_env,
         data,
-        nind,
-        method = "opt",
-        use_init = FALSE)
+        init_params = NULL,
+        method = "opt")
+
       invisible(hist_vi_opt_varnms(
         vifit, noi_vifit,
-        optfit, noi_optfit, model_env))
+        optfit, noi_optfit, init_params, model_env))
     })
     names(l_of_cell) <- ncells
     invisible(l_of_cell)
@@ -573,3 +577,54 @@ p <- plot_var_for_diffcells(figures, varnm = "MuG", nind = 15,
 
 
 
+## for debug
+model <- gwnb_model
+nind <- 5
+ncell <- 300
+## using simulated data to check vi
+model_env <- set_gwnb_light_env(nind)
+## ground truth
+gt <- model_env$params_from_prior
+data <- generate_gwnc_y(
+  mug = gt$mug,
+  mucond = gt$mucond,
+  muind = gt$muind,
+  phi2g = gt$phi2g,
+  nind = nind,
+  ncell = ncell,
+  hp = model_env$hp
+)
+init_params <- list(set_init_params(data,
+                                    model_env$hp, nind))
+
+vifit <- run_gwnb_model(model,
+                        model_env, data,
+                        init_params = init_params,
+                        method = "vi")
+noi_vifit <- run_gwnb_model(model,
+  model_env,
+  data,
+  init_params = NULL,
+  method = "vi")
+optfit <- run_gwnb_model(model,
+  model_env,
+  data,
+  init_params = init_params,
+  method = "opt"
+)
+noi_optfit <- run_gwnb_model(model,
+  model_env,
+  data,
+  init_params = NULL,
+  method = "opt")
+invisible(hist_vi_opt_varnms(
+  vifit, noi_vifit,
+  optfit, noi_optfit, init_params, model_env))
+
+pp <- hist_vi_opt_varnms(
+  vifit, noi_vifit,
+  optfit, noi_optfit, model_env, init_params)
+p <- lapply(pp, function(x) {invisible(x$noivip)})
+p <- lapply(pp, function(x) {invisible(x$vip)})
+
+bayesplot::bayesplot_grid(plots=p, grid_args = list(nrow = 1))
