@@ -45,20 +45,18 @@ mypbmc <- modules::import("pbmc")
 
 ## warnings/errors traceback settings
 
-## options(error = traceback)
+options(error = traceback)
 options(warn = 0)
 options(mc.cores = 3)
 
 ## * configs
 ## for simulation
 opts <- list(
-  make_option(c("--ncell", action = "store", type = "integer", default = 200)),
-  make_option(c("--nind", action = "store", type = "integer", default = 10)),
-  make_option(c("--celltype",
+  make_option(c("--ncell"), action = "store", type = "integer", default = 200),
+  make_option(c("--nind"), action = "store", type = "integer", default = 10),
+  make_option(c("--celltype"),
     action = "store", type = "character",
-    default = "Naive CD4+ T"
-  ))
-)
+    default = "Naive CD4+ T"))
 
 args <- parse_args(OptionParser(option_list = opts))
 num_of_cell_per_ind <- args$ncell
@@ -67,15 +65,16 @@ num_of_cond <- 2
 num_of_ind <- num_of_ind_per_cond * num_of_cond
 celltype <- args$celltype
 num_top_gene <- 200
+sgn <- "NFKB1"
 
 ## for debug
-num_of_cell_per_ind <- 200
-num_of_ind_per_cond <- 5
-num_of_cond <- 2
-num_of_ind <- num_of_cond * num_of_ind_per_cond
-celltype <- "Naive CD4+ T"
-num_top_gene <- 200
-sgn <- "NFKB1"
+## num_of_cell_per_ind <- 200
+## num_of_ind_per_cond <- 5
+## num_of_cond <- 2
+## num_of_ind <- num_of_cond * num_of_ind_per_cond
+## celltype <- "Naive CD4+ T"
+## num_top_gene <- 200
+## sgn <- "NFKB1"
 
 ## * load stan models
 ## if compiling not work, try rebuild_cmdstan()
@@ -142,7 +141,7 @@ fit_singlegene_nb <- function(gn = "NFKB1", cnt,
     s_case = d1g_sumcnt[d1g_resp == 1],
     y_case = d1g_cnt[d1g_resp == 1],
     scale_nb_model = snbm,
-    scale_nb_fixed_r_model = snb_fixr_m,
+    scale_nb_fixed_r_model = snb_fixr_m
   )
   invisible(list(
     mur = fit_mur,
@@ -307,7 +306,7 @@ set_init_params <- function(simu_data, hp, default_control_value = 1.0,
                      s_case = ss[index_of_case],
                      y_case = sy[index_of_case],
                      scale_nb_model = snbm,
-                     scale_nb_model = snb_fixr_m
+                     scale_nb_fixed_r_model = snb_fixr_m
   )
 
   if (is.nan(fit_mur$mu_cond[1])) {
@@ -637,7 +636,7 @@ run_and_view_variational <- function(sgn = "NFKB1", cnt = cnt, inds = inds,
     stringr::str_glue("gwnb_figures")
   )
   dir.create(outdir, showWarnings = FALSE)
-  pdf(stringr::str_glue("{outdir}/{tag}_{nind}_{ncell}.pdf"),
+  pdf(stringr::str_glue("{outdir}/{tag}_{num_of_ind_per_cond}_{num_of_cell_per_ind}.pdf"),
     width = 12, height = 10
   )
 
@@ -660,7 +659,7 @@ run_and_view_variational <- function(sgn = "NFKB1", cnt = cnt, inds = inds,
 ##   - TOX, YIPF5, CCL3, KDM6A, HDDC2
 
 
-lapply(seq_len(5), function(i) {
+lapply(seq_len(3), function(i) {
   result <- tryCatch(
     {
       run_and_view_variational(

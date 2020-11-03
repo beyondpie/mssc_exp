@@ -109,8 +109,8 @@ prob_zero_nb <- function(x, rmoutliers = T) {
 
 
 stanfit_scalenb <- function(s, y, scale_nb_model,
-                             seed = 355113, numiter = 5000,
-                             refresh = 500, r_default = 10) {
+                            seed = 355113, numiter = 5000,
+                            refresh = 500, r_default = 10) {
   ## mu in scaled log level, and minus log(s)
   ## use stan to fit
   result <- list(mu = NaN, r = NaN)
@@ -136,9 +136,7 @@ stanfit_scalenb <- function(s, y, scale_nb_model,
     algorithm = "lbfgs"
   )
   ## https://github.com/stan-dev/cmdstanr/issues/332
-  if (opt$runset$procs$get_proc(1)$get_exit_status() != 0) {
-    message(stringr::str_glue("Gene [gn]: optimizaiton failed."))
-  } else {
+  if (opt$runset$procs$get_proc(1)$get_exit_status()  == 0) {
     t <- opt$mle()
     result$mu <- t["mu"]
     result$r <- t["r"]
@@ -147,8 +145,8 @@ stanfit_scalenb <- function(s, y, scale_nb_model,
 }
 
 stanfit_scalenb_fixed_r <- function(s, r, y, scale_nb_fixed_r_model,
-                             seed = 355113, numiter = 5000,
-                             refresh = 500) {
+                                    seed = 355113, numiter = 5000,
+                                    refresh = 500) {
   ## mu in scaled log level, and minus log(s)
   ## use stan to fit
   result <- list(mu = NaN)
@@ -156,21 +154,18 @@ stanfit_scalenb_fixed_r <- function(s, r, y, scale_nb_fixed_r_model,
   n <- length(s)
   ## ref: MASS::fitdistr for nb
   m <- mean(y)
-  opt <- scale_nb_model$optimize(
-    data = list(n = n, s = s, y = y),
+  opt <- scale_nb_fixed_r_model$optimize(
+    data = list(n = n, s = s, y = y, r = r),
     seed = seed,
     refresh = refresh,
     iter = numiter,
     init = list(list(
-      mu = log(m) - log(median(s)),
-      r = r
+      mu = log(m) - log(median(s))
     )),
     algorithm = "lbfgs"
   )
   ## https://github.com/stan-dev/cmdstanr/issues/332
-  if (opt$runset$procs$get_proc(1)$get_exit_status() != 0) {
-    message(stringr::str_glue("Gene [gn]: optimizaiton failed."))
-  } else {
+  if (opt$runset$procs$get_proc(1)$get_exit_status() == 0) {
     t <- opt$mle()
     result$mu <- t["mu"]
   }
@@ -179,8 +174,8 @@ stanfit_scalenb_fixed_r <- function(s, r, y, scale_nb_fixed_r_model,
 
 
 stanfit_gwsnb_till_cond_level <- function(s, y,
-                                            s_control,
-                                            y_control, s_case, y_case,
+                                          s_control,
+                                          y_control, s_case, y_case,
                                           scale_nb_model,
                                           scale_nb_fixed_r_model) {
   ## fit negative binomial, and get the mean and dispersion.
@@ -205,14 +200,18 @@ stanfit_gwsnb_till_cond_level <- function(s, y,
   result$mu0 <- mur_all$mu
   result$r0 <- mur_all$r
 
-  mur_control <- stanfit_scalenb_fixed_r(s_control, mur_all$r, y_control,
-                                         scale_nb_fixed_r_model)
+  mur_control <- stanfit_scalenb_fixed_r(
+    s_control, mur_all$r, y_control,
+    scale_nb_fixed_r_model
+  )
   if (!is.nan(mur_control$mu)) {
     result$mu_cond[1] <- mur_control$mu - mur_all$mu
   }
 
-  mur_case <- stanfit_scalenb_fixed_r(s_case, mu_all$r, y_case,
-                                      scale_nb_fixed_r_model)
+  mur_case <- stanfit_scalenb_fixed_r(
+    s_case, mur_all$r, y_case,
+    scale_nb_fixed_r_model
+  )
   if (!is.nan(mur_case$mu)) {
     result$mu_cond[2] <- mur_case$mu - mur_all$mu
   }
