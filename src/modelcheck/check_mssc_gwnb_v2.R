@@ -99,7 +99,7 @@ sumcnt <- colSums(cnt) / scale_factor
 
 
 ## functions
-fit_singlegene_nb <- function(){
+fit_singlegene_nb <- function() {
   ## get mu0, mucond, r as in mssc gwnb model
   ## from the real dataset
   ## use stan fit
@@ -188,7 +188,7 @@ get_vec_of_repeat_int <- function(to_int, repeatimes, from_int = 1) {
   )))
 }
 
-simulate_from_gwnb_prior <- function(hp) {
+simulate_from_gwnb_prior <- function(hp, nind) {
   ## sampling the parameters from the prior
   ## defined by the hyper parameters.
 
@@ -196,8 +196,10 @@ simulate_from_gwnb_prior <- function(hp) {
     shape = hp$alphaKappa2G,
     scale = hp$betaKappa2G
   ))
-  muind <- rnorm(nind * ncond, mean = 0.0,
-                 sd = sqrt(kappa2g))
+  muind <- rnorm(nind * 2,
+    mean = 0.0,
+    sd = sqrt(kappa2g)
+  )
 
   ## limit tau size
   tau2g <- min(10.0, rinvgamma(1,
@@ -207,12 +209,20 @@ simulate_from_gwnb_prior <- function(hp) {
 
   ## in reality, mucond should be in different signs.
   mucond <- c(
-    max(-2.0,
-        truncnorm::rtruncnorm(1, a = -Inf, b = 0.0, mean = 0.0,
-                              sd = sqrt(tau2g))),
-    min(2.0,
-        truncnorm::rtruncnorm(1, a = 0.0, b = Inf, mean = 0.0,
-                              sd = sqrt(tau2g)))
+    max(
+      -2.0,
+      truncnorm::rtruncnorm(1,
+        a = -Inf, b = 0.0, mean = 0.0,
+        sd = sqrt(tau2g)
+      )
+    ),
+    min(
+      2.0,
+      truncnorm::rtruncnorm(1,
+        a = 0.0, b = Inf, mean = 0.0,
+        sd = sqrt(tau2g)
+      )
+    )
   )
 
   invisible(list(
@@ -265,24 +275,24 @@ generate_gwnc_y <- function(mug, mucond, muind, phi2g,
   ))
 }
 
-set_init_params <- function(simu_data, hp, default_control_value = -1.0,
+set_init_params <- function(simu_data, hp, nind, default_control_value = -1.0,
                             default_case_value = 1.0) {
   sy <- simu_data$y
   ss <- simu_data$s
   resp <- simu_data$vec_of_cond
 
   ## cond in simulation start from 1 following stan.
-  index_of_control  <- (resp == 1)
+  index_of_control <- (resp == 1)
   index_of_case <- (resp != 1)
   fit_mur <- myfit$stanfit_gwsnb_till_cond_level(
-                     s = ss,
-                     y = sy,
-                     s_control = ss[index_of_control],
-                     y_control = sy[index_of_control],
-                     s_case = ss[index_of_case],
-                     y_case = sy[index_of_case],
-                     scale_nb_model = snbm,
-                     scale_nb_fixed_r_model = snb_fixr_m
+    s = ss,
+    y = sy,
+    s_control = ss[index_of_control],
+    y_control = sy[index_of_control],
+    s_case = ss[index_of_case],
+    y_case = sy[index_of_case],
+    scale_nb_model = snbm,
+    scale_nb_fixed_r_model = snb_fixr_m
   )
 
   if (is.nan(fit_mur$mu_cond[1])) {
@@ -297,7 +307,7 @@ set_init_params <- function(simu_data, hp, default_control_value = -1.0,
   tau2g <- max(abs(fit_mur$mu_cond)) * 1.5
   invisible(list(
     MuG = fit_mur$mu0,
-    MuIndRaw = rep(0.0, nind * ncond),
+    MuIndRaw = rep(0.0, nind * 2),
     MuCond = fit_mur$mu_cond,
     MuCondRaw = fit_mur$mu_cond / sqrt(tau2g),
     Kappa2G = 1.0,
@@ -306,17 +316,17 @@ set_init_params <- function(simu_data, hp, default_control_value = -1.0,
   ))
 }
 
-set_gwnb_light_env <- function() {
+set_gwnb_light_env <- function(nind) {
   ## set hyper params and sampling params from the prior
 
   ## global variables:
   ## use pbmc data with the specific cell type, and genenm.
 
-  ## use pbmc to estimate and set the parameters.
+  ## use pbmc to estimate and set the part of the parameters.
   fit <- fit_singlegene_nb()
   ## simulation from prior
   hp <- set_gwnb_hyper_params(fit, sigmaG0 = 4.0)
-  params <- simulate_from_gwnb_prior(hp)
+  params <- simulate_from_gwnb_prior(hp, nind)
   invisible(list(
     sg_nbfit = fit,
     hp = hp,
@@ -334,14 +344,18 @@ run_gwnb_model <- function(model, model_env,
     init_params <- list(t)
   }
   if (method == "vi") {
-    fit <- model$variational(data = data, init = init_params,
-                             seed = 1, refresh = 5000,
-                             iter = 5000, eval_elbo = 100,
-                             adapt_engaged = TRUE)
+    fit <- model$variational(
+      data = data, init = init_params,
+      seed = 1, refresh = 5000,
+      iter = 5000, eval_elbo = 100,
+      adapt_engaged = TRUE
+    )
   } else {
-    fit <- model$optimize(data = data, init = init_params,
-                          seed = 1, refresh = 5000,
-                          iter = 5000, algorithm = "lbfgs")
+    fit <- model$optimize(
+      data = data, init = init_params,
+      seed = 1, refresh = 5000,
+      iter = 5000, algorithm = "lbfgs"
+    )
   }
   invisible(fit)
 }
@@ -386,139 +400,123 @@ hist_vi_opt <- function(vi, opt, gwnb_env, varnm,
     bayesplot::vline_at(ground_truth,
       size = lsize[1], alpha = lalpha[1],
       color = lcolor[1], linetype = ltype[1]
-      )
+    )
   if (show_init) {
     p <- p +
       bayesplot::vline_at(init_value,
         size = lsize[2], alpha = lalpha[2],
         color = lcolor[2], linetype = ltype[2]
-      )}
+      )
+  }
 
   if (show_opt) {
     p <- p +
       bayesplot::vline_at(opt$mle(varnm),
         size = lsize[3],
         alpha = lalpha[3], color = lcolor[3], linetype = ltype[3]
-      )}
+      )
+  }
   ## p <- p + bayesplot::facet_text(size = 15, hjust = 0.5)
   invisible(p)
 }
 
-visualize_vi_init <- function(vi, gwnb_env,
+visualize_vi_init <- function(vi, noi_vi, opt, noi_opt, gwnb_env,
                               varnms = c(
                                 "MuG", "MuCond[1]", "MuCond[2]",
                                 "Kappa2G", "Tau2G", "Phi2G"
-                              ),
-                              init_show_opt = TRUE) {
+                              )) {
+  ## generate a list named with varnms
+  ## and each is a list with two element in order:
+  ## noivip, vip
+
   l <- lapply(varnms, function(varnm) {
-    p <- bayesplot::bayesplot_grid(
-      plots = list(
-        without_init_vi = hist_vi_opt(vi$noi_vi, vi$noi_opt, gwnb_env,
-          varnm,
-          show_opt = init_show_opt
-        ),
-        with_init_vi = hist_vi_opt(vi$vi, vi$opt, gwnb_env,
-          varnm,
-          show_opt = init_show_opt
-        )
+    p <- list(
+      noivip = hist_vi_opt(noi_vi, noi_opt, gwnb_env,
+        varnm,
+        show_opt = TRUE, show_init = FALSE
       ),
-      grid_args = list(nrow = 1)
+      vip = hist_vi_opt(vi, opt, gwnb_env,
+        varnm,
+        show_opt = TRUE,
+        show_init = TRUE
+      )
     )
     invisible(p)
   })
+  names(l) <- varnms
   invisible(l)
 }
 
-run_and_view_variational <- function(tag = 1) {
 
-  ## set hyper param, data, and init values for gwnb mssc
-  ## may also have failed fitting
-  gwnb_env <- set_gwnb_env(
-    sgn = sgn, cnt = cnt,
-    inds = inds,
-    resp = resp,
-    sumcnt = sumcnt
-  )
+check_model <- function(tag = 1, model = gwnb_model,
+                        ninds = ninds, ncells = ncells) {
+  ## generat figures: a list of ninds
+  ## each is a list of ncells
+  ## for each ncell, its also a list of figures for different varnames.
+  ## for each varnames, it's a list with two element in order: noivip vip
 
-  ## run vi
-  muind_vi <- run_stan_vi(gwnb_model, gwnb_env)
-
-  ## summary the results of vi
-  ## initilization plays important roles
-
-  ## init with showing opt, model muind.
-  visualize_muind_vi_init <- do.call(
-    rbind,
-    visualize_vi_init(muind_vi, gwnb_env,
-      init_show_opt = TRUE
-    )
-  )
-
-  comp_init_col_annot <- paste0(
-    "Left: without designed init params. ",
-    "Right: with designed init params."
-  )
-  lines_annot <- paste0(
-    "Red line: simulation truth. ",
-    "Gray line: designed init params. ",
-    "Blue line: MAP estimation."
-  )
-
-  p_muind_vi_init <- gridExtra::grid.arrange(visualize_muind_vi_init,
-    top = grid::textGrob(paste0("MSSC: model individual mean"),
-      gp = grid::gpar(fontsize = 20, font = 3)
-    ),
-    bottom = grid::textGrob(paste(comp_init_col_annot,
-      lines_annot,
-      sep = "\n"
-    ),
-    gp = grid::gpar(fontsize = 15)
-    )
-  )
-
-  outdir <- here::here(
-    "src", "modelcheck",
-    stringr::str_glue("gwnb_figures")
-  )
-  dir.create(outdir, showWarnings = FALSE)
-  pdf(stringr::str_glue("{outdir}/{tag}.pdf"),
-    width = 12, height = 10
-  )
-
-  grid::grid.newpage()
-  grid::grid.draw(p_muind_vi_init)
-  dev.off()
+  l_of_ind <- lapply(ninds, function(nind) {
+    ## using simulated data to check vi
+    model_env <- set_gwnb_light_env()
+    ## ground truth
+    gt <- model_env$params_from_prior
+    l_of_cell <- lapply(ncells, function(ncell) {
+      data <- generate_gwnc_y(
+        mug = gt$mug,
+        mucond = gt$mucond,
+        muind = gt$muind,
+        phi2g = gt$phi2g,
+        nind = nind,
+        ncell = ncell
+      )
+      vifit <- run_gwnb_model(model,
+        model_env,
+        data,
+        method = "vi",
+        use_init = TRUE
+      )
+      noi_vifit <- run_gwnb_model(model,
+        model_env,
+        data,
+        method = "vi",
+        use_init = FALSE
+      )
+      optfit <- run_gwnb_model(model,
+        model_env,
+        data,
+        method = "opt",
+        use_init = TRUE
+      )
+      noi_optfit <- run_gwnb_model(model,
+        model_env,
+        data,
+        method = "opt",
+        use_init = FALSE
+      )
+      invisible(hist_vi_opt(
+        vifit, noi_vifit,
+        optfit, noi_optfit, model_env
+      ))
+    })
+    names(l_of_cell) <- ncells
+  })
+  names(l_of_ind) <- ninds
+  invisible(l_of_ind)
 }
 
-check_model <- function(tag = 1) {
-  ## using simulated data to check vi
-  model_env <- set_gwnb_light_env()
-  ## ground truth
-  gt <- model_env$params_from_prior
-  figs <- vector(mode = "list", length = length(ncells) * length(ninds))
-  for (nind in ninds) {
-    for (ncell in ncells) {
-      data <- generate_gwnc_y(mug = gt$mug,
-                              mucond = gt$mucond,
-                              kappa2g = gt$kappa2g,
-                              phi2g = gt$phi2g,
-                              nind = nind,
-                              ncell = ncell)
-      muind_optfit <- run_gwnb_model(mssc_gwnb_)
-    }
-  }
-}
+## for debug
+figures <- check_model(1, gwnb_model, ninds, ncells)
 
 ## main
-lapply(seq_len(3), function(i) {
-  result <- tryCatch(
-    {
-      run_and_view_variational(tag = i)
-      0L
-    },
-    error = function(e) {
-      message(e)
-      1L
-    }
-  )
-})
+## lapply(seq_len(3), function(i) {
+##   result <- tryCatch(
+##     {
+##       figures <- check_model(i, gwnb_model,ninds, ncells)
+##       0L
+##     },
+##     error = function(e) {
+##       message(e)
+##       1L
+##     }
+##   )
+## })
