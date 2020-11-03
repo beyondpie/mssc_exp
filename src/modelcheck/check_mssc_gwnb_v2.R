@@ -104,6 +104,7 @@ fit_singlegene_nb <- function() {
   ## from the real dataset
   ## use stan fit
 
+  ## use global information
   d1g_cnt <- cnt[sgn, ]
   outliers <- myfit$is_outlier(d1g_cnt)
   d1g_cnt <- d1g_cnt[!outliers]
@@ -131,7 +132,9 @@ fit_singlegene_nb <- function() {
   ))
 }
 
-set_gwnb_hyper_params <- function(sg_mur, sigmaG0 = 4.0,
+set_gwnb_hyper_params <- function(sg_mur, sigmaG0 = 2.0,
+                                  default_muG0 =  -1.0,
+                                  default_r0 = 2,
                                   default_control_value = 1.0,
                                   default_case_value = -2.0) {
   ## set hyper params based on the fitted sg_mur
@@ -141,14 +144,19 @@ set_gwnb_hyper_params <- function(sg_mur, sigmaG0 = 4.0,
   ## instead of using var(sg_mur$mu_cond), which might be
   ## small when both of them are in the same sign:
   ## - we assume the mean is around zero
+  if (is.nan(sg_mur$mu0)) {
+    muG0 <- default_muG0
+  } else {
+    muG0 <- sg_mur$mu0
+  }
 
   ## we use the max absolute value, and cover it by 1.5 fold
-  mu_control <- sg_mur$mur$mu_cond[1]
-  if (is.nan(sg_mur$mur$mu_cond[1])) {
+  mu_control <- sg_mur$mu_cond[1]
+  if (is.nan(sg_mur$mu_cond[1])) {
     mu_control <- default_control_value
   }
-  mu_case <- sg_mur$mur$mu_cond[2]
-  if (is.nan(sg_mur$mur$mu_cond[2])) {
+  mu_case <- sg_mur$mu_cond[2]
+  if (is.nan(sg_mur$mu_cond[2])) {
     mu_case <- default_case_value
   }
 
@@ -164,18 +172,23 @@ set_gwnb_hyper_params <- function(sg_mur, sigmaG0 = 4.0,
   ## when phi2G ~ gamma (alpha, beta)
   betaPhi2G <- 1.0
   ## use mean
-  alphaPhi2G <- betaPhi2G * min(10.0, sg_mur$r0)
+  if (is.nan(sg_mur$r0)) {
+    alphaPhi2G <- betaPhi2G * min(10.0, sg_mur$r0)
+  } else {
+    alphaPhi2G <- betaPhi2G * default_r0
+  }
 
+  ## for gwnb hyper param
   invisible(list(
     alphaKappa2G = 1.0,
     betaKappa2G = 1.0,
     alphaTau2G = alphaTau2G,
     betaTau2G = betaTau2G,
     ## control the mean not too small in simulaiton.
-    muG0 = max(-7.0, sg_mur$mu0),
+    muG0 = muG0,
     sigmaG0 = sigmaG0,
     alphaPhi2G = alphaPhi2G,
-    betaPhi2G = min(5, betaPhi2G)
+    betaPhi2G = betaPhi2G
   ))
 }
 
@@ -198,7 +211,7 @@ simulate_from_gwnb_prior <- function(hp, nind) {
   ))
   muind <- rnorm(nind * 2,
     mean = 0.0,
-    sd = sqrt(kappa2g)
+    sd = 0.25 * sqrt(kappa2g)
   )
 
   ## limit tau size
@@ -239,7 +252,7 @@ simulate_from_gwnb_prior <- function(hp, nind) {
 }
 
 generate_gwnc_y <- function(mug, mucond, muind, phi2g,
-                            nind, ncell) {
+                            nind, ncell, hp) {
   ## generate data based on the gwnb model
   ## given the model parameters
   ## need muind
@@ -250,11 +263,11 @@ generate_gwnc_y <- function(mug, mucond, muind, phi2g,
   ## cond in simulation start from 1 following stan.
   vec_of_cond <- c(rep(1, nind * ncell), rep(2, nind * ncell))
 
-  index_of_ind_per_cond <- get_vec_of_repeat_int(nind, ncell)
-  vec_of_ind_under_cond <- c(
-    paste0("NR", index_of_ind_per_cond),
-    paste0("R", index_of_ind_per_cond)
-  )
+  ## index_of_ind_per_cond <- get_vec_of_repeat_int(nind, ncell)
+  ## vec_of_ind_under_cond <- c(
+  ##   paste0("NR", index_of_ind_per_cond),
+  ##   paste0("R", index_of_ind_per_cond)
+  ## )
   vec_of_ind <- get_vec_of_repeat_int(nind * 2, ncell)
   y <- vapply(
     seq_len(n),
@@ -265,21 +278,24 @@ generate_gwnc_y <- function(mug, mucond, muind, phi2g,
       ))
     }, 0.0
   )
-  invisible(list(
-    n = n,
-    vec_of_cond = vec_of_cond,
-    vec_ind_under_cond = vec_of_ind_under_cond,
-    vec_of_ind = vec_of_ind,
-    s = sample_sumcnt,
-    y = y
-  ))
+  ## for gwnb
+  invisible(c(list(
+    N = n,
+    Cond = vec_of_cond,
+    ## vec_ind_under_cond = vec_of_ind_under_cond,
+    Ind = vec_of_ind,
+    S = sample_sumcnt,
+    y = y,
+    J = 2,
+    K = nind * 2
+  ), hp))
 }
 
 set_init_params <- function(simu_data, hp, nind, default_control_value = -1.0,
                             default_case_value = 1.0) {
   sy <- simu_data$y
-  ss <- simu_data$s
-  resp <- simu_data$vec_of_cond
+  ss <- simu_data$S
+  resp <- simu_data$Cond
 
   ## cond in simulation start from 1 following stan.
   index_of_control <- (resp == 1)
@@ -303,16 +319,22 @@ set_init_params <- function(simu_data, hp, nind, default_control_value = -1.0,
     fit_mur$mucond[2] <- default_case_value
   }
 
+  if (is.nan(fit_mur$r0)) {
+    phi2g <- 5.0
+  } else {
+    phi2g <- fit_mur$r0
+  }
+
   ## we use the max absolute value, and cover it by 1.5 fold
   tau2g <- max(abs(fit_mur$mu_cond)) * 1.5
   invisible(list(
     MuG = fit_mur$mu0,
     MuIndRaw = rep(0.0, nind * 2),
-    MuCond = fit_mur$mu_cond,
+    ## MuCond = fit_mur$mu_cond,
     MuCondRaw = fit_mur$mu_cond / sqrt(tau2g),
     Kappa2G = 1.0,
     Tau2G = tau2g,
-    Phi2G = fit_mur$r0
+    Phi2G = phi2g
   ))
 }
 
@@ -325,7 +347,7 @@ set_gwnb_light_env <- function(nind) {
   ## use pbmc to estimate and set the part of the parameters.
   fit <- fit_singlegene_nb()
   ## simulation from prior
-  hp <- set_gwnb_hyper_params(fit, sigmaG0 = 4.0)
+  hp <- set_gwnb_hyper_params(fit$mur)
   params <- simulate_from_gwnb_prior(hp, nind)
   invisible(list(
     sg_nbfit = fit,
@@ -335,12 +357,12 @@ set_gwnb_light_env <- function(nind) {
 }
 
 run_gwnb_model <- function(model, model_env,
-                           data, method = "vi",
+                           data, nind, method = "vi",
                            use_init = TRUE) {
   ## run the model using VI or MAP with/without init params
   init_params <- NULL
   if (use_init) {
-    t <- set_init_params(data, model_env$hp)
+    t <- set_init_params(data, model_env$hp, nind)
     init_params <- list(t)
   }
   if (method == "vi") {
@@ -420,7 +442,7 @@ hist_vi_opt <- function(vi, opt, gwnb_env, varnm,
   invisible(p)
 }
 
-visualize_vi_init <- function(vi, noi_vi, opt, noi_opt, gwnb_env,
+hist_vi_opt_varnms <- function(vi, noi_vi, opt, noi_opt, gwnb_env,
                               varnms = c(
                                 "MuG", "MuCond[1]", "MuCond[2]",
                                 "Kappa2G", "Tau2G", "Phi2G"
@@ -447,6 +469,56 @@ visualize_vi_init <- function(vi, noi_vi, opt, noi_opt, gwnb_env,
   invisible(l)
 }
 
+debug_check_model <- function() {
+  nind <- 5
+  ncell <- 200
+  model <- gwnb_model
+
+  ## using simulated data to check vi
+  model_env <- set_gwnb_light_env(nind)
+  ## ground truth
+  gt <- model_env$params_from_prior
+  data <- generate_gwnc_y(
+    mug = gt$mug,
+    mucond = gt$mucond,
+    muind = gt$muind,
+    phi2g = gt$phi2g,
+    nind = nind,
+    ncell = ncell,
+    hp = model_env$hp
+  )
+  vifit <- run_gwnb_model(model,
+    model_env,
+    data,
+    nind,
+    method = "vi",
+    use_init = TRUE
+  )
+  noi_vifit <- run_gwnb_model(model,
+    model_env,
+    data,
+    nind,
+    method = "vi",
+    use_init = FALSE
+  )
+  optfit <- run_gwnb_model(model,
+    model_env,
+    data,
+    nind,
+    method = "opt",
+    use_init = TRUE
+  )
+  noi_optfit <- run_gwnb_model(model,
+    model_env,
+    data,
+    nind,
+    method = "opt",
+    use_init = FALSE
+  )
+  l <- hist_vi_opt_varnms(vifit, noi_vifit,
+    optfit, noi_optfit, model_env)
+}
+
 
 check_model <- function(tag = 1, model = gwnb_model,
                         ninds = ninds, ncells = ncells) {
@@ -457,7 +529,7 @@ check_model <- function(tag = 1, model = gwnb_model,
 
   l_of_ind <- lapply(ninds, function(nind) {
     ## using simulated data to check vi
-    model_env <- set_gwnb_light_env()
+    model_env <- set_gwnb_light_env(nind)
     ## ground truth
     gt <- model_env$params_from_prior
     l_of_cell <- lapply(ncells, function(ncell) {
@@ -467,33 +539,38 @@ check_model <- function(tag = 1, model = gwnb_model,
         muind = gt$muind,
         phi2g = gt$phi2g,
         nind = nind,
-        ncell = ncell
+        ncell = ncell,
+        hp = model_env$hp
       )
       vifit <- run_gwnb_model(model,
         model_env,
         data,
+        nind,
         method = "vi",
         use_init = TRUE
       )
       noi_vifit <- run_gwnb_model(model,
         model_env,
         data,
+        nind,
         method = "vi",
         use_init = FALSE
       )
       optfit <- run_gwnb_model(model,
         model_env,
         data,
+        nind,
         method = "opt",
         use_init = TRUE
       )
       noi_optfit <- run_gwnb_model(model,
         model_env,
         data,
+        nind,
         method = "opt",
         use_init = FALSE
       )
-      invisible(hist_vi_opt(
+      invisible(hist_vi_opt_varnms(
         vifit, noi_vifit,
         optfit, noi_optfit, model_env
       ))
@@ -505,7 +582,7 @@ check_model <- function(tag = 1, model = gwnb_model,
 }
 
 ## for debug
-figures <- check_model(1, gwnb_model, ninds, ncells)
+l <- debug_check_model()
 
 ## main
 ## lapply(seq_len(3), function(i) {

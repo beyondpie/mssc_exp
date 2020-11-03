@@ -6,7 +6,7 @@
 
 data {
 	int n;
-	vector<lower=100>[n] s; // scale factor
+	vector<lower=0>[n] s; // scale factor
 	int<lower=0> y[n]; // count
 	real<lower=0> r; // dispersion/size in nb.
 }
