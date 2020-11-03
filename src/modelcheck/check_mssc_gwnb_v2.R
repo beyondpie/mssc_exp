@@ -94,11 +94,18 @@ subscdata <- mypbmc$get_celltype_specific_scdata(
 cnt <- subscdata$cnt
 inds <- subscdata$inds
 resp <- subscdata$resp
+sumcnt <- colSums(cnt)
 ## we can save sumcnt as a pool to sample.
-sumcnt <- colSums(cnt) / scale_factor
+## sumcnt <- colSums(cnt) / scale_factor
 
 
 ## functions
+is_vi_or_opt_success <- function(vi_or_opt) {
+  if (vi_or_opt$runset$procs$get_proc(1)$get_exit_status() == 0) {
+    return(TRUE)
+  }
+  return(FALSE)
+}
 fit_singlegene_nb <- function() {
   ## get mu0, mucond, r as in mssc gwnb model
   ## from the real dataset
@@ -133,7 +140,7 @@ fit_singlegene_nb <- function() {
 }
 
 set_gwnb_hyper_params <- function(sg_mur, sigmaG0 = 2.0,
-                                  default_muG0 =  -1.0,
+                                  default_muG0 = -6.0,
                                   default_r0 = 2,
                                   default_control_value = 1.0,
                                   default_case_value = -2.0) {
@@ -418,35 +425,39 @@ hist_vi_opt <- function(vi, opt, gwnb_env, varnm,
 
   ## add hist graph with two lines:
   ## simulation truth and designed init params.
-  p <- bayesplot::mcmc_hist(vi$draws(varnm)) +
-    bayesplot::vline_at(ground_truth,
-      size = lsize[1], alpha = lalpha[1],
-      color = lcolor[1], linetype = ltype[1]
-    )
-  if (show_init) {
-    p <- p +
-      bayesplot::vline_at(init_value,
-        size = lsize[2], alpha = lalpha[2],
-        color = lcolor[2], linetype = ltype[2]
+  if (is_vi_or_opt_success(vi)) {
+    p <- bayesplot::mcmc_hist(vi$draws(varnm)) +
+      bayesplot::vline_at(ground_truth,
+        size = lsize[1], alpha = lalpha[1],
+        color = lcolor[1], linetype = ltype[1]
       )
-  }
+    if (show_init) {
+      p <- p +
+        bayesplot::vline_at(init_value,
+          size = lsize[2], alpha = lalpha[2],
+          color = lcolor[2], linetype = ltype[2]
+        )
+    }
 
-  if (show_opt) {
-    p <- p +
-      bayesplot::vline_at(opt$mle(varnm),
-        size = lsize[3],
-        alpha = lalpha[3], color = lcolor[3], linetype = ltype[3]
-      )
+    if (show_opt && is_vi_or_opt_success(opt)) {
+      p <- p +
+        bayesplot::vline_at(opt$mle(varnm),
+          size = lsize[3],
+          alpha = lalpha[3], color = lcolor[3], linetype = ltype[3]
+        )
+    }
+    ## p <- p + bayesplot::facet_text(size = 15, hjust = 0.5)
+    invisible(p)
+  } else {
+    return(NULL)
   }
-  ## p <- p + bayesplot::facet_text(size = 15, hjust = 0.5)
-  invisible(p)
 }
 
 hist_vi_opt_varnms <- function(vi, noi_vi, opt, noi_opt, gwnb_env,
-                              varnms = c(
-                                "MuG", "MuCond[1]", "MuCond[2]",
-                                "Kappa2G", "Tau2G", "Phi2G"
-                              )) {
+                               varnms = c(
+                                 "MuG", "MuCond[1]", "MuCond[2]",
+                                 "Kappa2G", "Tau2G", "Phi2G"
+                               )) {
   ## generate a list named with varnms
   ## and each is a list with two element in order:
   ## noivip, vip
@@ -469,58 +480,7 @@ hist_vi_opt_varnms <- function(vi, noi_vi, opt, noi_opt, gwnb_env,
   invisible(l)
 }
 
-debug_check_model <- function() {
-  nind <- 5
-  ncell <- 200
-  model <- gwnb_model
-
-  ## using simulated data to check vi
-  model_env <- set_gwnb_light_env(nind)
-  ## ground truth
-  gt <- model_env$params_from_prior
-  data <- generate_gwnc_y(
-    mug = gt$mug,
-    mucond = gt$mucond,
-    muind = gt$muind,
-    phi2g = gt$phi2g,
-    nind = nind,
-    ncell = ncell,
-    hp = model_env$hp
-  )
-  vifit <- run_gwnb_model(model,
-    model_env,
-    data,
-    nind,
-    method = "vi",
-    use_init = TRUE
-  )
-  noi_vifit <- run_gwnb_model(model,
-    model_env,
-    data,
-    nind,
-    method = "vi",
-    use_init = FALSE
-  )
-  optfit <- run_gwnb_model(model,
-    model_env,
-    data,
-    nind,
-    method = "opt",
-    use_init = TRUE
-  )
-  noi_optfit <- run_gwnb_model(model,
-    model_env,
-    data,
-    nind,
-    method = "opt",
-    use_init = FALSE
-  )
-  l <- hist_vi_opt_varnms(vifit, noi_vifit,
-    optfit, noi_optfit, model_env)
-}
-
-
-check_model <- function(tag = 1, model = gwnb_model,
+check_model <- function(model = gwnb_model,
                         ninds = ninds, ncells = ncells) {
   ## generat figures: a list of ninds
   ## each is a list of ncells
@@ -543,10 +503,7 @@ check_model <- function(tag = 1, model = gwnb_model,
         hp = model_env$hp
       )
       vifit <- run_gwnb_model(model,
-        model_env,
-        data,
-        nind,
-        method = "vi",
+        model_env, data, nind, method = "vi",
         use_init = TRUE
       )
       noi_vifit <- run_gwnb_model(model,
@@ -554,8 +511,7 @@ check_model <- function(tag = 1, model = gwnb_model,
         data,
         nind,
         method = "vi",
-        use_init = FALSE
-      )
+        use_init = FALSE)
       optfit <- run_gwnb_model(model,
         model_env,
         data,
@@ -568,27 +524,38 @@ check_model <- function(tag = 1, model = gwnb_model,
         data,
         nind,
         method = "opt",
-        use_init = FALSE
-      )
+        use_init = FALSE)
       invisible(hist_vi_opt_varnms(
         vifit, noi_vifit,
-        optfit, noi_optfit, model_env
-      ))
+        optfit, noi_optfit, model_env))
     })
     names(l_of_cell) <- ncells
+    invisible(l_of_cell)
   })
   names(l_of_ind) <- ninds
   invisible(l_of_ind)
 }
 
-## for debug
-l <- debug_check_model()
+plot_var_for_diffcells <- function(figures, varnm = "MuG", nind = 5,
+                                   ncells = ncells) {
+  ## each page for one indiviual
+  list_of_p_per_ind <- figures[[toString(nind)]]
+  list_of_p <- lapply(ncells, FUN = function(ncell) {
+    invisible(list_of_p_per_ind[[toString(ncell)]][[varnm]]$vip)
+  })
+  names(list_of_p) <- ncells
+
+  pgrid <- bayesplot::bayesplot_grid(
+                        plots = list_of_p,
+                        grid_args = list(nrow = 1))
+  invisible(pgrid)
+}
 
 ## main
-## lapply(seq_len(3), function(i) {
+## l <- lapply(seq_len(3), function(i) {
 ##   result <- tryCatch(
 ##     {
-##       figures <- check_model(i, gwnb_model,ninds, ncells)
+##       figures <- check_model(i, gwnb_model, ninds, ncells)
 ##       0L
 ##     },
 ##     error = function(e) {
@@ -597,3 +564,12 @@ l <- debug_check_model()
 ##     }
 ##   )
 ## })
+
+figures <- check_model(gwnb_model, ninds, ncells)
+
+p <- plot_var_for_diffcells(figures, varnm = "MuG", nind = 15,
+                                      ncells = ncells)
+
+
+
+
