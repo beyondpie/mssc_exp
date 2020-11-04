@@ -24,17 +24,15 @@
 *** R plots
 **** combine multiple grids
 #+begin_src R
-## https://cran.r-project.org/web/packages/egg/vignettes/Ecosystem.html
-## ggplot2 grid plot can be combined by gtable::rbind
-p <- gridExtra::grid.arrange(
-	visualize_rndeff_vi_init_nopt,
-	top = grid::textGrob(paste0("MSSC"),
-		gp = grid::gpar(fontsize = 20, font = 3)
-	),
-	bottom = grid::textGrob(paste(comp_init_col_annot,
-																lines_annot, sep = "\n"),
-													gp = grid::gpar(fontsize = 15))
-)
-grid::grid.newpage()
-grid::grid.draw(p)
+	## https://cran.r-project.org/web/packages/egg/vignettes/Ecosystem.html
+	## ggplot2 grid plot can be combined by gtable::rbind
+	p <- gridExtra::grid.arrange(
+		visualize_rndeff_vi_init_nopt,
+		top = grid::textGrob(paste0("MSSC"),
+			gp = grid::gpar(fontsize = 20, font = 3)
+		),
+		bottom = grid::textGrob(paste(comp_init_col_annot, lines_annot, sep = "\n"), gp = grid::gpar(fontsize = 15))
+	)
+	grid::grid.newpage()
+	grid::grid.draw(p)
 #+end_src
