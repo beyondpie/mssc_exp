@@ -110,7 +110,7 @@ prob_zero_nb <- function(x, rmoutliers = T) {
 
 stanfit_scalenb <- function(s, y, scale_nb_model,
                             seed = 355113, numiter = 5000,
-                            refresh = 500, r_default = 10) {
+                            refresh = 5000, r_default = 10) {
   ## mu in scaled log level, and minus log(s)
   ## use stan to fit
   result <- list(mu = NaN, r = NaN)
@@ -146,7 +146,7 @@ stanfit_scalenb <- function(s, y, scale_nb_model,
 
 stanfit_scalenb_fixed_r <- function(s, r, y, scale_nb_fixed_r_model,
                                     seed = 355113, numiter = 5000,
-                                    refresh = 500) {
+                                    refresh = 5000) {
   ## mu in scaled log level, and minus log(s)
   ## use stan to fit
   result <- list(mu = NaN)

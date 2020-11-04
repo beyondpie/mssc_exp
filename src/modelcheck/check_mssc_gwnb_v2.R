@@ -57,10 +57,6 @@ sgn <- "NFKB1"
 celltype <- "Naive CD4+ T"
 scale_factor <- 1e04
 
-## num_of_cell_per_ind <- args$ncell
-## num_of_ind_per_cond <- args$nind
-## num_of_ind <- num_of_ind_per_cond * num_of_cond
-
 ## * load stan models
 ## if compiling not work, try rebuild_cmdstan()
 snbm <- cmdstan_model(
@@ -302,8 +298,11 @@ generate_gwnc_y <- function(mug, mucond, muind, phi2g,
   ), hp))
 }
 
-set_init_params <- function(simu_data, hp, nind, default_control_value = -1.0,
-                            default_case_value = 1.0) {
+set_init_params <- function(simu_data, hp, nind,
+                            default_muG0 = -5,
+                            default_control_value = -1.0,
+                            default_case_value = 1.0,
+                            default_kappa2g = 2.0) {
   sy <- simu_data$y
   ss <- simu_data$S
   resp <- simu_data$Cond
@@ -322,32 +321,51 @@ set_init_params <- function(simu_data, hp, nind, default_control_value = -1.0,
     scale_nb_fixed_r_model = snb_fixr_m
   )
 
-  if (is.nan(fit_mur$mu_cond[1])) {
-    fit_mur$mucond[1] <- default_control_value
+  if (is.nan(fit_mur$mu0)) {
+    mug <- default_muG0
+  } else {
+    mug <- fit_mur$mu0
   }
-
-  if (is.nan(fit_mur$mu_cond[2])) {
-    fit_mur$mucond[2] <- default_case_value
-  }
-
   if (is.nan(fit_mur$r0)) {
     phi2g <- 5.0
   } else {
     phi2g <- fit_mur$r0
   }
 
+
+  if (is.nan(fit_mur$mu_cond[1])) {
+    mu_control <- default_control_value
+  } else {
+    mu_control <- fit_mur$mu_cond[1]
+  }
+
+  if (is.nan(fit_mur$mu_cond[2])) {
+    mu_case <- default_case_value
+  } else {
+    mu_case <- fit_mur$mu_cond[2]
+  }
+
   ## we use the max absolute value, and cover it by 1.5 fold
   tau2g <- max(abs(fit_mur$mu_cond)) * 1.5
 
   invisible(list(
-    MuG = fit_mur$mu0,
+    MuG = mug,
     MuIndRaw = rep(0.0, nind * 2),
-    ## MuCond = fit_mur$mu_cond,
-    MuCondRaw = fit_mur$mu_cond / sqrt(tau2g),
-    Kappa2G = 1.0,
+    MuCondRaw = c(mu_control, mu_case) / sqrt(tau2g),
+    Kappa2G = default_kappa2g,
     Tau2G = tau2g,
     Phi2G = phi2g
   ))
+}
+
+opt_update_init_param <- function(init_params, opt_params,
+                                  varnms = c(
+                                    "MuG", "Kappa2G", "Tau2G", "Phi2G"
+                                  )) {
+  for (varnm in varnms) {
+    init_params[[varnm]] <- opt_params[varnm]
+  }
+  invisible(init_params)
 }
 
 set_gwnb_light_env <- function(nind) {
@@ -395,7 +413,7 @@ hist_vi_opt <- function(vi, opt, gwnb_env, init_params, varnm,
                         lalpha = c(0.75, 0.75, 0.75),
                         lcolor = c("red", "gray20", "blue"),
                         ltype = c(1, 2, 2), show_opt = TRUE,
-                        show_init = TRUE) {
+                        show_init = FALSE) {
   ## show lines in order: ground truth; init value; MAP
 
   if (varnm == "MuG") {
@@ -430,7 +448,7 @@ hist_vi_opt <- function(vi, opt, gwnb_env, init_params, varnm,
       bayesplot::vline_at(ground_truth,
         size = lsize[1], alpha = lalpha[1],
         color = lcolor[1], linetype = ltype[1]
-        )
+      )
 
     if (show_init) {
       p <- p +
@@ -467,14 +485,14 @@ hist_vi_opt_varnms <- function(vi, noi_vi, opt, noi_opt, gwnb_env,
   l <- lapply(varnms, function(varnm) {
     p <- list(
       noivip = hist_vi_opt(noi_vi, noi_opt, gwnb_env,
-                           init_params,
+        init_params,
         varnm,
         show_opt = TRUE, show_init = FALSE
       ),
       vip = hist_vi_opt(vi, opt, gwnb_env, init_params,
         varnm,
         show_opt = TRUE,
-        show_init = TRUE
+        show_init = FALSE
       )
     )
     invisible(p)
@@ -505,33 +523,50 @@ check_model <- function(model = gwnb_model,
         ncell = ncell,
         hp = model_env$hp
       )
-      init_params <- list(set_init_params(data,
-                                          model_env$hp, nind))
+      init_params <- set_init_params(data, model_env$hp, nind)
+      optfit <- run_gwnb_model(model,
+        model_env,
+        data,
+        init_params = list(init_params),
+        method = "opt"
+      )
+      if (is_vi_or_opt_success(optfit)) {
+        ## update init by opt
+        muindrawnm <- vapply(
+          seq_len(nind),
+          function(i) {
+            stringr::str_glue("MuIndRaw[{i}]")
+          }, ""
+        )
+        opt_params <- optfit$mle()
+        init_params$MuIndRaw <- opt_params[muindrawnm]
+        mucondrawnm <- c("MuCondRaw[1]", "MuCondRaw[2]")
+        init_params$MuCondRaw <- opt_params[mucondrawnm]
+        init_params <- opt_update_init_param(init_params, opt_params)
+      }
 
       vifit <- run_gwnb_model(model,
-                              model_env, data,
-                              init_params = init_params,
-                              method = "vi")
+        model_env, data,
+        init_params = list(init_params),
+        method = "vi"
+      )
       noi_vifit <- run_gwnb_model(model,
         model_env,
         data,
         init_params = NULL,
-        method = "vi")
-      optfit <- run_gwnb_model(model,
-        model_env,
-        data,
-        init_params = init_params,
-        method = "opt"
+        method = "vi"
       )
       noi_optfit <- run_gwnb_model(model,
         model_env,
         data,
         init_params = NULL,
-        method = "opt")
+        method = "opt"
+      )
 
       invisible(hist_vi_opt_varnms(
         vifit, noi_vifit,
-        optfit, noi_optfit, init_params, model_env))
+        optfit, noi_optfit, init_params, model_env
+      ))
     })
     names(l_of_cell) <- ncells
     invisible(l_of_cell)
@@ -550,8 +585,9 @@ plot_var_for_diffcells <- function(figures, varnm = "MuG", nind = 5,
   names(list_of_p) <- ncells
 
   pgrid <- bayesplot::bayesplot_grid(
-                        plots = list_of_p,
-                        grid_args = list(nrow = 1))
+    plots = list_of_p,
+    grid_args = list(nrow = 1)
+  )
   invisible(pgrid)
 }
 
@@ -571,60 +607,86 @@ plot_var_for_diffcells <- function(figures, varnm = "MuG", nind = 5,
 
 figures <- check_model(gwnb_model, ninds, ncells)
 
-p <- plot_var_for_diffcells(figures, varnm = "MuG", nind = 15,
-                                      ncells = ncells)
-
-
-
-
-## for debug
-model <- gwnb_model
-nind <- 5
-ncell <- 300
-## using simulated data to check vi
-model_env <- set_gwnb_light_env(nind)
-## ground truth
-gt <- model_env$params_from_prior
-data <- generate_gwnc_y(
-  mug = gt$mug,
-  mucond = gt$mucond,
-  muind = gt$muind,
-  phi2g = gt$phi2g,
-  nind = nind,
-  ncell = ncell,
-  hp = model_env$hp
+p <- plot_var_for_diffcells(figures,
+  varnm = "MuCond[2]", nind = 5,
+  ncells = ncells
 )
-init_params <- list(set_init_params(data,
-                                    model_env$hp, nind))
 
-vifit <- run_gwnb_model(model,
-                        model_env, data,
-                        init_params = init_params,
-                        method = "vi")
-noi_vifit <- run_gwnb_model(model,
-  model_env,
-  data,
-  init_params = NULL,
-  method = "vi")
-optfit <- run_gwnb_model(model,
-  model_env,
-  data,
-  init_params = init_params,
-  method = "opt"
-)
-noi_optfit <- run_gwnb_model(model,
-  model_env,
-  data,
-  init_params = NULL,
-  method = "opt")
-invisible(hist_vi_opt_varnms(
-  vifit, noi_vifit,
-  optfit, noi_optfit, init_params, model_env))
 
-pp <- hist_vi_opt_varnms(
-  vifit, noi_vifit,
-  optfit, noi_optfit, model_env, init_params)
-p <- lapply(pp, function(x) {invisible(x$noivip)})
-p <- lapply(pp, function(x) {invisible(x$vip)})
 
-bayesplot::bayesplot_grid(plots=p, grid_args = list(nrow = 1))
+debug <- function() {
+  ## for debug
+  model <- gwnb_model
+  nind <- 5
+  ncell <- 300
+  ## using simulated data to check vi
+  model_env <- set_gwnb_light_env(nind)
+  ## ground truth
+  gt <- model_env$params_from_prior
+  data <- generate_gwnc_y(
+    mug = gt$mug,
+    mucond = gt$mucond,
+    muind = gt$muind,
+    phi2g = gt$phi2g,
+    nind = nind,
+    ncell = ncell,
+    hp = model_env$hp
+  )
+
+  init_params <- set_init_params(data, model_env$hp, nind)
+  optfit <- run_gwnb_model(model,
+    model_env,
+    data,
+    init_params = list(init_params),
+    method = "opt"
+  )
+  if (is_vi_or_opt_success(optfit)) {
+    ## update init by opt
+    muindrawnm <- vapply(
+      seq_len(nind),
+      function(i) {
+        stringr::str_glue("MuIndRaw[{i}]")
+      }, ""
+    )
+    opt_params <- optfit$mle()
+    init_params$MuIndRaw <- opt_params[muindrawnm]
+    mucondrawnm <- c("MuCondRaw[1]", "MuCondRaw[2]")
+    init_params$MuCondRaw <- opt_params[mucondrawnm]
+    init_params <- opt_update_init_param(init_params, opt_params)
+  }
+
+  vifit <- run_gwnb_model(model,
+    model_env, data,
+    init_params = list(init_params),
+    method = "vi"
+  )
+  noi_vifit <- run_gwnb_model(model,
+    model_env,
+    data,
+    init_params = NULL,
+    method = "vi"
+  )
+  noi_optfit <- run_gwnb_model(model,
+    model_env,
+    data,
+    init_params = NULL,
+    method = "opt"
+  )
+
+  pp <- hist_vi_opt_varnms(
+    vifit, noi_vifit,
+    optfit, noi_optfit, model_env, init_params
+  )
+  p <- lapply(pp, function(x) {
+    invisible(x$noivip)
+  })
+  p <- lapply(pp, function(x) {
+    invisible(x$vip)
+  })
+  bayesplot::bayesplot_grid(plots = p, grid_args = list(nrow = 1))
+  p <- hist_vi_opt(vifit, optfit, model_env, init_params,
+    "MuG",
+    show_opt = TRUE,
+    show_init = FALSE
+  )
+}
