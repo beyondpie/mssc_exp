@@ -50,8 +50,6 @@ options(mc.cores = 3)
 
 ## * configs
 ## for simulation
-ncells <- c(50, 100, 150, 200, 300)
-ninds <- c(5, 10, 15, 20)
 ncond <- 2
 sgn <- "NFKB1"
 celltype <- "Naive CD4+ T"
@@ -565,7 +563,9 @@ check_model <- function(model = gwnb_model,
 
       invisible(hist_vi_opt_varnms(
         vifit, noi_vifit,
-        optfit, noi_optfit, init_params, model_env
+        optfit, noi_optfit,
+        gwnb_env = model_env,
+        init_params = init_params
       ))
     })
     names(l_of_cell) <- ncells
@@ -591,102 +591,36 @@ plot_var_for_diffcells <- function(figures, varnm = "MuG", nind = 5,
   invisible(pgrid)
 }
 
-## main
-## l <- lapply(seq_len(3), function(i) {
-##   result <- tryCatch(
-##     {
-##       figures <- check_model(i, gwnb_model, ninds, ncells)
-##       0L
-##     },
-##     error = function(e) {
-##       message(e)
-##       1L
-##     }
-##   )
-## })
+ncells <- c(50, 200, 400)
+ninds <- c(5, 10)
 
 figures <- check_model(gwnb_model, ninds, ncells)
 
-p <- plot_var_for_diffcells(figures,
-  varnm = "MuCond[2]", nind = 5,
-  ncells = ncells
+tag <- 2
+varnms <- c("MuG", "MuCond[1]", "MuCond[2]", "Kappa2G", "Tau2G", "Phi2G")
+
+pdf(
+  paste0(
+  here::here("src", "modelcheck", "gwnb_figures"),
+  "/", tag, "-ninds_",
+  str_c(ninds, collapse = "_"),
+  "-ncells_",
+  str_c(ncells, collapse = "_"),
+  ".pdf"),
+width = 12, height = 10
 )
 
-
-
-debug <- function() {
-  ## for debug
-  model <- gwnb_model
-  nind <- 5
-  ncell <- 300
-  ## using simulated data to check vi
-  model_env <- set_gwnb_light_env(nind)
-  ## ground truth
-  gt <- model_env$params_from_prior
-  data <- generate_gwnc_y(
-    mug = gt$mug,
-    mucond = gt$mucond,
-    muind = gt$muind,
-    phi2g = gt$phi2g,
-    nind = nind,
-    ncell = ncell,
-    hp = model_env$hp
+for (nind in ninds) {
+  plot_diffcells <- do.call(
+    rbind,
+    lapply(varnms, function(x) {
+      plot_var_for_diffcells(figures, x,
+        nind = nind,
+        ncells = ncells
+      )
+    })
   )
-
-  init_params <- set_init_params(data, model_env$hp, nind)
-  optfit <- run_gwnb_model(model,
-    model_env,
-    data,
-    init_params = list(init_params),
-    method = "opt"
-  )
-  if (is_vi_or_opt_success(optfit)) {
-    ## update init by opt
-    muindrawnm <- vapply(
-      seq_len(nind),
-      function(i) {
-        stringr::str_glue("MuIndRaw[{i}]")
-      }, ""
-    )
-    opt_params <- optfit$mle()
-    init_params$MuIndRaw <- opt_params[muindrawnm]
-    mucondrawnm <- c("MuCondRaw[1]", "MuCondRaw[2]")
-    init_params$MuCondRaw <- opt_params[mucondrawnm]
-    init_params <- opt_update_init_param(init_params, opt_params)
-  }
-
-  vifit <- run_gwnb_model(model,
-    model_env, data,
-    init_params = list(init_params),
-    method = "vi"
-  )
-  noi_vifit <- run_gwnb_model(model,
-    model_env,
-    data,
-    init_params = NULL,
-    method = "vi"
-  )
-  noi_optfit <- run_gwnb_model(model,
-    model_env,
-    data,
-    init_params = NULL,
-    method = "opt"
-  )
-
-  pp <- hist_vi_opt_varnms(
-    vifit, noi_vifit,
-    optfit, noi_optfit, model_env, init_params
-  )
-  p <- lapply(pp, function(x) {
-    invisible(x$noivip)
-  })
-  p <- lapply(pp, function(x) {
-    invisible(x$vip)
-  })
-  bayesplot::bayesplot_grid(plots = p, grid_args = list(nrow = 1))
-  p <- hist_vi_opt(vifit, optfit, model_env, init_params,
-    "MuG",
-    show_opt = TRUE,
-    show_init = FALSE
-  )
+  grid::grid.draw(gridExtra::grid.arrange(plot_diffcells))
 }
+
+dev.off()
