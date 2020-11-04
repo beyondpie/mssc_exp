@@ -5,7 +5,7 @@
 ## - [hyper] parameters are setted based on a real dataset:
 ##   - PBMC dataset
 
-## IMPORTANT: generate y is wrong.
+## IMPORTANT: generate y is wrong without individual effect.
 
 ## * set R environment
 import::from(here, here)

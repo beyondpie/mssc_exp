@@ -9,53 +9,36 @@ library(optparse)
 import::from(here, here)
 suppressPackageStartupMessages(library(tidyverse))
 library(MCMCpack)
-
-## develop version of cmdstanr
-## devtools::install_github("stan-dev/cmdstanr")
 library(cmdstanr)
-## use the code below to reload the library
-## detach("package:cmdstanr", unload = TRUE)
-## library(cmdstanr)
-
 library(grid)
 library(gtable)
 library(gridExtra)
 library(bayesplot)
-## for bayesplot plotting
-## color_scheme_set("brewer-Spectral")
-
 library(posterior)
 library(bbmle)
 library(sads)
-## install_github("olafmersmann/truncnorm")
 library(truncnorm)
 
 ## local modules
 options("import.path" = here("rutils"))
 myt <- modules::import("transform")
 myfit <- modules::import("myfitdistr")
-## use the code below to reload the modules
-## modules::reload(myfit)
 mypseudo <- modules::import("pseudobulk")
 mypbmc <- modules::import("pbmc")
 
 ## warnings/errors traceback settings
-
-## options(error = traceback)
+options(error = traceback)
 options(warn = 0)
 options(mc.cores = 3)
 
 ## * configs
 ## for simulation
 opts <- list(
-  make_option(c("--ncell", action = "store", type = "integer", default = 200)),
-  make_option(c("--nind", action = "store", type = "integer", default = 10)),
-  make_option(c("--celltype",
-    action = "store", type = "character",
-    default = "Naive CD4+ T"
-  ))
+  make_option(c("--ncell"), action = "store", type = "integer", default = 200),
+  make_option(c("--nind"), action = "store", type = "integer", default = 10),
+  make_option(c("--celltype"), action = "store", type = "character",
+              default = "Naive CD4+ T")
 )
-
 args <- parse_args(OptionParser(option_list = opts))
 num_of_cell_per_ind <- args$ncell
 num_of_ind <- args$nind
@@ -64,18 +47,7 @@ num_of_ind_per_cond <- floor(num_of_ind / num_of_cond)
 celltype <- args$celltype
 num_top_gene <- 200
 
-## for debug
-num_of_cell_per_ind <- 200
-num_of_ind <- 10
-num_of_cond <- 2
-num_of_ind_per_cond <- floor(num_of_ind / num_of_cond)
-celltype <- "Naive CD4+ T"
-num_top_gene <- 200
-
-
 ## * load stan models
-## if compiling not work, try rebuild_cmdstan()
-
 scale_nb_model <- cmdstan_model(
   here::here("src", "stan", "scale_nb.stan")
 )
@@ -99,8 +71,9 @@ subscdata <- mypbmc$get_celltype_specific_scdata(
 
 ## * estimate hyper parameters
 ## select top 1000 genes based on pseudobulk analysis
+## use wilcox-test leads the top genes have very few counts.
+## use deseq2 instead
 
-## use pseudobulk + wilcox-test
 pseudobulk <- mypseudo$get_pseudobulk(subscdata$cnt, subscdata$inds)
 names(subscdata$resp) <- subscdata$inds
 pseudoconds <- subscdata$resp[colnames(pseudobulk)]
@@ -124,7 +97,6 @@ resp <- subscdata$resp
 cnt <- subscdata$cnt[top_ranked_index, ]
 
 ## * functions
-
 fit_singlegene_nb <- function(gn, cnt, resp, sumcnt,
                               scale_nb_model,
                               seed = 355113,
@@ -136,7 +108,6 @@ fit_singlegene_nb <- function(gn, cnt, resp, sumcnt,
   result <- list(mu0 = NaN, r0 = NaN,
     mu_cond = c(NaN, NaN),
     r_cond = c(NaN, NaN))
-
 
   y <- cnt[gn, ]
   outliers <- myfit$is_outlier(y)

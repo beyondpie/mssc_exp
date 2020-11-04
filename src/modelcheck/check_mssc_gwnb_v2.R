@@ -155,7 +155,6 @@ set_gwnb_hyper_params <- function(sg_mur, sigmaG0 = 4.0,
   alphaTau2G <- 1.0
   betaTau2G <- (alphaTau2G + 1) * max(abs(c(mu_control, mu_case))) * 1.5
 
-
   ## when phi2G ~ inv-gamma (alpha, beta)
   ## alphaPhi2G <- 1.0
   ## use mode
@@ -519,8 +518,8 @@ check_model <- function(model = gwnb_model,
         init_params = list(init_params),
         method = "opt"
       )
+      ## further update init by opt
       if (is_vi_or_opt_success(optfit)) {
-        ## update init by opt
         muindrawnm <- vapply(
           seq_len(nind),
           function(i) {
@@ -616,5 +615,4 @@ for (nind in ninds) {
   )
   grid::grid.draw(gridExtra::grid.arrange(plot_diffcells))
 }
-
 dev.off()
