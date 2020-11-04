@@ -7,43 +7,34 @@
 
 ## in the second version, we use stan to support the
 ## negative binomial fitting.
+## - stan nb fit is used for hyper parameter estimation.
+## - stan nb fit is used for init parameters
+## - stan model optimization is used for further init params.
 
 ## * set R environment
 import::from(here, here)
 suppressPackageStartupMessages(library(tidyverse))
 library(MCMCpack)
 
-## develop version of cmdstanr
-## devtools::install_github("stan-dev/cmdstanr")
 library(cmdstanr)
-## use the code below to reload the library
-## detach("package:cmdstanr", unload = TRUE)
-## library(cmdstanr)
-
 library(grid)
 library(gtable)
 library(gridExtra)
 library(bayesplot)
-## for bayesplot plotting
-## color_scheme_set("brewer-Spectral")
 
 library(posterior)
 library(bbmle)
 library(sads)
-## install_github("olafmersmann/truncnorm")
 library(truncnorm)
 
 ## local modules
 options("import.path" = here("rutils"))
 myt <- modules::import("transform")
 myfit <- modules::import("myfitdistr")
-## use the code below to reload the modules
-## modules::reload(myfit)
 mypseudo <- modules::import("pseudobulk")
 mypbmc <- modules::import("pbmc")
 
 ## warnings/errors traceback settings
-
 options(error = traceback)
 options(warn = 0)
 options(mc.cores = 3)
@@ -56,7 +47,6 @@ celltype <- "Naive CD4+ T"
 scale_factor <- 1e04
 
 ## * load stan models
-## if compiling not work, try rebuild_cmdstan()
 snbm <- cmdstan_model(
   here::here("stanutils", "scale_nb.stan"),
   compile = T, quiet = T
@@ -592,30 +582,33 @@ plot_var_for_diffcells <- function(figures, varnm = "MuG", nind = 5,
   invisible(pgrid)
 }
 
-ncells <- c(50, 200, 400)
+## * main
+ncells <- c(20, 40, 80)
 ninds <- c(5, 10, 20)
 
-figures <- check_model(gwnb_model, ninds, ncells)
+figures <- check_model(gwnb_model, ninds = ninds, ncells = ncells)
 
-tag <- 3
+tag <- 5
 varnms <- c("MuG", "MuCond[1]", "MuCond[2]", "Kappa2G", "Tau2G", "Phi2G")
 
 pdf(
   paste0(
-  here::here("src", "modelcheck", "gwnb_figures"),
-  "/", tag, "-ninds_",
-  str_c(ninds, collapse = "_"),
-  "-ncells_",
-  str_c(ncells, collapse = "_"),
-  ".pdf"),
-width = 12, height = 10
+    here::here("src", "modelcheck", "gwnb_figures"),
+    "/", tag, "-ninds_",
+    str_c(ninds, collapse = "_"),
+    "-ncells_",
+    str_c(ncells, collapse = "_"),
+    ".pdf"
+  ),
+  width = 12, height = 10
 )
 
 for (nind in ninds) {
   plot_diffcells <- do.call(
     rbind,
     lapply(varnms, function(x) {
-      plot_var_for_diffcells(figures, x,
+      plot_var_for_diffcells(figures,
+        varnm = x,
         nind = nind,
         ncells = ncells
       )

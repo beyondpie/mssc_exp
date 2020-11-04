@@ -1,0 +1,40 @@
+* Model check
+
+** Note
+*** R reload package:
+		- `detach("package:cmdstanr", unload = TRUE); library(cmdstanr)`
+		- use `cmdstanr` to install `cmdstan`
+			- `cmdstanr::install_cmdstan()`
+		- if face PCH old or new error:
+			- `cmdstanr::rebuild_cmdstan()`
+			
+*** R `cmdstanr` package usage
+		- use `devtools::install_github("stan-dev/cmdstanr")` to install
+			
+*** R `bayesplot` usage	
+    - `color_scheme_set("brewer-Spectral")`
+
+*** R other packages
+		- truncnorm
+			- `devtools::install_github("olafmersmann/truncnorm")`
+
+*** R `modules` usage
+		- reload modules: `modules::reload(my_module)`
+			
+*** R plots
+**** combine multiple grids
+#+begin_src R
+## https://cran.r-project.org/web/packages/egg/vignettes/Ecosystem.html
+## ggplot2 grid plot can be combined by gtable::rbind
+		p <- gridExtra::grid.arrange(
+			visualize_rndeff_vi_init_nopt,
+			top = grid::textGrob(paste0("MSSC"),
+				gp = grid::gpar(fontsize = 20, font = 3)
+			),
+			bottom = grid::textGrob(paste(comp_init_col_annot,
+																		lines_annot, sep = "\n"),
+															gp = grid::gpar(fontsize = 15))
+		)
+		grid::grid.newpage()
+		grid::grid.draw(p)
+#+end_src
