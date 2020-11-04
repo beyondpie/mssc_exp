@@ -100,6 +100,7 @@ is_vi_or_opt_success <- function(vi_or_opt) {
   }
   return(FALSE)
 }
+
 fit_singlegene_nb <- function() {
   ## get mu0, mucond, r as in mssc gwnb model
   ## from the real dataset
@@ -133,11 +134,11 @@ fit_singlegene_nb <- function() {
   ))
 }
 
-set_gwnb_hyper_params <- function(sg_mur, sigmaG0 = 2.0,
+set_gwnb_hyper_params <- function(sg_mur, sigmaG0 = 4.0,
                                   default_muG0 = -6.0,
                                   default_r0 = 2,
-                                  default_control_value = 1.0,
-                                  default_case_value = -2.0) {
+                                  default_control_value = -1.0,
+                                  default_case_value = 1.0) {
   ## set hyper params based on the fitted sg_mur
   ## from a real dataset
 
@@ -204,7 +205,7 @@ get_vec_of_repeat_int <- function(to_int, repeatimes, from_int = 1) {
 
 simulate_from_gwnb_prior <- function(hp, nind,
                                      max_kappa2g = 1.0,
-                                     max_tau2g = 2.0,
+                                     max_tau2g = 1.0,
                                      max_phi2g = 10.0,
                                      max_mucond = 1.5) {
   ## sampling the parameters from the prior
@@ -592,11 +593,11 @@ plot_var_for_diffcells <- function(figures, varnm = "MuG", nind = 5,
 }
 
 ncells <- c(50, 200, 400)
-ninds <- c(5, 10)
+ninds <- c(5, 10, 20)
 
 figures <- check_model(gwnb_model, ninds, ncells)
 
-tag <- 2
+tag <- 3
 varnms <- c("MuG", "MuCond[1]", "MuCond[2]", "Kappa2G", "Tau2G", "Phi2G")
 
 pdf(
