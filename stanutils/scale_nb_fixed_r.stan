@@ -1,5 +1,4 @@
 // fit scaled negative binomial dist.
-// consider the random effect
 // fit one gene at a time
 
 // may have numerical problem.

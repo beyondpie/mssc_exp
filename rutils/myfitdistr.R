@@ -2,6 +2,22 @@ is_outlier <- function(x, up_prob = 0.995) {
   invisible(x > 5 * quantile(x, up_prob))
 }
 
+is_vi_or_opt_success <- function(vi_or_opt) {
+  ## https://github.com/stan-dev/cmdstanr/issues/332
+  if (vi_or_opt$runset$procs$get_proc(1)$get_exit_status() == 0) {
+    return(TRUE)
+  }
+  return(FALSE)
+}
+
+str_glue_vec <- function(nm = "MuInd", a = seq_len(10),
+                         lround = "[", rround = "]") {
+  invisible(vapply(a, function(i) {
+    stringr::str_glue("{nm}{lround}{lround}{i}{rround}")},
+    FUN.VALUE = ""
+    ))
+}
+
 grpoutliers <- function(cntgbc) {
   outliers <- sapply(cntgbc, 1, is_outlier)
   invisible(rowSums(outliers) > 0)
@@ -170,6 +186,33 @@ stanfit_scalenb_fixed_r <- function(s, r, y, scale_nb_fixed_r_model,
     result$mu <- t["mu"]
   }
   invisible(result)
+}
+
+stanfit_snb_for_muind <- function(s, y, vec_of_ind, mu, r,
+                                  model, nm = "MuInd",
+                                  seed = 1L, numiter= 5000,
+                                  refresh = 5000) {
+  ## fit muind under scale negative binomial scene
+  ## vec_of_ind:  [1,1, 2, 2, 3,4] like.
+
+  k <- max(vec_of_ind)
+  n <- length(s)
+  param_nms <- str_glue_vec(nm = nm, a = seq_len(k))
+  mu_ind <- rep(NaN, k)
+  names(mu_ind) <- param_nms
+  opt <- model$optimize(
+                 data = list(n = n, s = s, y= y, k =k,
+                             ind = vec_of_ind, mu = mu,
+                             r = r),
+                 init = list(list(mu = rep(0.0, k))),
+                 algorithm = "lbfgs"
+               )
+  if (is_vi_or_opt_success(opt)) {
+    t <- opt$mle()
+    mu_ind <- t[param_nms]
+  }
+
+  invisible(mu_ind)
 }
 
 
@@ -523,4 +566,20 @@ estimate_zeroratios <- function(cntgbc, cellmeta_inds,
     )
   }) %>% do.call(what = rbind, args = .)
   invisible(zrs)
+}
+
+
+
+fit_multgenes_nb <- function(cnt, resp, sumcnt,
+                             scale_nb_model,
+                             seed = 355113,
+                             id_control = 0) {
+  result <- lapply(seq_len(nrow(cnt)),
+    FUN = function(i) {
+      unlist(fit_singlegene_nb(i, cnt, resp, sumcnt,
+        scale_nb_model, seed, id_control))
+    })
+  matres <- do.call(rbind, result)
+  rownames(matres) <- rownames(cnt)
+  invisible(matres)
 }

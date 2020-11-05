@@ -5,47 +5,38 @@
 ## Hyper parameters are learned from the real dataset: PBMC.
 
 ## * set R environment
-library(optparse)
-import::from(here, here)
-suppressPackageStartupMessages(library(tidyverse))
-library(MCMCpack)
-library(cmdstanr)
-library(grid)
-library(gtable)
-library(gridExtra)
-library(bayesplot)
-library(posterior)
-library(bbmle)
-library(sads)
-library(truncnorm)
-
-## local modules
+source("set_r_lib_env.R")
 options("import.path" = here("rutils"))
 myt <- modules::import("transform")
 myfit <- modules::import("myfitdistr")
 mypseudo <- modules::import("pseudobulk")
 mypbmc <- modules::import("pbmc")
 
-## warnings/errors traceback settings
-options(error = traceback)
-options(warn = 0)
-options(mc.cores = 3)
-
 ## * configs
-## for simulation
-opts <- list(
-  make_option(c("--ncell"), action = "store", type = "integer", default = 200),
-  make_option(c("--nind"), action = "store", type = "integer", default = 10),
-  make_option(c("--celltype"), action = "store", type = "character",
-              default = "Naive CD4+ T")
-)
-args <- parse_args(OptionParser(option_list = opts))
-num_of_cell_per_ind <- args$ncell
-num_of_ind <- args$nind
-num_of_cond <- 2
-num_of_ind_per_cond <- floor(num_of_ind / num_of_cond)
-celltype <- args$celltype
-num_top_gene <- 200
+## number of conditions
+k <- 10
+j <- 2
+
+## ** mssc data settings
+g <- 200
+
+## ** mssc hbnb params default settings
+## *** default hyper params
+dhp <- list(mu0 = rep(0.0, g),
+            hp_varofmu = c(1.0, 1.0),
+            hp_r = c(1.0, 1.0),
+            hp_alpha_varofind = c(1.0, 1.0),
+            hp_beta_varofind = c(1.0, 1.0),
+            hp_alpha_varofcond = c(1.0, 1.0),
+            hp_beta_varofcond = c(1.0, 1.0))
+## *** default init params
+dip <- list(nb_r = rep(10.0, g),
+            varofmu = 25.0,
+            raw_mu = rep(0.0, g),
+            raw_mu_cond = array(0.0, dim = c(j, g)),
+            raw_mu_ind = array(0.0, dim = c(k, g)),
+            hp_varofcond = rep(4.0, g),
+            varofind = rep(1.0, g))
 
 ## * load stan models
 scale_nb_model <- cmdstan_model(
@@ -56,98 +47,4 @@ mssc_hbnb_rndeff_model <- cmdstan_model(
   compile = T, quiet = FALSE
 )
 
-## * load pbmc dataset
-pbmc_seurat <- mypbmc$load_pbmc_seurat() %>%
-  mypbmc$extract_from_seurat(pbmc_seurat = .)
-## limit to a cell type
-subscdata <- mypbmc$get_celltype_specific_scdata(
-  pbmc_seurat$cnt,
-  pbmc_seurat$resp,
-  pbmc_seurat$inds,
-  pbmc_seurat$ct,
-  ## limit to the cell type
-  celltype
-)
-
-## * estimate hyper parameters
-## select top 1000 genes based on pseudobulk analysis
-## use wilcox-test leads the top genes have very few counts.
-## use deseq2 instead
-
-pseudobulk <- mypseudo$get_pseudobulk(subscdata$cnt, subscdata$inds)
-names(subscdata$resp) <- subscdata$inds
-pseudoconds <- subscdata$resp[colnames(pseudobulk)]
-
-pseudo_analysis <- mypseudo$pseudobulk_deseq2(
-  subscdata$cnt,
-  subscdata$inds, subscdata$resp
-)
-na_index_from_pseudo <- which(is.na(pseudo_analysis$pvalue) == TRUE)
-pseudo_analysis$pvalue[na_index_from_pseudo] <- 1.0
-
-top_ranked_index <- order(pseudo_analysis$pvalue,
-                          decreasing = FALSE)[1:num_top_gene]
-pvalue_pseudo_deseq2 <- pseudo_analysis$pvalue[top_ranked_index]
-
-## finally used pbmc data
-## use all the counts to get sumcnt
-sumcnt <- colSums(subscdata$cnt)
-inds <- subscdata$inds
-resp <- subscdata$resp
-cnt <- subscdata$cnt[top_ranked_index, ]
-
 ## * functions
-fit_singlegene_nb <- function(gn, cnt, resp, sumcnt,
-                              scale_nb_model,
-                              seed = 355113,
-                              id_control = 0) {
-  ## fit nb distribute to get scaled mu0 and nb dispersion called r.
-  ## may fail to fit due to data specificity.
-  ## gn can gene name or gene id.
-
-  result <- list(mu0 = NaN, r0 = NaN,
-    mu_cond = c(NaN, NaN),
-    r_cond = c(NaN, NaN))
-
-  y <- cnt[gn, ]
-  outliers <- myfit$is_outlier(y)
-  y <- y[!outliers]
-  conds <- resp[!outliers]
-  s <- sumcnt[!outliers]
-
-  ## fit nb distr for mu0
-  mur0 <- myfit$stan_fit_scalenb(s, y, scale_nb_model, seed)
-  result$mu0  <- mur0$mu
-  result$r0 <- mur0$r
-
-  ## fit nb distr for mu_cond
-  y_control <- y[conds == id_control]
-  s_control <- s[conds == id_control]
-
-  y_case <- y[conds != id_control]
-  s_case <- s[conds != id_control]
-
-  mur_control <- myfit$stan_fit_scalenb(s_control,
-                                        y_control,
-                                        scale_nb_model, seed)
-  mur_case <- myfit$stan_fit_scalenb(s_case, y_case, scale_nb_model, seed)
-
-  result$mu_cond <- c(mur_control$mu, mur_case$mu)
-  result$r_cond <- c(mur_control$r, mur_case$r)
-  invisible(result)
-}
-
-fit_multgenes_nb <- function(cnt, resp, sumcnt,
-                             scale_nb_model,
-                             seed = 355113,
-                             id_control = 0) {
-  result <- lapply(seq_len(nrow(cnt)),
-                   FUN = function(i) {
-                     unlist(fit_singlegene_nb(i, cnt, resp, sumcnt,
-                                       scale_nb_model, seed, id_control))
-                   })
-  matres <- do.call(rbind, result)
-  rownames(matres) <- rownames(cnt)
-  invisible(matres)
-}
-
