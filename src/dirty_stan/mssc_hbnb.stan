@@ -42,8 +42,6 @@ parameters{
 
 	vector<lower=0>[g] hp_varofind[2];
 	vector<lower=0>[g] varofind;
-
-	vector<lower=0>[n] raw_sumofmu[g];
 }
 
 transformed parameters {

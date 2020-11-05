@@ -42,6 +42,7 @@ dip <- list(nb_r = rep(10.0, g),
 snbm <- cmdstan_model(
   here::here("src", "stan", "scale_nb.stan")
 )
+
 hbnbm <- cmdstan_model(
   here::here("src", "dirty_stan", "hbnb_rndeff.stan"),
   compile = T, quiet = FALSE

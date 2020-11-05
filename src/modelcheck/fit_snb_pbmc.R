@@ -4,6 +4,9 @@
 ## * load R env
 source("set_r_lib_env.R")
 
+## * load param fitting functions
+source("mssc_param_fitting.R")
+
 ## local modules
 options("import.path" = here("rutils"))
 myt <- modules::import("transform")
@@ -26,10 +29,6 @@ snbm_for_mucond <- cmdstanr::cmdstan_model(
   here::here("src", "stan", "scale_nb_fixed_r.stan"),
   compile = T, quiet = F)
 
-snbm_for_muind <- cmdstanr::cmdstan_model(
-  here::here("src", "stan", "scale_nb_fixed_r_mu.stan"),
-  compile = T, quiet = F)
-
 ## * load pbmc dataset
 pbmc_seurat <- mypbmc$load_pbmc_seurat() %>%
   mypbmc$extract_from_seurat(pbmc_seurat = .)
@@ -43,8 +42,8 @@ subscdata <- mypbmc$get_celltype_specific_scdata(
   celltype
 )
 
-## * estimate mssc hyper parameters
-## select top genes based on pseudobulk analysis
+
+## * select top genes based on pseudobulk analysis
 ## - [NO] use wilcox-test leads the top genes have very few counts.
 ## - [YES] use deseq2 instead
 
@@ -69,3 +68,9 @@ sumcnt <- colSums(subscdata$cnt)
 inds <- subscdata$inds
 resp <- subscdata$resp
 cnt <- subscdata$cnt[top_ranked_index, ]
+
+## * estimate mssc parameters
+mfit <- fit_multgenes_nb(cnt = cnt, s = sumcnt,
+                 cond = resp + 1, ind = inds,
+                 snbm = snbm_for_mur,
+                 snbm_for_mucond = snbm_for_mucond)
