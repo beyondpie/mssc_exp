@@ -39,10 +39,10 @@ dip <- list(nb_r = rep(10.0, g),
             varofind = rep(1.0, g))
 
 ## * load stan models
-scale_nb_model <- cmdstan_model(
+snbm <- cmdstan_model(
   here::here("src", "stan", "scale_nb.stan")
 )
-mssc_hbnb_rndeff_model <- cmdstan_model(
+hbnbm <- cmdstan_model(
   here::here("src", "dirty_stan", "hbnb_rndeff.stan"),
   compile = T, quiet = FALSE
 )

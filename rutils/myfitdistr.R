@@ -123,98 +123,90 @@ prob_zero_nb <- function(x, rmoutliers = T) {
   ))
 }
 
+init_snb_logmu <- function(y, median_of_s) {
+  ## init scale negative binomial log mu.
+  ## y should not be all zeros.
+  return(log(mean(y)) - log(median_of_s))
+}
+init_snb <- function(s, y, r_default = 10) {
+  ## directly use sample mean and variance to
+  ## estiamte the parameters for scaled negative binomial
+  ## ref: MASS::fitdistr for nb
+  m <- mean(y)
+  v <- var(y)
+  r <- if(v>m) {
+         m^2 / (v-m)
+       } else {
+         r_default
+       }
+  invisible(list(mu = init_snb_logmu(y, median(s)),
+                 r = r))
+}
+
 
 stanfit_scalenb <- function(s, y, scale_nb_model,
                             seed = 355113, numiter = 5000,
                             refresh = 5000, r_default = 10) {
   ## mu in scaled log level, and minus log(s)
   ## use stan to fit
-  result <- list(mu = NaN, r = NaN)
+  result <- list(mu = NaN, r = NaN, success = FALSE)
   # fit scaled negative binomial using stan
-  n <- length(s)
-  ## ref: MASS::fitdistr for nb
-  m <- mean(y)
-  v <- var(y)
-  r <- if (v > m) {
-    m^2 / (v - m)
-  } else {
-    r_default
-  }
+  init_mur <- init_snb(s, y, r_default)
+
   opt <- scale_nb_model$optimize(
-    data = list(n = n, s = s, y = y),
+    data = list(n = length(s), s = s, y = y),
     seed = seed,
     refresh = refresh,
     iter = numiter,
-    init = list(list(
-      mu = log(m) - log(median(s)),
-      r = r
-    )),
+    init = list(init_mur),
     algorithm = "lbfgs"
-  )
-  ## https://github.com/stan-dev/cmdstanr/issues/332
-  if (opt$runset$procs$get_proc(1)$get_exit_status()  == 0) {
+    )
+
+  if (is_vi_or_opt_success(opt)) {
     t <- opt$mle()
     result$mu <- t["mu"]
     result$r <- t["r"]
+    result$success <- TRUE
+  } else {
+    ## message("STAN cannot fit scaled nb.")
+    result$mu <- init_mur$mu
+    result$r <- init_mur$r
+    result$success <- FALSE
   }
   invisible(result)
 }
 
-stanfit_scalenb_fixed_r <- function(s, r, y, scale_nb_fixed_r_model,
+stanfit_scalenb_fixed_r <- function(s, r, y, model,
                                     seed = 355113, numiter = 5000,
                                     refresh = 5000) {
   ## mu in scaled log level, and minus log(s)
   ## use stan to fit
-  result <- list(mu = NaN)
+
+  result <- list(mu = NaN, success = FALSE)
   # fit scaled negative binomial using stan
   n <- length(s)
   ## ref: MASS::fitdistr for nb
-  m <- mean(y)
-  opt <- scale_nb_fixed_r_model$optimize(
+  ## y should be not all zeros.
+  init_mu <- init_snb_logmu(y, median(s))
+  opt <- model$optimize(
     data = list(n = n, s = s, y = y, r = r),
     seed = seed,
     refresh = refresh,
     iter = numiter,
     init = list(list(
-      mu = log(m) - log(median(s))
+      mu = init_mu
     )),
     algorithm = "lbfgs"
   )
-  ## https://github.com/stan-dev/cmdstanr/issues/332
-  if (opt$runset$procs$get_proc(1)$get_exit_status() == 0) {
+  if (is_vi_or_opt_success(opt)) {
     t <- opt$mle()
     result$mu <- t["mu"]
+    result$success <- TRUE
+  } else {
+    result$mu <- init_mu
   }
   invisible(result)
 }
-
-stanfit_snb_for_muind <- function(s, y, vec_of_ind, mu, r,
-                                  model, nm = "MuInd",
-                                  seed = 1L, numiter= 5000,
-                                  refresh = 5000) {
-  ## fit muind under scale negative binomial scene
-  ## vec_of_ind:  [1,1, 2, 2, 3,4] like.
-
-  k <- max(vec_of_ind)
-  n <- length(s)
-  param_nms <- str_glue_vec(nm = nm, a = seq_len(k))
-  mu_ind <- rep(NaN, k)
-  names(mu_ind) <- param_nms
-  opt <- model$optimize(
-                 data = list(n = n, s = s, y= y, k =k,
-                             ind = vec_of_ind, mu = mu,
-                             r = r),
-                 init = list(list(mu = rep(0.0, k))),
-                 algorithm = "lbfgs"
-               )
-  if (is_vi_or_opt_success(opt)) {
-    t <- opt$mle()
-    mu_ind <- t[param_nms]
-  }
-
-  invisible(mu_ind)
-}
-
 
 stanfit_gwsnb_till_cond_level <- function(s, y,
                                           s_control,
@@ -247,6 +239,7 @@ stanfit_gwsnb_till_cond_level <- function(s, y,
     s_control, mur_all$r, y_control,
     scale_nb_fixed_r_model
   )
+  ## TODO: stanfit logic is changed.
   if (!is.nan(mur_control$mu)) {
     result$mu_cond[1] <- mur_control$mu - mur_all$mu
   }
@@ -255,12 +248,87 @@ stanfit_gwsnb_till_cond_level <- function(s, y,
     s_case, mur_all$r, y_case,
     scale_nb_fixed_r_model
   )
+  ## TODO: stanfit logic is changed.
   if (!is.nan(mur_case$mu)) {
     result$mu_cond[2] <- mur_case$mu - mur_all$mu
   }
   return(invisible(result))
 }
 
+
+stanfit_snb_for_muind <- function(s, y, vec_of_ind, mu, r,
+                                  model, nm = "MuInd",
+                                  seed = 1L, numiter = 5000,
+                                  refresh = 5000) {
+  ## fit muind under scale negative binomial scene
+  ## vec_of_ind:  [1,1, 2, 2, 3,4] like.
+
+  k <- max(vec_of_ind)
+  n <- length(s)
+  param_nms <- str_glue_vec(nm = nm, a = seq_len(k))
+  mu_ind <- rep(NaN, k)
+  names(mu_ind) <- param_nms
+  opt <- model$optimize(
+    data = list(n = n, s = s, y = y, k = k,
+      ind = vec_of_ind, mu = mu,
+      r = r),
+    init = list(list(mu = rep(0.0, k))),
+    algorithm = "lbfgs"
+  )
+  if (is_vi_or_opt_success(opt)) {
+    t <- opt$mle()
+    mu_ind <- t[param_nms]
+  }
+
+  invisible(mu_ind)
+}
+
+stanfit_gwsnb_to_ind_level <- function(s, y, vec_of_cond,
+                                         vec_of_ind, snbm,
+                                         snbm_for_mucond,
+                                       snbm_for_muind,
+                                       r_default = 10.0) {
+  ## fit mu0, r0; then mu_cond; then mu_ind
+  ## index follows stan hbnb, starting from 1.
+  k <- max(vec_of_ind) # num of ind
+  result <- list(mu0 = NaN, r0 = NaN,
+                 mu_cond = c(NaN, NaN),
+                 mu_ind = rep(NaN, k))
+  if (sum(y) < 1) {
+    message("[BUG]: sum of y is zero.")
+    return(invisible(result))
+  }
+  mur_all <- stanfit_scalenb(s, y, snbm)
+  result$mu0 <- mur_all$mu
+  result$r0 <- mur_all$r
+
+  ## for mu_cond
+  index_control <- (vec_of_cond == 1)
+  y_control <- y[index_control]
+  if (sum(y_control) < 1) {
+    message("y in control are zeros.")
+    result$mu_cond[1] <- 0.0
+  } else {
+    mu_control <- stanfit_scalenb_fixed_r(s = s[index_control],
+                                           r = result$r0,
+                                           y = y_control,
+                                          model = snbm_for_mucond)
+    result$mu_cond[1] <- mu_control - result$mu0
+  }
+  index_case <- (vec_of_cond == 2)
+  y_case <- y[index_case]
+  if (sum(y_case) < 1) {
+    message("y in case are zeros.")
+    result$mu_cond[2] <- 0.0
+  } else {
+    mu_case <- stanfit_scalenb_fixed_r(s = s[index_case],
+                                       r = result$r0,
+                                       y = y_case,
+                                       model = snbm_for_mucond)
+    result$mu_cond[2] <- mu_case - result$mu0
+  }
+  ## for mu_ind
+}
 
 nbfit_mur <- function(x) {
   ## r or its reciprocal 1/r is also called dispersion
