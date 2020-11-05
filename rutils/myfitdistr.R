@@ -283,53 +283,6 @@ stanfit_snb_for_muind <- function(s, y, vec_of_ind, mu, r,
   invisible(mu_ind)
 }
 
-stanfit_gwsnb_to_ind_level <- function(s, y, vec_of_cond,
-                                         vec_of_ind, snbm,
-                                         snbm_for_mucond,
-                                       snbm_for_muind,
-                                       r_default = 10.0) {
-  ## fit mu0, r0; then mu_cond; then mu_ind
-  ## index follows stan hbnb, starting from 1.
-  k <- max(vec_of_ind) # num of ind
-  result <- list(mu0 = NaN, r0 = NaN,
-                 mu_cond = c(NaN, NaN),
-                 mu_ind = rep(NaN, k))
-  if (sum(y) < 1) {
-    message("[BUG]: sum of y is zero.")
-    return(invisible(result))
-  }
-  mur_all <- stanfit_scalenb(s, y, snbm)
-  result$mu0 <- mur_all$mu
-  result$r0 <- mur_all$r
-
-  ## for mu_cond
-  index_control <- (vec_of_cond == 1)
-  y_control <- y[index_control]
-  if (sum(y_control) < 1) {
-    message("y in control are zeros.")
-    result$mu_cond[1] <- 0.0
-  } else {
-    mu_control <- stanfit_scalenb_fixed_r(s = s[index_control],
-                                           r = result$r0,
-                                           y = y_control,
-                                          model = snbm_for_mucond)
-    result$mu_cond[1] <- mu_control - result$mu0
-  }
-  index_case <- (vec_of_cond == 2)
-  y_case <- y[index_case]
-  if (sum(y_case) < 1) {
-    message("y in case are zeros.")
-    result$mu_cond[2] <- 0.0
-  } else {
-    mu_case <- stanfit_scalenb_fixed_r(s = s[index_case],
-                                       r = result$r0,
-                                       y = y_case,
-                                       model = snbm_for_mucond)
-    result$mu_cond[2] <- mu_case - result$mu0
-  }
-  ## for mu_ind
-}
-
 nbfit_mur <- function(x) {
   ## r or its reciprocal 1/r is also called dispersion
   ## -- 1/r as dispersion  in the paper
@@ -634,20 +587,4 @@ estimate_zeroratios <- function(cntgbc, cellmeta_inds,
     )
   }) %>% do.call(what = rbind, args = .)
   invisible(zrs)
-}
-
-
-
-fit_multgenes_nb <- function(cnt, resp, sumcnt,
-                             scale_nb_model,
-                             seed = 355113,
-                             id_control = 0) {
-  result <- lapply(seq_len(nrow(cnt)),
-    FUN = function(i) {
-      unlist(fit_singlegene_nb(i, cnt, resp, sumcnt,
-        scale_nb_model, seed, id_control))
-    })
-  matres <- do.call(rbind, result)
-  rownames(matres) <- rownames(cnt)
-  invisible(matres)
 }
