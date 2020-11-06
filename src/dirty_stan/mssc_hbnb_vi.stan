@@ -16,7 +16,8 @@ data {
 	vector<upper=0>[g] mu0; // mean of scaled log mean of exp;
 	vector<lower=0>[2] hp_varofmu;
 
-	vector<lower=0>[2] hp_r;
+	vector<lower=0>[2] hp_alpha_r;
+	vector<lower=0>[2] hp_beta_r;
 
 	vector<lower=0>[2] hp_alpha_varofind;
 	vector<lower=0>[2] hp_beta_varofind;
@@ -29,6 +30,7 @@ transformed data {
 }
 
 parameters{
+	vector<lower=0>[2] hp_r;
 	vector[g] nb_r;
 
 	real<lower=0> varofmu;
@@ -44,8 +46,11 @@ parameters{
 
 
 model{
+	hp_r[1] ~ gamma(hp_alpha_r[1], hp_alpha_r[2]);
+	hp_r[2] ~ gamma(hp_beta_r[1], hp_beta_r[2]);
 	// gamma or log-normal (DESeq2 use log-normal)
 	nb_r ~ gamma(hp_r[1], hp_r[2]);
+
 	varofmu ~ inv_gamma(hp_varofmu[1], hp_varofmu[2]);
 	mu ~ normal(mu0, sqrt(varofmu));
 
