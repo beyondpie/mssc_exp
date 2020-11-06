@@ -40,7 +40,7 @@ init_snb <- function(s, y, r_default = 10) {
 
 
 stanfit_scalenb <- function(s, y, scale_nb_model,
-                            seed = 355113, numiter = 5000,
+                            seed = 1, numiter = 5000,
                             refresh = 5000, r_default = 10) {
   ## mu in scaled log level, and minus log(s)
   ## use stan to fit
@@ -71,7 +71,7 @@ stanfit_scalenb <- function(s, y, scale_nb_model,
 }
 
 stanfit_snb_fr <- function(s, r, y, model,
-                           seed = 355113, numiter = 5000,
+                           seed = 1, numiter = 5000,
                            refresh = 5000) {
   ## mu in scaled log level, and minus log(s)
   ## use stan to fit
@@ -175,8 +175,11 @@ stanfit_gwsnb_to_ind_level <- function(s, y, vec_of_cond,
 }
 
 fit_mg_snb <- function(cnt, s, cond, ind,
-                             snbm, snbm_for_mucond,
-                      seed = 1) {
+                       snbm, snbm_for_mucond,
+                       murnm = c("mu0", "r0"),
+                       mucondnm = str_glue_vec("mu_cond", seq_len(2)),
+                       muindnm = str_glue_vec("mu_ind", seq_len(k))
+                       ) {
   ## fit each gene (row of cnt) for mssc
   ## return each gene in row.
 
@@ -194,8 +197,7 @@ fit_mg_snb <- function(cnt, s, cond, ind,
     )
 
   colnames(t_res) <- rownames(cnt)
-  rownames(t_res) <- c("mu0", "r0", str_glue_vec("mu_cond", seq_len(2)),
-                                                  str_glue_vec("mu_ind", seq_len(k)))
+  rownames(t_res) <- c(murnm, mucondnm, muindnm)
   return(invisible(t(t_res)))
 }
 
@@ -203,8 +205,69 @@ fit_mg_snb <- function(cnt, s, cond, ind,
 est_mu <- function(mu, scale=1.96^2) {
   m <- mean(mu)
   v <- var(mu) * scale
-  return(invisible(list(mu0 = m,
-                        varofmu = v,
-                        )))
+  return(invisible(c(m, v)))
 }
 
+est_r <- function(r) {
+  m <- mean(r)
+  v <- var(r)
+  beta <- m /v
+  alpha <- beta * m
+  return(invisible(hp_r = c(alpha, beta)))
+}
+
+est_mucond <- function(mucond, scale = 1.96^2) {
+  ## mucond: g by 2
+  d <- vapply(seq_len(nrow(mucond)),
+              function(r) {max(abs(mucond[r, ]))},
+              0.0)
+  v <- max(d * scale)
+  return(invisible(v))
+}
+
+est_muind <- function(muind, scale = 1.96^2) {
+  ## muind: g by k
+  v <- vapply(seq_len(ncol(muind)),
+              function(c) {var(muind[, c]) * scale},
+              0.0)
+  m <- mean(v)
+  vv <- var(v)
+  beta <- m / vv
+  alpha <- beta * m
+  return(invisible(list(varofind = v,
+                        hp_varofind = c(alpha, beta))))
+}
+
+
+init_hbnb_params <- function(est_mg_mat,
+                       murnm = c("mu0", "r0"),
+                       mucondnm = str_glue_vec("mu_cond", seq_len(2)),
+                       muindnm = str_glue_vec("mu_ind", seq_len(k)),
+                       scale = 1.96^2) {
+
+  mu <- est_mg_mat[ , murnm[1]]
+  r <- est_mg_mat[ , murnm[2]]
+  mu_cond <- est_mg_mat[, mucondnm]
+  mu_ind <- est_mg_mat[, muindnm]
+
+  r1 <- est_mu(mu, scale)
+  r2 <- est_r(r)
+  r3 <- est_mucond(mu_cond, scale)
+  r4 <- est_muind(mu_ind, scale)
+
+  hp_params <- list(mu0 = r1[1])
+
+  init_params <- list(nb_r = r,
+                      varofmu = r1[2],
+                      mu = mu,
+                      varofcond = r3,
+                      mu_cond = mu_cond,
+                      hp_varofind = r4$hp_varofind,
+                      varofind = r4$varofind,
+                      mu_ind = mu_ind
+                      )
+  return(invisible(
+    list(hp = hp_params,
+         init = init_params)
+  ))
+}
