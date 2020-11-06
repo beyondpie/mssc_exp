@@ -70,7 +70,17 @@ resp <- subscdata$resp
 cnt <- subscdata$cnt[top_ranked_index, ]
 
 ## * estimate mssc parameters
-mfit <- fit_multgenes_nb(cnt = cnt, s = sumcnt,
+mg_snb_mat <- fit_mg_snb(cnt = cnt, s = sumcnt,
                  cond = resp + 1, ind = inds,
                  snbm = snbm_for_mur,
                  snbm_for_mucond = snbm_for_mucond)
+
+## * save the data as a pool
+r <- list(s = sumcnt,
+          ind = inds,
+          cond = resp + 1,
+          y2c = cnt,
+          est_snb_mat = mg_snb_mat)
+saveRDS(object = r, file = here::here("src",
+                                      "modelcheck",
+                                      "snb_pool_ref_pbmc.rds"))
