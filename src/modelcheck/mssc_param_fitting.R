@@ -174,9 +174,9 @@ stanfit_gwsnb_to_ind_level <- function(s, y, vec_of_cond,
   return(invisible(result))
 }
 
-fit_multgenes_nb <- function(cnt, s, cond, ind,
+fit_mg_snb <- function(cnt, s, cond, ind,
                              snbm, snbm_for_mucond,
-                             seed = 1) {
+                      seed = 1) {
   ## fit each gene (row of cnt) for mssc
   ## return each gene in row.
 
@@ -199,4 +199,12 @@ fit_multgenes_nb <- function(cnt, s, cond, ind,
   return(invisible(t(t_res)))
 }
 
+
+est_mu <- function(mu, scale=1.96^2) {
+  m <- mean(mu)
+  v <- var(mu) * scale
+  return(invisible(list(mu0 = m,
+                        varofmu = v,
+                        )))
+}
 
