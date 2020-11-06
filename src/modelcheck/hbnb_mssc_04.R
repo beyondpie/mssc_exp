@@ -10,7 +10,7 @@ mypseudo <- modules::import("pseudobulk")
 mypbmc <- modules::import("pbmc")
 
 ## * load param fitting functions
-pf <- modules::import("hbnb_param_fitting_02.R")
+pf <- modules::import("hbnb_param_fitting_02")
 
 ## * load stan model
 
