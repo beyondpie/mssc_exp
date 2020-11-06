@@ -2,10 +2,10 @@
 ## used for model parameters settings.
 
 ## * load R env
-source("set_r_lib_env.R")
+source("hbnb_set_r_lib_env_01.R")
 
 ## * load param fitting functions
-source("mssc_param_fitting.R")
+source("hbnb_param_fitting_02.R")
 
 ## local modules
 options("import.path" = here("rutils"))

@@ -244,6 +244,8 @@ init_hbnb_params <- function(est_mg_mat,
                        mucondnm = str_glue_vec("mu_cond", seq_len(2)),
                        muindnm = str_glue_vec("mu_ind", seq_len(k)),
                        scale = 1.96^2) {
+  ## generate the initial hbnb params
+  ## also set the hp params: mu0
 
   mu <- est_mg_mat[ , murnm[1]]
   r <- est_mg_mat[ , murnm[2]]
