@@ -16,17 +16,17 @@ mypbmc <- modules::import("pbmc")
 
 ## * configs
 celltype <- "Naive CD4+ T"
-num_top_gene <- 500
+num_top_gene <- 10
 
 
 ## * load stan models
 snbm_for_mur <- cmdstanr::cmdstan_model(
-  here::here("src", "stan", "scale_nb.stan"),
+  here::here("stanutils", "scale_nb.stan"),
   compile = T, quiet = F
 )
 
 snbm_for_mucond <- cmdstanr::cmdstan_model(
-  here::here("src", "stan", "scale_nb_fixed_r.stan"),
+  here::here("stanutils", "scale_nb_fixed_r.stan"),
   compile = T, quiet = F)
 
 ## * load pbmc dataset
@@ -69,14 +69,30 @@ inds <- subscdata$inds
 resp <- subscdata$resp
 cnt <- subscdata$cnt[top_ranked_index, ]
 
+## consistent with stan
+resp <- resp + 1
+ind <- vapply(inds, function(nm) {
+  for (i in 1:5) {
+    if (nm == str_glue("NR{i}")) {
+      return(invisible(as.integer(i)))
+    }
+    if (nm == str_glue("R{i}")) {
+      return(invisible(as.integer(i)+5L))
+    }
+  }
+}, 0L)
+
+s <- sumcnt / median(sumcnt)
+
 ## * estimate mssc parameters
-mg_snb_mat <- fit_mg_snb(cnt = cnt, s = sumcnt,
-                 cond = resp + 1, ind = inds,
+mg_snb_mat <- fit_mg_snb(cnt = cnt, s = s,
+                 cond = resp, ind = ind,
                  snbm = snbm_for_mur,
                  snbm_for_mucond = snbm_for_mucond)
 
 ## * save the data as a pool
-r <- list(s = sumcnt,
+r <- list(sumcnt = sumcnt,
+          s = s,
           ind = inds,
           cond = resp + 1,
           y2c = cnt,
@@ -84,3 +100,4 @@ r <- list(s = sumcnt,
 saveRDS(object = r, file = here::here("src",
                                       "modelcheck",
                                       "snb_pool_ref_pbmc.rds"))
+
