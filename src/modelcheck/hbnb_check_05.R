@@ -5,7 +5,7 @@
 ## Hyper parameters are learned from the real dataset: PBMC.
 
 ## * set R environment
-source("set_r_lib_env.R")
+source("hbnb_set_r_lib_env_01.R")
 
 options("import.path" = here("rutils"))
 myt <- modules::import("transform")
@@ -14,7 +14,7 @@ mypseudo <- modules::import("pseudobulk")
 mypbmc <- modules::import("pbmc")
 
 ## * load mssc hbnb script
-hbnbmssc <- modules::import("hbnb_mssc_04")
+hbnbmssc <- modules::import("hbnb_mssc_03")
 
 ## * configs
 ## number of conditions

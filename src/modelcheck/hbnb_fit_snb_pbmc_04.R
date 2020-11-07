@@ -101,3 +101,6 @@ saveRDS(object = r, file = here::here("src",
                                       "modelcheck",
                                       "snb_pool_ref_pbmc.rds"))
 
+## * test hbnb_mssc here
+## modules::reload(hbnbm)
+hbnbm <- modules::import("hbnb_mssc_03")

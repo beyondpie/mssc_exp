@@ -14,7 +14,7 @@ data {
 	// int<lower=0> y[g, n]; // observations
 
 	// hyper parameters
-	vector<upper=0>[g] mu0; // mean of scaled log mean of exp;
+	vector[g] mu0; // mean of scaled log mean of exp;
 	vector<lower=0>[2] hp_varofmu;
 
 	vector<lower=0>[2] hp_alpha_r;
@@ -32,7 +32,7 @@ transformed data {
 
 parameters{
 	vector<lower=0>[2] hp_r;
-	vector[g] nb_r;
+	vector<lower=0>[g] nb_r;
 
 	real<lower=0> varofmu;
 	vector[g] raw_mu;
@@ -45,7 +45,7 @@ parameters{
 	vector<lower=0>[2] hp_varofind;
 	vector<lower=0>[g] varofind;
 
-	vector[g] raw_mu_ind[j];
+	vector[g] raw_mu_ind[k];
 	// vector[g] mu_ind[k];
 }
 

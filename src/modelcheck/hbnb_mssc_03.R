@@ -26,16 +26,21 @@ nm_params <- c("nb_r", "hp_r", "varofmu", "mu",
                "raw_mu", "raw_mu_cond", "raw_mu_ind")
 
 snbm_for_mur <- cmdstanr::cmdstan_model(
-  here::here("src", "stan", "scale_nb.stan"),
+  here::here("stanutils", "scale_nb.stan"),
   compile = T, quiet = F
-)
+  )
 
 snbm_for_mucond <- cmdstanr::cmdstan_model(
-  here::here("src", "stan", "scale_nb_fixed_r.stan"),
+  here::here("stanutils", "scale_nb_fixed_r.stan"),
   compile = T, quiet = F)
 
+## hbnbm <- cmdstan_model(
+##   here::here("src", "dirty_stan", "mssc_hbnb.stan"),
+##   compile = T, quiet = F
+## )
+
 hbnbm <- cmdstan_model(
-  here::here("src", "dirty_stan", "mssc_hbnb_vi.stan"),
+  here::here("src", "dirty_stan", "mssc_hbnb_mat.stan"),
   compile = T, quiet = F
 )
 
