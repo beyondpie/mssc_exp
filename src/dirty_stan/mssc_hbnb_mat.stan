@@ -11,7 +11,7 @@ data {
 	int<lower=1, upper=k> ind[n];
 	int<lower=0> y[g, n];
 
-	vector[g] mu0;
+	real mu0;
 	vector<lower=0>[2] hp_varofmu;
 	vector<lower=0>[2] hp_alpha_r;
 	vector<lower=0>[2] hp_beta_r;

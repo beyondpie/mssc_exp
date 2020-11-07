@@ -18,15 +18,13 @@ str_glue_vec <- function(nm = "MuInd", a = seq_len(10),
   ))
 }
 
-str_glue_mat <- function(a, nm = "MuInd",
+str_glue_mat <- function(nr, nc, nm = "MuInd",
                          lround = "[", rround = "]") {
   ## row-wise names
-  nr <- nrow(a)
-  nc <- ncol(a)
   r <- rep("", nr * nc)
-  for ( i in nr) {
-    for (j in nc) {
-      r[nr * (i-1) + j] <- stringr::str_glue("{nm}{lround}{i},{j}{rround}")
+  for (i in 1:nr) {
+    for (j in 1:nc) {
+      r[nc * (i-1) + j] <- stringr::str_glue("{nm}{lround}{i},{j}{rround}")
     }
   }
   return(invisible(r))
