@@ -28,6 +28,8 @@ g <- 200
 simulate_params <- function(){}
 simulate_data <- function(){}
 
+## TODO
+get_ground_truth_params <- function(data, varnm) {}
 
 ## * run hbnb
 default_hi_params <- hbnbmssc$get_default_hi_params(k = k, j = j, g = g)
