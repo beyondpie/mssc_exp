@@ -1,3 +1,6 @@
+## use stan for snb fitting
+## provide other functions specific for hbnb
+
 is_vi_or_opt_success <- function(vi_or_opt) {
   ## https://github.com/stan-dev/cmdstanr/issues/332
   if (vi_or_opt$runset$procs$get_proc(1)$get_exit_status() == 0) {
@@ -9,11 +12,26 @@ is_vi_or_opt_success <- function(vi_or_opt) {
 str_glue_vec <- function(nm = "MuInd", a = seq_len(10),
                          lround = "[", rround = "]") {
   invisible(vapply(a, function(i) {
-    stringr::str_glue("{nm}{lround}{lround}{i}{rround}")
+    stringr::str_glue("{nm}{lround}{i}{rround}")
   },
   FUN.VALUE = ""
   ))
 }
+
+str_glue_mat <- function(a, nm = "MuInd",
+                         lround = "[", rround = "]") {
+  ## row-wise names
+  nr <- nrow(a)
+  nc <- ncol(a)
+  r <- rep("", nr * nc)
+  for ( i in nr) {
+    for (j in nc) {
+      r[nr * (i-1) + j] <- stringr::str_glue("{nm}{lround}{i},{j}{rround}")
+    }
+  }
+  return(invisible(r))
+}
+
 
 init_snb_logmu <- function(y, median_of_s) {
   ## init scale negative binomial log mu.
@@ -174,34 +192,6 @@ stanfit_gwsnb_to_ind_level <- function(s, y, vec_of_cond,
   return(invisible(result))
 }
 
-fit_mg_snb <- function(cnt, s, cond, ind,
-                       snbm, snbm_for_mucond,
-                       murnm = c("mu0", "r0"),
-                       mucondnm = str_glue_vec("mu_cond", seq_len(2)),
-                       muindnm = str_glue_vec("mu_ind", seq_len(k))) {
-  ## fit each gene (row of cnt) for mssc
-  ## return each gene in row.
-
-  k <- max(ind)
-  t_res <- vapply(seq_len(nrow(cnt)),
-    FUN = function(i) {
-      r <- stanfit_gwsnb_to_ind_level(
-        s = s, y = cnt[i, ], vec_of_cond = cond,
-        vec_of_ind = ind,
-        snbm = snbm,
-        snbm_for_mucond = snbm_for_mucond
-      )
-      return(invisible(c(r$mu0, r$r0, r$mu_cond, r$mu_ind)))
-    },
-    FUN.VALUE = rep(0.0, 2 + 2 + k)
-  )
-
-  colnames(t_res) <- rownames(cnt)
-  rownames(t_res) <- c(murnm, mucondnm, muindnm)
-  return(invisible(t(t_res)))
-}
-
-
 est_mu <- function(mu, scale = 1.96^2) {
   m <- mean(mu)
   v <- var(mu) * scale
@@ -231,21 +221,59 @@ est_mucond <- function(mucond, scale = 1.96^2) {
 
 est_muind <- function(muind, scale = 1.96^2) {
   ## muind: g by k
-  v <- vapply(
-    seq_len(ncol(muind)),
-    function(c) {
-      var(muind[, c]) * scale
-    },
-    0.0
-  )
+
+  ## ## each individual share the same variance
+  ## ## for different genes.
+  ## v shape:  k by 1
+  ## v <- vapply(
+  ##   seq_len(ncol(muind)),
+  ##   function(c) {
+  ##     var(muind[, c]) * scale
+  ##   },
+  ##   0.0
+  ## )
+
+  ## each gene share the same variance
+  ## v shape: g by 1
+  v <- vapply(seq_len(nrow(muind)), function(r) {
+    var(muind[r, ]) * scale}, FUN.VALUE = 0.0)
   m <- mean(v)
   vv <- var(v)
   beta <- m / vv
   alpha <- beta * m
+
   return(invisible(list(
     varofind = v,
     hp_varofind = c(alpha, beta)
   )))
+}
+
+
+fit_mg_snb <- function(cnt, s, cond, ind,
+                       snbm, snbm_for_mucond,
+                       murnm = c("mu0", "r0"),
+                       mucondnm = str_glue_vec("mu_cond", seq_len(2)),
+                       muindnm = str_glue_vec("mu_ind", seq_len(k))) {
+  ## fit each gene (row of cnt) for mssc
+  ## return each gene in row.
+
+  k <- max(ind)
+  t_res <- vapply(seq_len(nrow(cnt)),
+                  FUN = function(i) {
+                    r <- stanfit_gwsnb_to_ind_level(
+                      s = s, y = cnt[i, ], vec_of_cond = cond,
+                      vec_of_ind = ind,
+                      snbm = snbm,
+                      snbm_for_mucond = snbm_for_mucond
+                    )
+                    return(invisible(c(r$mu0, r$r0, r$mu_cond, r$mu_ind)))
+                  },
+                  FUN.VALUE = rep(0.0, 2 + 2 + k)
+                  )
+
+  colnames(t_res) <- rownames(cnt)
+  rownames(t_res) <- c(murnm, mucondnm, muindnm)
+  return(invisible(t(t_res)))
 }
 
 
@@ -263,22 +291,40 @@ init_hbnb_params <- function(est_mg_mat,
   mu_ind <- est_mg_mat[, muindnm]
 
   r1 <- est_mu(mu, scale)
+  mu0 <- r1[1]
+  varofmu <- r1[2]
+  raw_mu <- (mu - mu0) / sqrt(varofmu)
+
   r2 <- est_r(r)
-  r3 <- est_mucond(mu_cond, scale)
-  r4 <- est_muind(mu_ind, scale)
+
+  varofcond <- est_mucond(mu_cond, scale)
+  raw_mu_cond <- mu_cond / sqrt(varofcond)
+
+  r3 <- est_muind(mu_ind, scale)
+  ## length equals to gene number
+  varofind <- r3$varofind
+  ## each row (a gene) divided by the correspond element from varofind
+  raw_mu_ind <- mu_ind / sqrt(varofind)
+  ## update raw_mu_ind: each gene, share the same varofind
+  ## for (i in nrow(mu_ind)) {
+  ##   raw_mu_ind[i, ] <- mu_ind[i, ] / sqrt(varofind[i])
+  ## }
 
   hp_params <- list(mu0 = r1[1])
 
   init_params <- list(
     hp_r = r2,
     nb_r = r,
-    varofmu = r1[2],
+    varofmu = varofmu,
     mu = mu,
-    varofcond = r3,
+    raw_mu = raw_mu,
+    varofcond = varofcond,
     mu_cond = mu_cond,
-    hp_varofind = r4$hp_varofind,
-    varofind = r4$varofind,
-    mu_ind = mu_ind
+    raw_mu_cond = raw_mu_cond,
+    hp_varofind = r3$hp_varofind,
+    varofind = varofind,
+    mu_ind = mu_ind,
+    raw_mu_ind = raw_mu_ind
   )
   return(invisible(
     list(
