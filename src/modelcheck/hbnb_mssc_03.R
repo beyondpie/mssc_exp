@@ -7,6 +7,15 @@
 ## 3) names from the estimation directly from the data (only part of params)
 ##    see fig_mg_sng for details.
 
+## hbnb row-major order considers the situation:
+## [g1,1] [g1,2], ..., [g1,second_dim], [g2,1], ...
+## - this is hbnb param nms order
+## - cmdstan will named the varibles column-major order
+##   like: [g1,1], [g2,1], [g3, 1], ..., [g1, 2], [g2, 2], ...
+## As long as we use variable names to extract the parameters,
+## it's fine.
+
+
 ## * load R env
 source("hbnb_set_r_lib_env_01.R")
 
@@ -167,7 +176,10 @@ muind_transform_from_raw <- function(raw_mu_ind, varofind) {
   return(invisible(diag(sqrt(varofind)) * raw_mu_ind))
 }
 
-vi_mu_transform_from_raw <- function(vi_raw_mu, mu0, vi_varofmu) {
+vi_mu_transform_from_raw <- function(vi_raw_mu, mu0,
+                                     vi_varofmu, genenms=NULL) {
+  ## get mu: n by g
+
   ## vi_raw_* are got by vi_fit$draw()
 
   ## element-wise multiply, when second is column
@@ -180,31 +192,51 @@ vi_mu_transform_from_raw <- function(vi_raw_mu, mu0, vi_varofmu) {
   ##   mu_transform_from_raw(vi_raw_mu[i, ], mu0, vi_varofmu[i, ])
   ## }, FUN.VALUE = rep(0.0, d))
   ## res <- t(t_res)
-
-  colnames(res) <- colnames(vi_raw_mu)
+  if (! is.null(genenms)) {
+    colnames(res) <- genenms
+  }
   return(invisible(res))
 }
 
-vi_mucond_transform_from_raw <- function(vi_raw_mu_cond, vi_varofcond) {
-  ## vi_raw_mu_cond shape: n by g*2 (num of cond)
+split_matrix_col <- function(mat, second_dim, second_dim_nms = NULL) {
+  ## split matrix col into a matrix row-major order
+
+  t <- vapply(nrow(mat), function(i) {
+    matrix(mat[i, ], nrow = second_dim, byrow=TRUE)
+  }, matrix(mat[i, ], nrow = second_dim, byrow=TRUE))
+  r <- reperm(t, c(3, 1, 2))
+  if (!is.null(second_dim_nms)) {
+    dimnames(r)[[2]] <- second_dim_nms
+  }
+  return(invisible(r))
+}
+
+vi_mucond_transform_from_raw <- function(vi_raw_mu_cond, vi_varofcond,
+                                         genenms = NULL,
+                                         j = 2) {
+  ## get mucond: n by g by j (num_of_cond, default is 2)
+
+  ## vi_raw_mu_cond shape: n by g*j
   ## order of the names of vi_raw_mu_cond: by row
 
   ## vi_varofcond shape: n by 1 or n
   ## (should be n by 1 if we use cmdstanr draw matrix)
-  r <- vi_raw_mu_cond * vi_varofcond
-  colnames(r) <- colnames(vi_raw_mu_cond)
+  t <- vi_raw_mu_cond * vi_varofcond
+  r <- split_matrix_col(t, second_dim = j, second_dim_nms = genenms)
   return(invisible(r))
 }
 
-vi_muind_transform_from_raw <- function(vi_raw_mu_ind, vi_varofind, k) {
+vi_muind_transform_from_raw <- function(vi_raw_mu_ind, vi_varofind, k,
+                                        genenms = NULL) {
   ## vi_raw_mu_ind: n by g * k
   ## vi_varofind: n by g
 
   ## repeat_var_per_gene: n by g * k:
   ## [g1, 1]. [g1, 2], ..., [g1,k], [g2, 1] ...
   repeat_var_per_gene <- t(apply(vi_varofind, 1, rep, each = k))
-  r <- vi_raw_mu_ind * repeat_var_per_gene
-  colnames(r) <- colnames(vi_raw_mu_ind)
+  ## element-wise multiplification
+  t <- vi_raw_mu_ind * repeat_var_per_gene
+  r <- split_matrix_col(t, second_dim = k, second_dim_nms = genenms)
   return(r)
 }
 
@@ -242,7 +274,6 @@ calibrate_init_params <- function(ip, data, scale = 1.96^2, seed = 1L) {
     ip$raw_mu_cond <- matrix(map[param_nms$raw_mu_cond], nrow = g, byrow = TRUE)
     ip$mu_cond <- mucond_transfrom_from_raw(ip$raw_mu_cond, map[param_nms$varofind])
     ip$varofcond <- pf$est_mucond(ip$mu_cond, scale)
-
   }
   return(invisible(ip))
 }
@@ -263,8 +294,66 @@ run_hbnb_vi <- function(data, ip, seed = 1L) {
   )
 }
 
-## TODO
-extract_params_from_vi_sampler <- function(vi_sampler, varnm = NULL) {}
+vi_extract_params <- function(vifit, data, param) {
+  ## get the draw matrix for the param
+  ## if not exist, return NaN
+
+  if (! (param %in% nm_params)) {
+    message(stringr::str_glue("{param} is not recognized."))
+    return(NaN)
+  }
+  if (param %in% c("varofmu", "varofcond")) {
+    return(invisible(vifit$draws(param)))
+  }
+  if (param %in% c("hp_r", "hp_varofind")) {
+    return(invisible(vifit$draws(pf$str_glue_vec(param, seq_len(2)))))
+  }
+
+  if (!is.null(rownames(data$y))) {
+    genenms <- rownames(data$y)
+  } else {
+    genenms <- seq_len(data$g)
+  }
+
+  if (param %in% c("nb_r", "varofind")) {
+    r <- vifit$draws(pf$str_glue_vec(param, seq_len(data$g)))
+    colnames(r) <- genenms
+    return(invisible(r))
+  }
+
+  if (param %in% c("raw_mu", "mu")) {
+    r <- vifit$draws(pf$str_glue_vec("raw_mu", seq_len(data$g)))
+    if (param == "mu") {
+      varofmu <- vifit$draws("varofmu")
+      mu0 <- data$mu0
+      return(invisible(vi_mu_transform_from_raw(r, mu0, vi_varofmu, genenms)))
+    }
+    colnames(r) <- genenms
+    return(invisible(r))
+  }
+
+  if (param %in% c("raw_mu_cond", "mu_cond")) {
+    t1 <- vifit$draws(pf$str_glue_mat("raw_mu_cond", nr = data$g, nc = data$j))
+    if (param == "mu_cond") {
+      t2 <- vifit$draws("varofcond")
+      r <- vi_mucond_transform_from_raw(t1, t2, genenms, data$j)
+      return(invisible(r))
+    }
+    return(invisible(split_matrix_col(t1, data$j, genenms)))
+  }
+
+  if (param %in% c("raw_mu_ind", "mu_ind")) {
+    t1 <- vifit$draws(pf$str_glue_mat("raw_mu_ind", nr = data$g, nc = data$k))
+    if (param == "mu_ind") {
+      t2 <- vifit$draws(pf$str_glue_vec("varofind", seq_len(data$g)))
+      r <- vi_muind_transform_from_raw(t1, t2, data$k, genenms)
+      return(invisible(r))
+    }
+    return(invisible(split_matrix_col(t1, data$k, genenms)))
+  }
+  message(stringr::str_glue("{param} is missed."))
+  return(NaN)
+}
 
 ## * test hbnb_mssc here
 pbmc <- readRDS(here::here(

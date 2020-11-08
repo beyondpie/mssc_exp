@@ -1,10 +1,10 @@
 // Hierarchical Bayesian based negative binomial model
 
 data {
-	int n;
-	int k;
-	int j;
-	int g;
+	int n; // num of cell
+	int k; // num of individual
+	int j; // num of cond
+	int g; // num of gene
 
 	row_vector<lower=0>[n] s;
 	int<lower=1, upper=j> cond[n];
