@@ -71,7 +71,7 @@ model {
 	matrix[g, j] mu_cond = raw_mu_cond * sqrt(varofcond);
 	matrix[g, k] mu_ind = diag_matrix(sqrt(varofind)) * raw_mu_ind;
 
-	matrix[g, n] lambda = (logs + rep_matrix(mu, n) + mu_cond[ , cond] + mu_ind[ , ind]);
+	matrix[g, n] lambda = logs + rep_matrix(mu, n) + mu_cond[ , cond] + mu_ind[ , ind];
 	matrix[g, n] nb_rr = rep_matrix(nb_r, n);
 	// to_vector is column-major order.
 	y1d ~ neg_binomial_2_log(to_vector(lambda), to_vector(nb_rr));

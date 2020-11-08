@@ -184,7 +184,7 @@ vi_mu_transform_from_raw <- function(vi_raw_mu, mu0,
 
   ## element-wise multiply, when second is column
   ## it will column by column.
-  res <- vi_raw_mu * as.numeric(vi_varofmu)
+  res <- vi_raw_mu * sqrt(as.numeric(vi_varofmu))
 
   ## n <- nrow(vi_raw_mu)
   ## d <- ncol(vi_raw_mu)
@@ -220,7 +220,7 @@ vi_mucond_transform_from_raw <- function(vi_raw_mu_cond, vi_varofcond,
 
   ## vi_varofcond shape: n by 1 if we use cmdstanr draw matrix
   ## then let it be a vector length of n
-  t <- vi_raw_mu_cond * as.numeric(vi_varofcond)
+  t <- vi_raw_mu_cond * sqrt(as.numeric(vi_varofcond))
   r <- split_matrix_col(t, second_dim = g, second_dim_nms = genenms)
   return(invisible(r))
 }
@@ -234,7 +234,7 @@ vi_muind_transform_from_raw <- function(vi_raw_mu_ind, vi_varofind, g,
   ## [g1, 1]. [g1, 2], ..., [g1,k], [g2, 1] ...
   repeat_var_per_gene <- t(apply(vi_varofind, 1, rep, each = k))
   ## element-wise multiplification
-  t <- vi_raw_mu_ind * repeat_var_per_gene
+  t <- vi_raw_mu_ind * sqrt(repeat_var_per_gene)
   r <- split_matrix_col(t, second_dim = g, second_dim_nms = genenms)
   return(r)
 }
