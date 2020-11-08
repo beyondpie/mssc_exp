@@ -208,7 +208,7 @@ vi_muind_transform_from_raw <- function(vi_raw_mu_ind, vi_varofind, k) {
   return(r)
 }
 
-calibrate_init_params <- function(ip, data, seed = 1L) {
+calibrate_init_params <- function(ip, data, scale = 1.96^2, seed = 1L) {
   ## R will not modify the init_params (ip) even it's a list.
   ## use optimization to update the mean related parameters
   opt <- hbnbm$optimize(
@@ -227,7 +227,6 @@ calibrate_init_params <- function(ip, data, seed = 1L) {
 
     param_nms <- get_hbnb_param_nms(k = k, j = j, g = g)
 
-    ## TODO: update the corresponding variance based on our estimate strategy.
     ip$raw_mu <- map[param_nms$raw_mu]
     ip$mu <- mu_transform_from_raw(ip$raw_mu, data$mu0, map[param_nms$varofmu])
 
@@ -236,9 +235,14 @@ calibrate_init_params <- function(ip, data, seed = 1L) {
       ip$raw_mu_ind,
       map[param_nms$varofcond]
     )
+    r3 <- est_muind(ip$mu_ind, scale)
+    ip$varofind <- r3$varofind
+    ip$hp_varofind <- r3$hp_varofind
 
     ip$raw_mu_cond <- matrix(map[param_nms$raw_mu_cond], nrow = g, byrow = TRUE)
     ip$mu_cond <- mucond_transfrom_from_raw(ip$raw_mu_cond, map[param_nms$varofind])
+    ip$varofcond <- pf$est_mucond(ip$mu_cond, scale)
+
   }
   return(invisible(ip))
 }
