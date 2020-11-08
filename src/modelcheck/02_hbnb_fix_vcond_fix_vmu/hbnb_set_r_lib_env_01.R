@@ -1,0 +1,18 @@
+library(optparse)
+import::from(here, here)
+suppressPackageStartupMessages(library(tidyverse))
+library(MCMCpack)
+library(cmdstanr)
+library(grid)
+library(gtable)
+library(gridExtra)
+library(bayesplot)
+library(posterior)
+library(bbmle)
+library(sads)
+library(truncnorm)
+
+## warnings/errors traceback settings
+options(error = traceback)
+options(warn = 0)
+options(mc.cores = 3)

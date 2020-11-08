@@ -1,4 +1,5 @@
 // Hierarchical Bayesian based negative binomial model
+// mode varofcond genewise
 
 data {
 	int n; // num of cell
@@ -9,7 +10,7 @@ data {
 	row_vector<lower=0>[n] s;
 	int<lower=1, upper=j> cond[n];
 	int<lower=1, upper=k> ind[n];
-	int<lower=0> y[n, g];
+	int<lower=0> y[g, n];
 
 	real mu0;
 	vector<lower=0>[2] hp_varofmu;
@@ -18,7 +19,9 @@ data {
 
 	vector<lower=0>[2] hp_alpha_varofind;
 	vector<lower=0>[2] hp_beta_varofind;
-	vector<lower=0>[2] hp_varofcond;
+
+	// vector<lower=0>[2] hp_varofcond;
+	vector<lower=0>[2] hp_alpha_varofind;
 }
 
 transformed data {
@@ -34,7 +37,8 @@ parameters {
 	real<lower=0> varofmu;
 	vector[g] raw_mu;
 
-	real<lower=0> varofcond;
+	// real<lower=0> varofcond;
+	vector<lower=0>[g] varofcond;
 	matrix[g, j] raw_mu_cond;
 
 	vector<lower=0>[2] hp_varofind;
@@ -71,7 +75,7 @@ model {
 	matrix[g, j] mu_cond = raw_mu_cond * sqrt(varofcond);
 	matrix[g, k] mu_ind = diag_matrix(sqrt(varofind)) * raw_mu_ind;
 
-	matrix[g, n] lambda = logs + rep_matrix(mu, n) + mu_cond[ , cond] + mu_ind[ , ind];
+	matrix[g, n] lambda = (logs + rep_matrix(mu, n) + mu_cond[ , cond] + mu_ind[ , ind]);
 	matrix[g, n] nb_rr = rep_matrix(nb_r, n);
 	// to_vector is column-major order.
 	y1d ~ neg_binomial_2_log(to_vector(lambda), to_vector(nb_rr));
