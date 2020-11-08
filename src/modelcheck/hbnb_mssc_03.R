@@ -173,18 +173,18 @@ mucond_transfrom_from_raw <- function(raw_mu_cond, varofcond) {
 }
 
 muind_transform_from_raw <- function(raw_mu_ind, varofind) {
-  return(invisible(diag(sqrt(varofind)) * raw_mu_ind))
+  return(invisible(diag(sqrt(varofind)) %*% raw_mu_ind))
 }
 
 vi_mu_transform_from_raw <- function(vi_raw_mu, mu0,
-                                     vi_varofmu, genenms=NULL) {
+                                     vi_varofmu, genenms = NULL) {
   ## get mu: n by g
 
   ## vi_raw_* are got by vi_fit$draw()
 
   ## element-wise multiply, when second is column
   ## it will column by column.
-  res <- vi_raw_mu * vi_varofmu
+  res <- vi_raw_mu * as.numeric(vi_varofmu)
 
   ## n <- nrow(vi_raw_mu)
   ## d <- ncol(vi_raw_mu)
@@ -192,7 +192,7 @@ vi_mu_transform_from_raw <- function(vi_raw_mu, mu0,
   ##   mu_transform_from_raw(vi_raw_mu[i, ], mu0, vi_varofmu[i, ])
   ## }, FUN.VALUE = rep(0.0, d))
   ## res <- t(t_res)
-  if (! is.null(genenms)) {
+  if (!is.null(genenms)) {
     colnames(res) <- genenms
   }
   return(invisible(res))
@@ -201,10 +201,10 @@ vi_mu_transform_from_raw <- function(vi_raw_mu, mu0,
 split_matrix_col <- function(mat, second_dim, second_dim_nms = NULL) {
   ## split matrix col into a matrix row-major order
 
-  t <- vapply(nrow(mat), function(i) {
-    matrix(mat[i, ], nrow = second_dim, byrow=TRUE)
-  }, matrix(mat[i, ], nrow = second_dim, byrow=TRUE))
-  r <- reperm(t, c(3, 1, 2))
+  t <- vapply(seq_len(nrow(mat)), function(i) {
+    matrix(mat[i, ], nrow = second_dim, byrow = TRUE)
+  }, FUN.VALUE = matrix(mat[1, ], nrow = second_dim, byrow = TRUE))
+  r <- aperm(t, c(3, 1, 2))
   if (!is.null(second_dim_nms)) {
     dimnames(r)[[2]] <- second_dim_nms
   }
@@ -212,21 +212,20 @@ split_matrix_col <- function(mat, second_dim, second_dim_nms = NULL) {
 }
 
 vi_mucond_transform_from_raw <- function(vi_raw_mu_cond, vi_varofcond,
-                                         genenms = NULL,
-                                         j = 2) {
+                                         g, genenms = NULL) {
   ## get mucond: n by g by j (num_of_cond, default is 2)
 
   ## vi_raw_mu_cond shape: n by g*j
   ## order of the names of vi_raw_mu_cond: by row
 
-  ## vi_varofcond shape: n by 1 or n
-  ## (should be n by 1 if we use cmdstanr draw matrix)
-  t <- vi_raw_mu_cond * vi_varofcond
-  r <- split_matrix_col(t, second_dim = j, second_dim_nms = genenms)
+  ## vi_varofcond shape: n by 1 if we use cmdstanr draw matrix
+  ## then let it be a vector length of n
+  t <- vi_raw_mu_cond * as.numeric(vi_varofcond)
+  r <- split_matrix_col(t, second_dim = g, second_dim_nms = genenms)
   return(invisible(r))
 }
 
-vi_muind_transform_from_raw <- function(vi_raw_mu_ind, vi_varofind, k,
+vi_muind_transform_from_raw <- function(vi_raw_mu_ind, vi_varofind, g,
                                         genenms = NULL) {
   ## vi_raw_mu_ind: n by g * k
   ## vi_varofind: n by g
@@ -236,13 +235,25 @@ vi_muind_transform_from_raw <- function(vi_raw_mu_ind, vi_varofind, k,
   repeat_var_per_gene <- t(apply(vi_varofind, 1, rep, each = k))
   ## element-wise multiplification
   t <- vi_raw_mu_ind * repeat_var_per_gene
-  r <- split_matrix_col(t, second_dim = k, second_dim_nms = genenms)
+  r <- split_matrix_col(t, second_dim = g, second_dim_nms = genenms)
   return(r)
 }
 
+## not sure if we should use this function
+## one case shows the mu_ind are estimated very large
+## while mu_cond are estiamted very smalle.
+## TODO: check this under simulation
+## this might because I share the variance of mu_cond across all the genes
 calibrate_init_params <- function(ip, data, scale = 1.96^2, seed = 1L) {
-  ## R will not modify the init_params (ip) even it's a list.
   ## use optimization to update the mean related parameters
+  ## only raw_mu, raw_mu_ind, raw_mu_cond will be updated.
+  ## I tried to update the mu, mu_ind, mu_cond, and find that
+  ## mu_cond seems to be small, and then lead to variance samll
+  ## mu_ind seems to be big, and then lead to variance big
+  ## compare with my simpler strateger for estimation.
+
+  ## R will not modify the init_params (ip) even it's a list.
+
   opt <- hbnbm$optimize(
     data = data,
     init = list(ip),
@@ -260,20 +271,22 @@ calibrate_init_params <- function(ip, data, scale = 1.96^2, seed = 1L) {
     param_nms <- get_hbnb_param_nms(k = k, j = j, g = g)
 
     ip$raw_mu <- map[param_nms$raw_mu]
-    ip$mu <- mu_transform_from_raw(ip$raw_mu, data$mu0, map[param_nms$varofmu])
+    ## ip$mu <- mu_transform_from_raw(ip$raw_mu, data$mu0,
+    ##                                map[param_nms$varofmu])
 
     ip$raw_mu_ind <- matrix(map[param_nms$raw_mu_ind], nrow = g, byrow = TRUE)
-    ip$mu_ind <- muind_transform_from_raw(
-      ip$raw_mu_ind,
-      map[param_nms$varofcond]
-    )
-    r3 <- est_muind(ip$mu_ind, scale)
-    ip$varofind <- r3$varofind
-    ip$hp_varofind <- r3$hp_varofind
+    ## ip$mu_ind <- muind_transform_from_raw(
+    ##   ip$raw_mu_ind,
+    ##   map[param_nms$varofind]
+    ## )
+    ## r3 <- pf$est_muind(ip$mu_ind, scale)
+    ## ip$varofind <- r3$varofind
+    ## ip$hp_varofind <- r3$hp_varofind
 
     ip$raw_mu_cond <- matrix(map[param_nms$raw_mu_cond], nrow = g, byrow = TRUE)
-    ip$mu_cond <- mucond_transfrom_from_raw(ip$raw_mu_cond, map[param_nms$varofind])
-    ip$varofcond <- pf$est_mucond(ip$mu_cond, scale)
+    ## ip$mu_cond <- mucond_transfrom_from_raw(ip$raw_mu_cond,
+    ##                                         map[param_nms$varofcond])
+    ## ip$varofcond <- pf$est_mucond(ip$mu_cond, scale)
   }
   return(invisible(ip))
 }
@@ -294,11 +307,11 @@ run_hbnb_vi <- function(data, ip, seed = 1L) {
   )
 }
 
-vi_extract_params <- function(vifit, data, param) {
+extract_vifit <- function(vifit, data, param) {
   ## get the draw matrix for the param
   ## if not exist, return NaN
 
-  if (! (param %in% nm_params)) {
+  if (!(param %in% nm_params)) {
     message(stringr::str_glue("{param} is not recognized."))
     return(NaN)
   }
@@ -326,7 +339,7 @@ vi_extract_params <- function(vifit, data, param) {
     if (param == "mu") {
       varofmu <- vifit$draws("varofmu")
       mu0 <- data$mu0
-      return(invisible(vi_mu_transform_from_raw(r, mu0, vi_varofmu, genenms)))
+      return(invisible(vi_mu_transform_from_raw(r, mu0, varofmu, genenms)))
     }
     colnames(r) <- genenms
     return(invisible(r))
@@ -336,7 +349,7 @@ vi_extract_params <- function(vifit, data, param) {
     t1 <- vifit$draws(pf$str_glue_mat("raw_mu_cond", nr = data$g, nc = data$j))
     if (param == "mu_cond") {
       t2 <- vifit$draws("varofcond")
-      r <- vi_mucond_transform_from_raw(t1, t2, genenms, data$j)
+      r <- vi_mucond_transform_from_raw(t1, t2, data$g, genenms)
       return(invisible(r))
     }
     return(invisible(split_matrix_col(t1, data$j, genenms)))
@@ -346,7 +359,7 @@ vi_extract_params <- function(vifit, data, param) {
     t1 <- vifit$draws(pf$str_glue_mat("raw_mu_ind", nr = data$g, nc = data$k))
     if (param == "mu_ind") {
       t2 <- vifit$draws(pf$str_glue_vec("varofind", seq_len(data$g)))
-      r <- vi_muind_transform_from_raw(t1, t2, data$k, genenms)
+      r <- vi_muind_transform_from_raw(t1, t2, data$g, genenms)
       return(invisible(r))
     }
     return(invisible(split_matrix_col(t1, data$k, genenms)))
@@ -370,11 +383,54 @@ hi_params <- set_hi_params(
   cnt = pbmc$y2c, s = pbmc$s, cond = pbmc$cond,
   ind = pbmc$ind, scale = 1.96^2
 )
+
 data <- to_hbnb_data(pbmc$y2c,
   ind = pbmc$ind, cond = pbmc$cond,
   s = pbmc$s, hp = hi_params$hp
 )
 
+## debug parameter transformation
+ip <- hi_params$ip
+scale <- 1.96^2
+opt <- hbnbm$optimize(
+  data = data,
+  init = list(ip),
+  seed = 1L,
+  refresh = refresh,
+  iter = num_iter,
+  algorithm = "lbfgs"
+  )
+
+map <- opt$mle()
+k <- data$k
+j <- data$j
+g <- data$g
+
+param_nms <- get_hbnb_param_nms(k = k, j = j, g = g)
+
+ip$raw_mu <- map[param_nms$raw_mu]
+ip$mu <- mu_transform_from_raw(ip$raw_mu, data$mu0,
+                               map[param_nms$varofmu])
+
+ip$raw_mu_ind <- matrix(map[param_nms$raw_mu_ind], nrow = g, byrow = TRUE)
+ip$mu_ind <- muind_transform_from_raw(
+  ip$raw_mu_ind,
+  map[param_nms$varofind]
+)
+r3 <- pf$est_muind(ip$mu_ind, scale)
+ip$varofind <- r3$varofind
+ip$hp_varofind <- r3$hp_varofind
+
+ip$raw_mu_cond <- matrix(map[param_nms$raw_mu_cond], nrow = g, byrow = TRUE)
+ip$mu_cond <- mucond_transfrom_from_raw(ip$raw_mu_cond,
+                                        map[param_nms$varofcond])
+ip$varofcond <- pf$est_mucond(ip$mu_cond, scale)
+
 ip <- calibrate_init_params(hi_params$ip, data = data)
 
-vi_sampler <- run_hbnb_vi(data = data, ip = ip)
+## use simpler ip
+vi_sampler <- run_hbnb_vi(data = data, ip = hi_params$ip)
+
+vi_mucond <- extract_vifit(vi_sampler, data, "mu_cond")
+vi_muind <- extract_vifit(vi_sampler, data, "mu_ind")
+vi_mu <- extract_vifit(vi_sampler, data, "mu")
