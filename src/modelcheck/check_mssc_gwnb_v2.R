@@ -258,18 +258,14 @@ generate_gwnc_y <- function(mug, mucond, muind, phi2g,
   ## cond in simulation start from 1 following stan.
   vec_of_cond <- c(rep(1, nind * ncell), rep(2, nind * ncell))
 
-  ## index_of_ind_per_cond <- get_vec_of_repeat_int(nind, ncell)
-  ## vec_of_ind_under_cond <- c(
-  ##   paste0("NR", index_of_ind_per_cond),
-  ##   paste0("R", index_of_ind_per_cond)
-  ## )
   vec_of_ind <- get_vec_of_repeat_int(nind * 2, ncell)
+  logs <- log(sample_sumcnt)
   y <- vapply(
     seq_len(n),
     function(i) {
-      logmu <- mug + mucond[vec_of_cond[i]] + muind[vec_of_ind[i]]
+      logmu <-  logs[i] + mug + mucond[vec_of_cond[i]] + muind[vec_of_ind[i]]
       invisible(rnbinom(1,
-        mu = sample_sumcnt[i] * exp(logmu), size = phi2g
+        mu = exp(logmu), size = phi2g
       ))
     }, 0.0
   )
@@ -480,7 +476,7 @@ hist_vi_opt_varnms <- function(vi, noi_vi, opt, noi_opt, gwnb_env,
       vip = hist_vi_opt(vi, opt, gwnb_env, init_params,
         varnm,
         show_opt = TRUE,
-        show_init = FALSE
+        show_init = TRUE
       )
     )
     invisible(p)
@@ -519,19 +515,19 @@ check_model <- function(model = gwnb_model,
         method = "opt"
       )
       ## further update init by opt
-      if (is_vi_or_opt_success(optfit)) {
-        muindrawnm <- vapply(
-          seq_len(nind),
-          function(i) {
-            stringr::str_glue("MuIndRaw[{i}]")
-          }, ""
-        )
-        opt_params <- optfit$mle()
-        init_params$MuIndRaw <- opt_params[muindrawnm]
-        mucondrawnm <- c("MuCondRaw[1]", "MuCondRaw[2]")
-        init_params$MuCondRaw <- opt_params[mucondrawnm]
-        init_params <- opt_update_init_param(init_params, opt_params)
-      }
+      ## if (is_vi_or_opt_success(optfit)) {
+      ##   muindrawnm <- vapply(
+      ##     seq_len(nind),
+      ##     function(i) {
+      ##       stringr::str_glue("MuIndRaw[{i}]")
+      ##     }, ""
+      ##   )
+      ##   opt_params <- optfit$mle()
+      ##   init_params$MuIndRaw <- opt_params[muindrawnm]
+      ##   mucondrawnm <- c("MuCondRaw[1]", "MuCondRaw[2]")
+      ##   init_params$MuCondRaw <- opt_params[mucondrawnm]
+      ##   init_params <- opt_update_init_param(init_params, opt_params)
+      ## }
 
       vifit <- run_gwnb_model(model,
         model_env, data,
@@ -582,7 +578,7 @@ plot_var_for_diffcells <- function(figures, varnm = "MuG", nind = 5,
 }
 
 ## * main
-ncells <- c(20, 40, 80)
+ncells <- c(20, 50, 100, 150)
 ninds <- c(5, 10, 20)
 
 figures <- check_model(gwnb_model, ninds = ninds, ncells = ncells)
