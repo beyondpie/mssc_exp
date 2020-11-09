@@ -37,7 +37,7 @@ simulate_mu_and_r <- function(ngene = 40, mu, r) {
       ## sample(mu[, col], size = 1),
       ## sample(r[, col], size = 1)
       mean(mu[, col]),
-      median(r[, col])
+      min(10.0, median(r[, col]))
     )
   }, FUN.VALUE = c(0.0, 0.0))))
 }
@@ -52,16 +52,16 @@ simulate_muind <- function(tnind = 10, ngene = 40, muind) {
     size = ngene,
     replace = T
   )
-  invisible(t(vapply(gcols, function(g) {
+  invisible(t(vapply(gcols, FUN = function(g) {
     icols <- sample(seq_len(dim(muind)[3]),
       size = tnind,
       replace = T
     )
-    invisible(vapply(icols, function(i) {
+    invisible(vapply(icols, FUN = function(i) {
       ## sample(muind[, g, i], size = 1)
       mean(muind[, g, i])
     }, FUN.VALUE = 0.0))
-  }, FUN.VALUE = rep(0.0, tnind))))
+  }, FUN.VALUE = rep(0.0, tnind) ) ))
 }
 
 simulate_mucond <- function(ngene = 40, ncond = 2, mu_cond,
@@ -79,9 +79,9 @@ simulate_mucond <- function(ngene = 40, ncond = 2, mu_cond,
     invisible(mu_cond[row, g, ])
   }, FUN.VALUE = c(0.0, 0.0)))
 
-  undiff <- t(vapply(seq_len(ngene - ndiff, function(i) {
+  undiff <- t(vapply(seq_len(ngene - ndiff), FUN = function(i) {
     invisible(rnorm(ncond, mean = 0.0, sd = sd_noise))
-  }, FUN.VALUE = c(0.0, 0.0))))
+  }, FUN.VALUE = c(0.0, 0.0)))
 
   invisible(rbind(diff, undiff))
 }
@@ -93,6 +93,7 @@ simulate_data <- function(nind = 5, ncell = 100, ngene = 40,
   ## ncond equals to 2
   ncond <- 2
   n <- nind * ncell * ncond
+  tnind <- nind * ncond
   s <- sample(s, size = n, replace = T)
   logs <- log(s)
   cond <- rep(seq_len(ncond), each = nind * ncell)
@@ -100,7 +101,7 @@ simulate_data <- function(nind = 5, ncell = 100, ngene = 40,
 
   mur <- simulate_mu_and_r(ngene,
     mu = params_vifit$mu,
-    params_vifit$r
+    r = params_vifit$nb_r
   )
   mu_ind <- simulate_muind(tnind * ncond,
     ngene = ngene,
@@ -112,35 +113,62 @@ simulate_data <- function(nind = 5, ncell = 100, ngene = 40,
     sd_noise = 0.05
   )
   params <- list(
-    mu = mu[, 1], r = mu[, 2],
+    mu = mur[, 1], r = mur[, 2],
     mu_ind = mu_ind, mu_cond = mu_cond
   )
-  cbg <- vapply(seq_len(ngene), function(g) {
+  c2y <- vapply(seq_len(ngene), function(g) {
     loglambda <- logs + mur[g, 1] + mu_cond[g, cond] + mu_ind[g, ind]
     invisible(rnbinom(n = n, mu = exp(loglambda), size = mur[g, 2]))
   }, FUN.VALUE = rep(0.0, n))
-  data <- list(s = s, cond = cond, ind = ind, cbg = cbg, y = t(cbg))
+  data <- list(s = s, cond = cond, ind = ind, y2c = t(c2y))
   return(invisible(list(params = params, data = data)))
 }
 
+## * main
+## could be setting as function argument
+nind <- 5
+ncell <- 100
+ngene <- 100
+ncond <- 2
 
-## * run hbnb
-default_hi_params <- hbnbmssc$get_default_hi_params(k = k, j = j, g = g)
+## simulate the system
+hbnbsim <- simulate_data(nind = nind, ncell = ncell, ngene = ngene,
+                        s = demo_pbmc$s, params_vifit = demo_vifit)
+## run hbnb
 
-hi_params <- hbnbmssc$set_hi_params(default_hi_params,
-  k = k,
-  j = j,
-  g = g,
-  cnt = cnt,
-  s = s,
-  cond = cond,
-  ind = ind,
-  scale = 1.96^2,
-  murnm = c("mu0", "r0"),
-  mucondnm = str_glue_vec("mu_cond", seq_len(2)),
-  muindnm = str_glue_vec("mu_ind", seq_len(k))
-)
-init_params <- hbnbmssc$calibrate_init_params(hi_params$ip, data)
+get_vifit <- function(hbnbsim, calibrate_with_opt=FALSE) {
+  ind <- hbnbsim$data$ind
+  cond <- hbnbsim$data$cond
+  s <- hbnbsim$data$s
+  y2c <- hbnbsim$data$y2c
+  hi_params <- hbnbm$set_hi_params(k = max(ind),
+                                   j = max(cond),
+                                   g = nrow(y2c),
+                                   cnt = y2c,
+                                   s = s,
+                                   cond = cond, ind = ind,
+                                   scale = 1.96^2)
+  data <- hbnbm$to_hbnb_data(y2c, ind, cond, s, hi_params$hp)
+  if (calibrate_with_opt) {
+    ip <- hbnbm$calibrate_init_params(hi_params$ip, data = data)
+  } else {
+    ip <- hi_params$ip
+  }
+  vifit <- hbnbm$run_hbnb_vi(data = data, ip = ip)
+  est_params <- lapply(hbnbm$nm_params, function(nm) {
+    hbnbm$extract_vifit(vifit, data, nm)
+  })
+  names(est_params) <- hbnbm$nm_params
+  return(invisible(list(vifit = vifit, data = data,
+                        ip = ip, hip = hi_params,
+                        est_params = est_params)))
+}
 
-hbnbvifit <- hbnbmssc$run_hbnb_vi(data, init_params)
-## * analyze results
+hbnb_vifit <- get_vifit(hbnbsim)
+
+## save intermidiate result
+saveRDS(object = list(hbnb_vifit=hbnb_vifit, hbnbsim = hbnbsim),
+        file = str_glue("hbnb_vifit_{nind}_{ncell}_{ngene}.rds"))
+
+## run pseudobulk
+get_pseudobulk <- function(data) {}
