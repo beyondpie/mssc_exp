@@ -225,7 +225,7 @@ vi_mucond_transform_from_raw <- function(vi_raw_mu_cond, vi_varofcond,
   return(invisible(r))
 }
 
-vi_muind_transform_from_raw <- function(vi_raw_mu_ind, vi_varofind, g,
+vi_muind_transform_from_raw <- function(vi_raw_mu_ind, vi_varofind, g, k, 
                                         genenms = NULL) {
   ## vi_raw_mu_ind: n by g * k
   ## vi_varofind: n by g
@@ -262,8 +262,10 @@ calibrate_init_params <- function(ip, data, scale = 1.96^2, seed = 1L) {
     param_nms <- get_hbnb_param_nms(k = k, j = j, g = g)
 
     ip$raw_mu <- map[param_nms$raw_mu]
-    ip$mu <- mu_transform_from_raw(ip$raw_mu, data$mu0,
-                                   map[param_nms$varofmu])
+    ip$mu <- mu_transform_from_raw(
+      ip$raw_mu, data$mu0,
+      map[param_nms$varofmu]
+    )
 
     ip$raw_mu_ind <- matrix(map[param_nms$raw_mu_ind], nrow = g, byrow = TRUE)
     ip$mu_ind <- muind_transform_from_raw(
@@ -275,8 +277,10 @@ calibrate_init_params <- function(ip, data, scale = 1.96^2, seed = 1L) {
     ip$hp_varofind <- r3$hp_varofind
 
     ip$raw_mu_cond <- matrix(map[param_nms$raw_mu_cond], nrow = g, byrow = TRUE)
-    ip$mu_cond <- mucond_transfrom_from_raw(ip$raw_mu_cond,
-                                            map[param_nms$varofcond])
+    ip$mu_cond <- mucond_transfrom_from_raw(
+      ip$raw_mu_cond,
+      map[param_nms$varofcond]
+    )
     ip$varofcond <- pf$est_mucond(ip$mu_cond, scale)
   }
   return(invisible(ip))
@@ -344,89 +348,95 @@ extract_vifit <- function(vifit, data, param) {
       r <- vi_mucond_transform_from_raw(t1, t2, data$g, genenms)
       return(invisible(r))
     }
-    return(invisible(split_matrix_col(t1, data$j, genenms)))
+    return(invisible(split_matrix_col(t1, data$g, genenms)))
   }
 
   if (param %in% c("raw_mu_ind", "mu_ind")) {
     t1 <- vifit$draws(pf$str_glue_mat("raw_mu_ind", nr = data$g, nc = data$k))
     if (param == "mu_ind") {
       t2 <- vifit$draws(pf$str_glue_vec("varofind", seq_len(data$g)))
-      r <- vi_muind_transform_from_raw(t1, t2, data$g, genenms)
+      r <- vi_muind_transform_from_raw(t1, t2, g = data$g, k = data$k,
+                                       genenms)
       return(invisible(r))
     }
-    return(invisible(split_matrix_col(t1, data$k, genenms)))
+    return(invisible(split_matrix_col(t1, data$g, genenms)))
   }
   message(stringr::str_glue("{param} is missed."))
   return(NaN)
 }
 
 ## * test hbnb_mssc here
-pbmc <- readRDS(here::here(
-  "src", "modelcheck",
-  "snb_pool_ref_pbmc.rds"
-))
-k <- max(pbmc$ind)
-j <- 2
-g <- nrow(pbmc$y2c)
-paramnms <- get_hbnb_param_nms(k = k, j = j, g = g)
+test <- function() {
+  pbmc <- readRDS(here::here(
+    "src", "modelcheck",
+    "snb_pool_ref_pbmc.rds"
+  ))
+  k <- max(pbmc$ind)
+  j <- 2
+  g <- nrow(pbmc$y2c)
 
-hi_params <- set_hi_params(
-  k = k, j = j, g = g,
-  cnt = pbmc$y2c, s = pbmc$s, cond = pbmc$cond,
-  ind = pbmc$ind, scale = 1.96^2
-)
-
-data <- to_hbnb_data(pbmc$y2c,
-  ind = pbmc$ind, cond = pbmc$cond,
-  s = pbmc$s, hp = hi_params$hp
-)
-
-## debug optimization
-ip <- hi_params$ip
-scale <- 1.96^2
-opt <- hbnbm$optimize(
-  data = data,
-  init = list(ip),
-  seed = 1,
-  refresh = refresh,
-  iter = num_iter,
-  algorithm = "lbfgs"
+  hi_params <- set_hi_params(
+    k = k, j = j, g = g,
+    cnt = pbmc$y2c, s = pbmc$s, cond = pbmc$cond,
+    ind = pbmc$ind, scale = 1.96^2
   )
 
-map <- opt$mle()
-k <- data$k
-j <- data$j
-g <- data$g
+  data <- to_hbnb_data(pbmc$y2c,
+    ind = pbmc$ind, cond = pbmc$cond,
+    s = pbmc$s, hp = hi_params$hp
+  )
 
-param_nms <- get_hbnb_param_nms(k = k, j = j, g = g)
+  ## debug optimization
+  ip <- hi_params$ip
+  scale <- 1.96^2
+  opt <- hbnbm$optimize(
+    data = data,
+    init = list(ip),
+    seed = 1,
+    refresh = refresh,
+    iter = num_iter,
+    algorithm = "lbfgs"
+  )
 
-ip$raw_mu <- map[param_nms$raw_mu]
-ip$mu <- mu_transform_from_raw(ip$raw_mu, data$mu0,
-                               map[param_nms$varofmu])
+  map <- opt$mle()
+  k <- data$k
+  j <- data$j
+  g <- data$g
 
-ip$raw_mu_ind <- matrix(map[param_nms$raw_mu_ind], nrow = g, byrow = true)
-ip$mu_ind <- muind_transform_from_raw(
-  ip$raw_mu_ind,
-  map[param_nms$varofind]
-)
-r3 <- pf$est_muind(ip$mu_ind, scale)
-ip$varofind <- r3$varofind
-ip$hp_varofind <- r3$hp_varofind
+  param_nms <- get_hbnb_param_nms(k = k, j = j, g = g)
 
-ip$raw_mu_cond <- matrix(map[param_nms$raw_mu_cond], nrow = g, byrow = true)
-ip$mu_cond <- mucond_transfrom_from_raw(ip$raw_mu_cond,
-                                        map[param_nms$varofcond])
-ip$varofcond <- pf$est_mucond(ip$mu_cond, scale)
+  ip$raw_mu <- map[param_nms$raw_mu]
+  ip$mu <- mu_transform_from_raw(
+    ip$raw_mu, data$mu0,
+    map[param_nms$varofmu]
+  )
 
-ip <- calibrate_init_params(hi_params$ip, data = data)
+  ip$raw_mu_ind <- matrix(map[param_nms$raw_mu_ind], nrow = g, byrow = TRUE)
+  ip$mu_ind <- muind_transform_from_raw(
+    ip$raw_mu_ind,
+    map[param_nms$varofind]
+  )
+  r3 <- pf$est_muind(ip$mu_ind, scale)
+  ip$varofind <- r3$varofind
+  ip$hp_varofind <- r3$hp_varofind
 
-## use simpler ip
-vi_sampler <- run_hbnb_vi(data = data, ip = hi_params$ip)
-## use ip calibrated by optimization
-vi_sampler <- run_hbnb_vi(data = data, ip = ip)
+  ip$raw_mu_cond <- matrix(map[param_nms$raw_mu_cond], nrow = g, byrow = TRUE)
+  ip$mu_cond <- mucond_transfrom_from_raw(
+    ip$raw_mu_cond,
+    map[param_nms$varofcond]
+  )
+  ip$varofcond <- pf$est_mucond(ip$mu_cond, scale)
 
-vi_mucond <- extract_vifit(vi_sampler, data, "mu_cond")
-varofcond <- extract_vifit(vi_sampler, data, "varofcond")
-vi_muind <- extract_vifit(vi_sampler, data, "mu_ind")
-vi_mu <- extract_vifit(vi_sampler, data, "mu")
-vi_r <- extract_vifit(vi_sampler, data, "nb_r")
+  ip <- calibrate_init_params(hi_params$ip, data = data)
+
+  ## use simpler ip
+  vi_sampler <- run_hbnb_vi(data = data, ip = hi_params$ip)
+  ## use ip calibrated by optimization
+  vi_sampler <- run_hbnb_vi(data = data, ip = ip)
+
+  vi_mucond <- extract_vifit(vi_sampler, data, "mu_cond")
+  varofcond <- extract_vifit(vi_sampler, data, "varofcond")
+  vi_muind <- extract_vifit(vi_sampler, data, "mu_ind")
+  vi_mu <- extract_vifit(vi_sampler, data, "mu")
+  vi_r <- extract_vifit(vi_sampler, data, "nb_r")
+}
