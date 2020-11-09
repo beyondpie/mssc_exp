@@ -34,16 +34,19 @@ simulate_mu_and_r <- function(ngene = 40, mu, r) {
   invisible(t(vapply(seq_len(ngene), function(i) {
     col <- cols[i]
     c(
-      sample(mu[, col], size = 1),
-      sample(r[, col], size = 1)
+      ## sample(mu[, col], size = 1),
+      ## sample(r[, col], size = 1)
+      mean(mu[, col]),
+      median(r[, col])
     )
   }, FUN.VALUE = c(0.0, 0.0))))
 }
 
-simulate_muind <- function(nind = 10, ngene = 40, muind) {
-  ## muind: n by g by nind* from vifit draw
+simulate_muind <- function(tnind = 10, ngene = 40, muind) {
+  ## tnind: total number of individual in the dataset
+  ## muind: n by g by tnind from vifit draw
 
-  ## simulate muind: g by nind
+  ## simulate muind: ngene by tnind
 
   gcols <- sample(seq_len(dim(muind)[2]),
     size = ngene,
@@ -51,26 +54,29 @@ simulate_muind <- function(nind = 10, ngene = 40, muind) {
   )
   invisible(t(vapply(gcols, function(g) {
     icols <- sample(seq_len(dim(muind)[3]),
-      size = nind,
+      size = tnind,
       replace = T
     )
     invisible(vapply(icols, function(i) {
-      sample(muind[, g, i], size = 1)
+      ## sample(muind[, g, i], size = 1)
+      mean(muind[, g, i])
     }, FUN.VALUE = 0.0))
-  }, FUN.VALUE = rep(0.0, nind))))
+  }, FUN.VALUE = rep(0.0, tnind))))
 }
 
-simulate_mucond <- function(ngene = 40, ncond = 2, mucond,
+simulate_mucond <- function(ngene = 40, ncond = 2, mu_cond,
                             sd_noise = 0.05) {
-  ## mucond: n by g by ncond (2)
+  ## mu_cond: n by g by ncond (2)
+
+  ## simulate mu_cond: ngene by ncond
   ndiff <- ngene / 2
-  gcols <- sample(seq_len(dim(mucond)[2]),
+  gcols <- sample(seq_len(dim(mu_cond)[2]),
     size = ndiff,
     replace = T
   )
   diff <- t(vapply(gcols, function(g) {
-    row <- sample(dim(mucond)[1], size = 1)
-    invisible(mucond[row, g, ])
+    row <- sample(dim(mu_cond)[1], size = 1)
+    invisible(mu_cond[row, g, ])
   }, FUN.VALUE = c(0.0, 0.0)))
 
   undiff <- t(vapply(seq_len(ngene - ndiff, function(i) {
@@ -80,18 +86,43 @@ simulate_mucond <- function(ngene = 40, ncond = 2, mucond,
   invisible(rbind(diff, undiff))
 }
 
-simulate_s <- function(ncell=100, nind = 10, s) {
+simulate_data <- function(nind = 5, ncell = 100, ngene = 40,
+                          s, params_vifit) {
+  ## nind is per condition
+  ## ncell is per individual
+  ## ncond equals to 2
+  ncond <- 2
+  n <- nind * ncell * ncond
+  s <- sample(s, size = n, replace = T)
+  logs <- log(s)
+  cond <- rep(seq_len(ncond), each = nind * ncell)
+  ind <- rep(seq_len(ncond * nind), each = ncell)
+
+  mur <- simulate_mu_and_r(ngene,
+    mu = params_vifit$mu,
+    params_vifit$r
+  )
+  mu_ind <- simulate_muind(tnind * ncond,
+    ngene = ngene,
+    params_vifit$mu_ind
+  )
+  mu_cond <- simulate_mucond(
+    ngene = ngene, ncond = ncond,
+    mu_cond = params_vifit$mu_cond,
+    sd_noise = 0.05
+  )
+  params <- list(
+    mu = mu[, 1], r = mu[, 2],
+    mu_ind = mu_ind, mu_cond = mu_cond
+  )
+  cbg <- vapply(seq_len(ngene), function(g) {
+    loglambda <- logs + mur[g, 1] + mu_cond[g, cond] + mu_ind[g, ind]
+    invisible(rnbinom(n = n, mu = exp(loglambda), size = mur[g, 2]))
+  }, FUN.VALUE = rep(0.0, n))
+  data <- list(s = s, cond = cond, ind = ind, cbg = cbg, y = t(cbg))
+  return(invisible(list(params = params, data = data)))
 }
 
-simulate_params <- function(nind = 10, ngene = 40,
-                            ncond = 2) {
-  ## simulate the params for data generation.
-  ## parameters are mainly learned from pbmc dataset.
-}
-simulate_data <- function() {}
-
-## TODO
-get_ground_truth_params <- function(data, varnm) {}
 
 ## * run hbnb
 default_hi_params <- hbnbmssc$get_default_hi_params(k = k, j = j, g = g)
