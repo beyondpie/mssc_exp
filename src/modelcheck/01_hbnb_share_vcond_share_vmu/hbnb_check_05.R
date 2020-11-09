@@ -128,7 +128,7 @@ simulate_data <- function(nind = 5, ncell = 100, ngene = 40,
 ## could be setting as function argument
 nind <- 5
 ncell <- 100
-ngene <- 100
+ngene <- 200
 ncond <- 2
 
 ## simulate the system
@@ -171,4 +171,36 @@ saveRDS(object = list(hbnb_vifit=hbnb_vifit, hbnbsim = hbnbsim),
         file = str_glue("hbnb_vifit_{nind}_{ncell}_{ngene}.rds"))
 
 ## run pseudobulk
-get_pseudobulk <- function(data) {}
+get_pseudobulk <- function(hbnbsim) {
+  y2c <- hbnbsim$data$y2c
+  ind <- hbnbsim$data$ind
+  cond <- hbnbsim$data$cond
+  ngene <- nrow(y2c)
+  ndiff <- ngene / 2
+  diffg <- seq_len(ndiff)
+  ndiffg <- (ndiff + 1) : ngene
+  pseudo_analysis <- mypseudo$pseudobulk_deseq2(cnt_gbc = y2c,
+                                              mybatches = ind,
+                                              myconds = cond)
+  if(!is.null(rownames(y2c))) {
+    rownames(pseudo_analysis) <- rownames(y2c)
+  }
+  auc <- mypseudo$calc_auc(deseq2_res = pseudo_analysis,
+                           degs = diffg, ndegs = ndiffg, scorecol = "pvalue")
+  return(invisible(auc))
+}
+
+## auc from hbnb
+get_hbnbauc <- function(hbnb_vifit, hbnbsim, epsilon = 0.1) {
+  mu_cond <- hbnb_vifit$est_params$mu_cond
+  rank_stats <- hbnbm$get_rank_statistics(mu_cond, c1 = 1, c2 = 2,
+                                          epsilon = epsilon)
+  ngene <- nrow(hbnbsim$data$y2c)
+  ndiff <- ngene / 2
+  diffg <- seq_len(ndiff)
+  ndiffg <- (ndiff + 1):ngene
+  auc <- hbnbm$get_auc(rank_stats, diffg, ndiffg)
+  return(invisible(c(auc, rank_stats)))
+}
+
+## pbmc top rank, compared with pseudobulk

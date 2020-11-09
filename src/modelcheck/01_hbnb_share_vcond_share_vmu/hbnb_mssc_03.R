@@ -225,7 +225,7 @@ vi_mucond_transform_from_raw <- function(vi_raw_mu_cond, vi_varofcond,
   return(invisible(r))
 }
 
-vi_muind_transform_from_raw <- function(vi_raw_mu_ind, vi_varofind, g, k, 
+vi_muind_transform_from_raw <- function(vi_raw_mu_ind, vi_varofind, g, k,
                                         genenms = NULL) {
   ## vi_raw_mu_ind: n by g * k
   ## vi_varofind: n by g
@@ -355,14 +355,42 @@ extract_vifit <- function(vifit, data, param) {
     t1 <- vifit$draws(pf$str_glue_mat("raw_mu_ind", nr = data$g, nc = data$k))
     if (param == "mu_ind") {
       t2 <- vifit$draws(pf$str_glue_vec("varofind", seq_len(data$g)))
-      r <- vi_muind_transform_from_raw(t1, t2, g = data$g, k = data$k,
-                                       genenms)
+      r <- vi_muind_transform_from_raw(t1, t2,
+        g = data$g, k = data$k,
+        genenms
+      )
       return(invisible(r))
     }
     return(invisible(split_matrix_col(t1, data$g, genenms)))
   }
   message(stringr::str_glue("{param} is missed."))
   return(NaN)
+}
+
+get_rank_statistics <- function(mu_cond, c1 = 1, c2 = 2,
+                                epsilon = 0.1) {
+  ## mu_cond: n by ngene by ncond
+  ## c1, c2 correspond to different conditions
+
+  delta <- as.matrix(abs(mu_cond[, , c1] - mu_cond[, , c2]))
+  if (!is.null(dimnames(mu_cond)[[2]])) {
+    colnames(delta) <- dimnames(mu_cond)[[2]]
+  }
+  abs_delta <- abs(delta)
+  ## z score
+  z <- colMeans(abs_delta) / matrixStats::colSds(abs_delta)
+  ## probability larger than a given epision
+  p <- colSums(abs_delta >= epsilon) / nrow(delta)
+  return(invisible(list(z = z, p = p, delta = delta)))
+}
+
+get_auc <- function(rank_stats, diffg, ndiffg) {
+  true_class <- c(rep(TRUE, length(diffg)), rep(FALSE, length(ndiffg)))
+  z <- rank_stats$z[c(diffg, ndiffg)]
+  p <- rank_stats$p[c(diffg, ndiffg)]
+  auc_z <- caTools::colAUC(z, true_class)
+  auc_p <- caTools::colAUC(p, true_class)
+  return(invisible(list(auc_z = auc_z, auc_p = auc_p)))
 }
 
 ## * test hbnb_mssc here
