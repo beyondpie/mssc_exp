@@ -33,12 +33,12 @@ data {
 }
 
 transformed data {
-	matrix[N, 1 + J + K] X = rep_matrix(0.0, N, 1+J+K);
-	for (i in 1:N) {
-		X[i, 1] = 1.0;
-		X[i, 1 + Ind[i]] = 1.0;
-		X[i, 1 + J + Cond[i]] = 1.0;
-	}
+	// matrix[N, 1 + J + K] X = rep_matrix(0.0, N, 1+J+K);
+	// for (i in 1:N) {
+	// 	X[i, 1] = 1.0;
+	// 	X[i, 1 + Ind[i]] = 1.0;
+	// 	X[i, 1 + J + Cond[i]] = 1.0;
+	// }
 
 	vector[N] logS = log(S);
 }
@@ -63,7 +63,6 @@ model {
 	Kappa2G ~ inv_gamma(alphaKappa2G, betaKappa2G);
 	Tau2G ~ inv_gamma(alphaTau2G, betaTau2G);
 
-	// Phi2G ~ inv_gamma(alphaPhi2G, betaPhi2G);
 	Phi2G ~ inv_gamma(alphaPhi2G, betaPhi2G);
 
 	MuG ~ normal(muG0, sigmaG0);
