@@ -427,16 +427,15 @@ test <- function() {
   )
   ip$varofcond <- pf$est_mucond(ip$mu_cond, scale)
 
-  ip <- calibrate_init_params(hi_params$ip, data = data)
-
   ## use simpler ip
   vi_sampler <- run_hbnb_vi(data = data, ip = hi_params$ip)
   ## use ip calibrated by optimization
+  ip <- calibrate_init_params(hi_params$ip, data = data)
   vi_sampler <- run_hbnb_vi(data = data, ip = ip)
 
-  vi_mucond <- extract_vifit(vi_sampler, data, "mu_cond")
-  varofcond <- extract_vifit(vi_sampler, data, "varofcond")
-  vi_muind <- extract_vifit(vi_sampler, data, "mu_ind")
-  vi_mu <- extract_vifit(vi_sampler, data, "mu")
-  vi_r <- extract_vifit(vi_sampler, data, "nb_r")
+  est_params <- lapply(nm_params, function(nm) {
+    extract_vifit(vi_sampler, data, nm)
+  })
+  names(est_params) <- nm_params
+  return(invisible(est_params))
 }
