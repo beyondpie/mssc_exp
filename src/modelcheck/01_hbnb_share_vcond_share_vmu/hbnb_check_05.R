@@ -131,6 +131,11 @@ ncell <- 100
 ngene <- 200
 ncond <- 2
 
+ndiff <- ngene / 2
+allg <- seq_len(ngene)
+diffg <- seq_len(ndiff)
+ndiffg <- (ndiff + 1):ngene
+
 ## simulate the system
 hbnbsim <- simulate_data(
   nind = nind, ncell = ncell, ngene = ngene,
@@ -181,7 +186,7 @@ recover <- readRDS(str_glue("hbnb_vifit_{nind}_{ncell}_{ngene}.rds"))
 hbnb_vifit <- recover$hbnb_vifit
 hbnbsim <- recover$hbnbsim
 
-## check the estimation and the ground truth.
+## check the estimation and the ground truth
 eval_mucond <- function(hbnb_vifit, hbnbsim,
                         f = matrixStats::colMedians,
                         c1 = 1, c2 = 2) {
@@ -212,25 +217,101 @@ eval_mucond <- function(hbnb_vifit, hbnbsim,
   )))
 }
 
+plot_eval_mucond <- function(hbnb_vifit, hbnbsim,
+                             gene_index = diffg,
+                             f = matrixStats::colMedians,
+                             main = "MSSC hiearchical Bayesian model under variational inference") {
+  mucond_est_mns_gt <- eval_mucond(hbnb_vifit, hbnbsim, f)
+  gt_diff_level <- hbnbsim$params$mu_cond[gene_index, 1] -
+    hbnbsim$params$mu_cond[gene_index, 2]
+  boxplot(mucond_est_mns_gt$est_diff)
+  abline(h = 0, col = "gray60", lty = 3)
+  points(x = gene_index, y = gt_diff_level, pch = 19, col = "red")
+  title(
+    main = main,
+    sub = paste0(
+      "Boxplot for the simulated differentially expressed genes.",
+      "The red points are the ground truth."
+    ),
+    xlab = "Gene index", ylab = "Differential expression level",
+    cex.lab = 1.5, cex.sub = 1.3, cex.main = 2
+  )
+}
 
-### main codes
-## gtest: grount truth and estimatio
-mucond_est_mns_gt <- eval_mucond(hbnb_vifit, hbnbsim)
-ndiff <- ngene / 2
-allg <- seq_len(ngene)
-diffg <- seq_len(ndiff)
-ndiffg <- (ndiff + 1):ngene
+## plot_eval_mucond(hbnb_vifit, hbnbsim, f = colMeans)
 
-hist(gt_diff_level)
-gt_diff_level <- hbnbsim$params$mu_cond[diffg, 1] -
-  hbnbsim$params$mu_cond[diffg, 2]
-boxplot(mucond_est_mns_gt$est_diff)
-abline(h = 0, col = "gray60", lty = 3)
-points(x = diffg, y = gt_diff_level, pch = 19, col = "red")
-title(main = "MSSC hiearchical Bayesian model under variational inference",
-      sub = "Boxplot for the simulated differentially expressed genes. The red points are the ground truth.",
-      xlab = "Gene index", ylab = "Differential expression level", 
-      cex.lab = 1.5, cex.sub = 1.3, cex.main = 2)
+plot_mu <- function(hbnb_vifit, hbnbsim, param = "mu",
+                    gene_index = diffg,
+                    f = colMeans,
+                    main = "MSSC hiearchical Bayesian model under variational inference") {
+  ## gt: g
+  gt <- hbnbsim$params[[param]][gene_index]
+  ## est: n by g
+  est <- as.matrix(hbnb_vifit$est_params[[param]][, gene_index])
+  boxplot(est)
+  abline(h = 0, col = "gray60", lty = 3)
+  points(x = gene_index, y = gt, pch = 19, col = "red")
+  title(
+    main = main,
+    sub = paste0(
+      "Boxplot for log expression level.",
+      "Red points are the ground truth."
+    ),
+    xlab = "Gene index", ylab = "Expression level",
+    cex.lab = 1.5, cex.sub = 1.3, cex.main = 2
+  )
+}
+
+plot_r <- function(hbnb_vifit, hbnbsim,
+                   gene_index = diffg,
+                   f = colMeans,
+                   main = "MSSC hiearchical Bayesian model under variational inference") {
+  ## gt: vector, length of ngene
+  gt <- hbnbsim$params[["r"]][gene_index]
+  ## est: n by g
+  est <- as.matrix(hbnb_vifit$est_params[["nb_r"]][, gene_index])
+  boxplot(est)
+  abline(h = 0, col = "gray60", lty = 3)
+  points(x = gene_index, y = gt, pch = 19, col = "red")
+  title(
+    main = main,
+    sub = paste0(
+      "Boxplot for dispersion in negative bionomial.",
+      "Red points are the ground truth."
+    ),
+    xlab = "Gene index", ylab = "Dispersion",
+    cex.lab = 1.5, cex.sub = 1.3, cex.main = 2
+  )
+}
+
+plot_avg_muind <- function(hbnb_vifit, hbnbsim, f=colMeans,
+                       gene_index = diffg,
+                       main = "Individual Effect Level") {
+  ## gt: ngene by nind
+  gt <- hbnbsim$params$mu_ind[gene_index, ]
+  ## est: nsample by ngene by nind
+  est <- hbnb_vifit$est_params$mu_ind[, gene_index, ]
+
+  mean_gt <- rowMeans(gt)
+  mean_est <- t(vapply(1:dim(est)[1],
+                       function(i) {rowMeans(est[i, , ])},
+                       rowMeans(est[1, , ])))
+  boxplot(mean_est)
+  abline(h = 0, col = "gray60", lty = 3)
+  points(x = diffg, y = mean_gt, pch = 19, col = "red")
+  title(main = main,
+        sub = paste0("Boxplot for individual effect level.",
+                     "Red points are the ground truth."),
+        xlab = "Gene index", ylab = "Individual effect level",
+        cex.lab = 1.5, cex.sub = 1.3, cex.main = 2
+        )
+}
+
+par(mfrow = c(4, 1))
+plot_mu(hbnb_vifit, hbnbsim, "mu", main = "Average Expression Level")
+plot_eval_mucond(hbnb_vifit, hbnbsim, main = "Differential Expression Level")
+plot_avg_muind(hbnb_vifit, hbnbsim, gene_index = diffg)
+plot_r(hbnb_vifit, hbnbsim, main = "Dispersion")
 
 
 ## run pseudobulk
