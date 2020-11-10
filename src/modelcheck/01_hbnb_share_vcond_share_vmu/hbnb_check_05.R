@@ -61,7 +61,7 @@ simulate_muind <- function(tnind = 10, ngene = 40, muind) {
       ## sample(muind[, g, i], size = 1)
       mean(muind[, g, i])
     }, FUN.VALUE = 0.0))
-  }, FUN.VALUE = rep(0.0, tnind) ) ))
+  }, FUN.VALUE = rep(0.0, tnind))))
 }
 
 simulate_mucond <- function(ngene = 40, ncond = 2, mu_cond,
@@ -132,22 +132,25 @@ ngene <- 200
 ncond <- 2
 
 ## simulate the system
-hbnbsim <- simulate_data(nind = nind, ncell = ncell, ngene = ngene,
-                        s = demo_pbmc$s, params_vifit = demo_vifit)
+hbnbsim <- simulate_data(
+  nind = nind, ncell = ncell, ngene = ngene,
+  s = demo_pbmc$s, params_vifit = demo_vifit
+)
 ## run hbnb
-
-get_vifit <- function(hbnbsim, calibrate_with_opt=FALSE) {
+get_vifit <- function(hbnbsim, calibrate_with_opt = FALSE) {
   ind <- hbnbsim$data$ind
   cond <- hbnbsim$data$cond
   s <- hbnbsim$data$s
   y2c <- hbnbsim$data$y2c
-  hi_params <- hbnbm$set_hi_params(k = max(ind),
-                                   j = max(cond),
-                                   g = nrow(y2c),
-                                   cnt = y2c,
-                                   s = s,
-                                   cond = cond, ind = ind,
-                                   scale = 1.96^2)
+  hi_params <- hbnbm$set_hi_params(
+    k = max(ind),
+    j = max(cond),
+    g = nrow(y2c),
+    cnt = y2c,
+    s = s,
+    cond = cond, ind = ind,
+    scale = 1.96^2
+  )
   data <- hbnbm$to_hbnb_data(y2c, ind, cond, s, hi_params$hp)
   if (calibrate_with_opt) {
     ip <- hbnbm$calibrate_init_params(hi_params$ip, data = data)
@@ -159,16 +162,76 @@ get_vifit <- function(hbnbsim, calibrate_with_opt=FALSE) {
     hbnbm$extract_vifit(vifit, data, nm)
   })
   names(est_params) <- hbnbm$nm_params
-  return(invisible(list(vifit = vifit, data = data,
-                        ip = ip, hip = hi_params,
-                        est_params = est_params)))
+  return(invisible(list(
+    vifit = vifit, data = data,
+    ip = ip, hip = hi_params,
+    est_params = est_params
+  )))
 }
 
 hbnb_vifit <- get_vifit(hbnbsim)
 
 ## save intermidiate result
-saveRDS(object = list(hbnb_vifit=hbnb_vifit, hbnbsim = hbnbsim),
-        file = str_glue("hbnb_vifit_{nind}_{ncell}_{ngene}.rds"))
+saveRDS(
+  object = list(hbnb_vifit = hbnb_vifit, hbnbsim = hbnbsim),
+  file = str_glue("hbnb_vifit_{nind}_{ncell}_{ngene}.rds")
+)
+
+recover <- readRDS(str_glue("hbnb_vifit_{nind}_{ncell}_{ngene}.rds"))
+hbnb_vifit <- recover$hbnb_vifit
+hbnbsim <- recover$hbnbsim
+
+## check the estimation and the ground truth.
+eval_mucond <- function(hbnb_vifit, hbnbsim,
+                        f = matrixStats::colMedians,
+                        c1 = 1, c2 = 2) {
+  ## gt_mucond: ground truth, g by ncond (2)
+  ## est_mucond: n by g by ncond
+  delta <- function(gene_index) {
+    delta_gt <- gt_mucond[gene_index, c1] - gt_mucond[gene_index, c2]
+    delta_est <- as.matrix(est_mucond[, gene_index, c1] -
+      est_mucond[, gene_index, c2])
+    return(invisible(delta_est - t(replicate(nsample, delta_gt))))
+  }
+
+  gt_mucond <- hbnbsim$params$mu_cond
+  est_mucond <- hbnb_vifit$est_params$mu_cond
+  ngene <- dim(est_mucond)[2]
+  nsample <- dim(est_mucond)[1]
+  ndiff <- ngene / 2
+  allg <- seq_len(ngene)
+  diffg <- seq_len(ndiff)
+  ndiffg <- (ndiff + 1):ngene
+
+  est_diff <- as.matrix(est_mucond[, diffg, c1] - est_mucond[, diffg, c2])
+
+
+  return(invisible(list(
+    ddiff = f(delta(diffg)), dndiff = f(delta(ndiffg)),
+    dall = f(delta(allg)), dmat = delta(allg), est_diff = est_diff
+  )))
+}
+
+
+### main codes
+## gtest: grount truth and estimatio
+mucond_est_mns_gt <- eval_mucond(hbnb_vifit, hbnbsim)
+ndiff <- ngene / 2
+allg <- seq_len(ngene)
+diffg <- seq_len(ndiff)
+ndiffg <- (ndiff + 1):ngene
+
+hist(gt_diff_level)
+gt_diff_level <- hbnbsim$params$mu_cond[diffg, 1] -
+  hbnbsim$params$mu_cond[diffg, 2]
+boxplot(mucond_est_mns_gt$est_diff)
+abline(h = 0, col = "gray60", lty = 3)
+points(x = diffg, y = gt_diff_level, pch = 19, col = "red")
+title(main = "MSSC hiearchical Bayesian model under variational inference",
+      sub = "Boxplot for the simulated differentially expressed genes. The red points are the ground truth.",
+      xlab = "Gene index", ylab = "Differential expression level", 
+      cex.lab = 1.5, cex.sub = 1.3, cex.main = 2)
+
 
 ## run pseudobulk
 get_pseudobulk <- function(hbnbsim) {
@@ -178,23 +241,29 @@ get_pseudobulk <- function(hbnbsim) {
   ngene <- nrow(y2c)
   ndiff <- ngene / 2
   diffg <- seq_len(ndiff)
-  ndiffg <- (ndiff + 1) : ngene
-  pseudo_analysis <- mypseudo$pseudobulk_deseq2(cnt_gbc = y2c,
-                                              mybatches = ind,
-                                              myconds = cond)
-  if(!is.null(rownames(y2c))) {
+  ndiffg <- (ndiff + 1):ngene
+  pseudo_analysis <- mypseudo$pseudobulk_deseq2(
+    cnt_gbc = y2c,
+    mybatches = ind,
+    myconds = cond
+  )
+  if (!is.null(rownames(y2c))) {
     rownames(pseudo_analysis) <- rownames(y2c)
   }
-  auc <- mypseudo$calc_auc(deseq2_res = pseudo_analysis,
-                           degs = diffg, ndegs = ndiffg, scorecol = "pvalue")
+  auc <- mypseudo$calc_auc(
+    deseq2_res = pseudo_analysis,
+    degs = diffg, ndegs = ndiffg, scorecol = "pvalue"
+  )
   return(invisible(auc))
 }
 
 ## auc from hbnb
 get_hbnbauc <- function(hbnb_vifit, hbnbsim, epsilon = 0.1) {
   mu_cond <- hbnb_vifit$est_params$mu_cond
-  rank_stats <- hbnbm$get_rank_statistics(mu_cond, c1 = 1, c2 = 2,
-                                          epsilon = epsilon)
+  rank_stats <- hbnbm$get_rank_statistics(mu_cond,
+    c1 = 1, c2 = 2,
+    epsilon = epsilon
+  )
   ngene <- nrow(hbnbsim$data$y2c)
   ndiff <- ngene / 2
   diffg <- seq_len(ndiff)
