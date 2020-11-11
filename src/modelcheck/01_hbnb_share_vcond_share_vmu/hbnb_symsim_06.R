@@ -18,7 +18,7 @@ symsim_data_path <- here::here("data", "symsim", "twostage_be_symsim", "data")
 symsim_exp_pah <- here::here("exps", "symsim", "stan")
 
 ## * configs
-tag <- 2
+tag <- 3
 
 ## * load and calculate ground truth
 symsimtrue <- readRDS(file = file.path(
@@ -65,7 +65,7 @@ symsim2be <- readRDS(file = file.path(
 ))
 
 ## * hbnb analysis
-get_vifit <- function(symsim2be) {
+init_params_and_data <- function(symsim2be) {
   y2c <- symsim2be$counts
   ind <- symsim2be$batch_meta$batch
   cond <- symsim2be$cell_meta$pop
@@ -83,40 +83,46 @@ get_vifit <- function(symsim2be) {
   )
 
   data <- hbnbm$to_hbnb_data(y2c, ind, cond, s, hi_params$hp)
-  ip <- hi_params$ip
-  vifit <- hbnbm$run_hbnb_vi(data = data, ip = ip)
-  est_params <- lapply(hbnbm$nm_params, function(nm) {
-    hbnbm$extract_vifit(vifit, data, nm)
-  })
-  names(est_params) <- hbnbm$nm_params
-  return(invisible(list(
-    vifit = vifit, data = data,
-    ip = ip, hip = hi_params,
-    est_params = est_params
-  )))
+  return(invisible(list(hip = hi_params, data = data)))
 }
 
-get_auc_hbnb <- function(vifit, degs, ndegs, epsilon=0.1) {
-  mu_cond <- vifit$est_params$mu_cond
+get_auc_hbnb <- function(vifit, data, degs, ndegs, epsilon = 0.1) {
+  mu_cond <- hbnbm$extract_vifit(vifit, data, "mu_cond")
   rank_stats <- hbnbm$get_rank_statistics(mu_cond,
-                                          c1 = 1, c2 = 2,
-                                          epsilon = epsilon)
+    c1 = 1, c2 = 2,
+    epsilon = epsilon
+  )
   auc <- hbnbm$get_auc(rank_stats, degs, ndegs)
-  return(invisible(c(auc, rank_stats)))
+  return(invisible(auc))
 }
 
-vifit <- get_vifit(symsim2be)
-hbnb_auc <- get_auc_hbnb(vifit, symsim_degenes, symsim_strict_ndegenes)
-message(hbnb_auc)
+pd <- init_params_and_data(symsim2be)
+saveRDS(object = pd, file = str_glue("symsim2be_{tag}.rds"))
+pd <- readRDS(str_glue("symsim2be_{tag}.rds"))
 
-## auc for hbnb: 0.729
+symsim2be_vifit <- hbnbm$run_hbnb_vi(data = pd$data, ip = pd$hip$ip)
+hbnb_auc <- get_auc_hbnb(symsim2be_vifit, data = pd$data,
+                         symsim_degenes, symsim_ndegs)
 
+message(hbnb_auc$auc_z)
+message(hbnb_auc$auc_p)
+
+hbnb_auc_strict <- get_auc_hbnb(symsim2be_vifit, data = pd$data,
+                                symsim_degenes, symsim_strict_ndegenes)
+message(hbnb_auc_strict$auc_z)
+message(hbnb_auc_strict$auc_p)
 
 mycnt <- symsim2be$counts
 mybatches <- symsim2be$batch_meta$batch
 myconds <- symsim2be$cell_meta$pop
 pseudo_deseq2_res <- mypseudo$pseudobulk_deseq2(mycnt, mybatches, myconds)
-tmp <- mypseudo$calc_auc(pseudo_deseq2_res, symsim_degenes,
-                         symsim_strict_ndegenes)
+tmp <- mypseudo$calc_auc(
+  pseudo_deseq2_res, symsim_degenes,
+  symsim_ndegs
+)
 message(tmp$auc)
-## auc for pseudo bulk: 0.841
+tmp_strict <- mypseudo$calc_auc(
+  pseudo_deseq2_res, symsim_degenes,
+  symsim_strict_ndegenes
+)
+message(tmp_strict$auc)

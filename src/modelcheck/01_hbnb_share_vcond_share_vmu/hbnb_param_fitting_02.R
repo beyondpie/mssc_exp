@@ -24,7 +24,7 @@ str_glue_mat <- function(nr, nc, nm = "MuInd",
   r <- rep("", nr * nc)
   for (i in 1:nr) {
     for (j in 1:nc) {
-      r[nc * (i-1) + j] <- stringr::str_glue("{nm}{lround}{i},{j}{rround}")
+      r[nc * (i - 1) + j] <- stringr::str_glue("{nm}{lround}{i},{j}{rround}")
     }
   }
   return(invisible(r))
@@ -34,6 +34,11 @@ str_glue_mat <- function(nr, nc, nm = "MuInd",
 init_snb_logmu <- function(y, median_of_s) {
   ## init scale negative binomial log mu.
   ## y should not be all zeros.
+  ## otherwise, will return -20
+  if (sum(y) < 1) {
+    message("[WARNING]: y are all zeros.")
+    return(-20.0)
+  }
   return(log(mean(y)) - log(median_of_s))
 }
 
@@ -57,7 +62,8 @@ init_snb <- function(s, y, r_default = 10) {
 
 stanfit_scalenb <- function(s, y, scale_nb_model,
                             seed = 1, numiter = 5000,
-                            refresh = 5000, r_default = 10) {
+                            refresh = 5000, r_default = 50,
+                            too_big_r = 100) {
   ## mu in scaled log level, and minus log(s)
   ## use stan to fit
   result <- list(mu = NaN, r = NaN, success = FALSE)
@@ -75,9 +81,26 @@ stanfit_scalenb <- function(s, y, scale_nb_model,
 
   if (is_vi_or_opt_success(opt)) {
     t <- opt$mle()
-    result$mu <- t["mu"]
-    result$r <- t["r"]
-    result$success <- TRUE
+    if (is.infinite(t["mu"])) {
+      ## This should not happen.
+      message("[WARNING] Fitting faces mu inifinity, but opt success.")
+      result$mu <- init_mur$mu
+      result$r <- init_mur$r
+      result$success <- FALSE
+    } else if (t["r"] > too_big_r) {
+      ## CHECK: r can be quite large when y does not follow NB distribution.
+      tmp <- t["r"]
+      message(stringr::str_glue("[WARNING]: Fitted r {tmp} > {too_big_r}"))
+      message(stringr::str_glue("Set r as {r_default}"))
+      result$mu <- init_mur$mu
+      result$r <- init_mur$r
+      result$success <- FALSE
+    }
+    else {
+      result$mu <- t["mu"]
+      result$r <- t["r"]
+      result$success <- TRUE
+    }
   } else {
     result$mu <- init_mur$mu
     result$r <- init_mur$r
@@ -190,9 +213,19 @@ stanfit_gwsnb_to_ind_level <- function(s, y, vec_of_cond,
   return(invisible(result))
 }
 
-est_mu <- function(mu, scale = 1.96^2) {
-  m <- mean(mu)
+est_mu <- function(mu, scale = 1.96^2,
+                   default_v = 25) {
+  ## use median instead of mu
+  ## - if mu follows normal, median and mean should be almost same
+  ## - when mu has Inf element, median is robust.
+  m <- median(mu)
   v <- var(mu) * scale
+  if (is.nan(v)) {
+    ## happens when mu has Inf element.
+    ## mu should not have this element
+    message(stringr::str_glue("[WARNING]: v is NaN; set as {default_v}."))
+    v <- default_v
+  }
   return(invisible(c(m, v)))
 }
 
@@ -234,7 +267,8 @@ est_muind <- function(muind, scale = 1.96^2) {
   ## each gene share the same variance
   ## v shape: g by 1
   v <- vapply(seq_len(nrow(muind)), function(r) {
-    var(muind[r, ]) * scale}, FUN.VALUE = 0.0)
+    var(muind[r, ]) * scale
+  }, FUN.VALUE = 0.0)
   m <- mean(v)
   vv <- var(v)
   beta <- m / vv
@@ -257,17 +291,17 @@ fit_mg_snb <- function(cnt, s, cond, ind,
 
   k <- max(ind)
   t_res <- vapply(seq_len(nrow(cnt)),
-                  FUN = function(i) {
-                    r <- stanfit_gwsnb_to_ind_level(
-                      s = s, y = cnt[i, ], vec_of_cond = cond,
-                      vec_of_ind = ind,
-                      snbm = snbm,
-                      snbm_for_mucond = snbm_for_mucond
-                    )
-                    return(invisible(c(r$mu0, r$r0, r$mu_cond, r$mu_ind)))
-                  },
-                  FUN.VALUE = rep(0.0, 2 + 2 + k)
-                  )
+    FUN = function(i) {
+      r <- stanfit_gwsnb_to_ind_level(
+        s = s, y = cnt[i, ], vec_of_cond = cond,
+        vec_of_ind = ind,
+        snbm = snbm,
+        snbm_for_mucond = snbm_for_mucond
+      )
+      return(invisible(c(r$mu0, r$r0, r$mu_cond, r$mu_ind)))
+    },
+    FUN.VALUE = rep(0.0, 2 + 2 + k)
+  )
 
   colnames(t_res) <- rownames(cnt)
   rownames(t_res) <- c(murnm, mucondnm, muindnm)
@@ -279,7 +313,7 @@ init_hbnb_params <- function(est_mg_mat,
                              murnm = c("mu0", "r0"),
                              mucondnm = str_glue_vec("mu_cond", seq_len(2)),
                              muindnm = str_glue_vec("mu_ind", seq_len(k)),
-                             scale = 1.96^2) {
+                             scale = 1.96^2, default_varofmu = 25.0) {
   ## generate the initial hbnb params
   ## also set the hp params: mu0
 
@@ -288,7 +322,7 @@ init_hbnb_params <- function(est_mg_mat,
   mu_cond <- est_mg_mat[, mucondnm]
   mu_ind <- est_mg_mat[, muindnm]
 
-  r1 <- est_mu(mu, scale)
+  r1 <- est_mu(mu, scale, default_varofmu)
   mu0 <- r1[1]
   varofmu <- r1[2]
   raw_mu <- (mu - mu0) / sqrt(varofmu)

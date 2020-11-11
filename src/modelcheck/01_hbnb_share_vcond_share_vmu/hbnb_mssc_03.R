@@ -63,6 +63,11 @@ dftgamma <- c(1.0, 1.0)
 ## default invgamma param
 dftinvg <- c(1.0, 10.0)
 
+## other default parameters
+dnb_r <- 10.0
+dvarofmu <- 25.0
+
+
 ## ** stan training
 num_iter <- 5000
 refresh <- 5000
@@ -105,8 +110,8 @@ get_default_hi_params <- function(k, j, g) {
   ## default init params
   dip <- list(
     hp_r = dftgamma,
-    nb_r = rep(10.0, g),
-    varofmu = 25.0,
+    nb_r = rep(dnb_r, g),
+    varofmu = dvarofmu,
     mu = rep(0.0, g),
     raw_mu = rep(0.0, g),
     mu_cond = array(0.0, dim = c(g, j)),
@@ -136,7 +141,7 @@ set_hi_params <- function(k, j, g,
   )
   r <- pf$init_hbnb_params(mat,
     murnm = murnm, mucondnm = mucondnm,
-    muindnm = muindnm, scale = scale
+    muindnm = muindnm, scale = scale, default_varofmu = dvarofmu
   )
 
   ## update the gene scale log mean expression estimation
