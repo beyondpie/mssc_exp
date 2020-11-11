@@ -58,23 +58,15 @@ hbnbm <- cmdstan_model(
 )
 
 ## * constants
-## ** default gamma param
-dftgamma <- c(1.0, 1.0)
-## default invgamma param
-dftinvg <- c(1.0, 10.0)
-
-## other default parameters
-dnb_r <- 10.0
-dvarofmu <- 25.0
-
-
 ## ** stan training
 num_iter <- 5000
-refresh <- 5000
+## set refresh as zero to reduce the output log from stan
+## https://github.com/stan-dev/cmdstanr/issues/341
+refresh <- 0
 eval_elbo <- 100
 ## vi_algorithm <- "fullrank"
 vi_algorithm <- "meanfield"
-output_samples <- 1000
+output_samples <- 1500
 
 ## * functions
 get_hbnb_param_nms <- function(k, j, g) {
@@ -100,23 +92,23 @@ get_default_hi_params <- function(k, j, g) {
   ## default hyper params
   dhp <- list(
     mu0 = rep(0.0, g),
-    hp_varofmu = dftinvg,
-    hp_alpha_r = dftgamma,
-    hp_beta_r = dftgamma,
-    hp_alpha_varofind = dftgamma,
-    hp_beta_varofind = dftgamma,
-    hp_varofcond = dftinvg
+    hp_varofmu = pf$hpinvg_default,
+    hp_alpha_r = pf$hpgamma_default,
+    hp_beta_r = pf$hpgamma_default,
+    hp_alpha_varofind = pf$hpgamma_default,
+    hp_beta_varofind = pf$hpgamma_default,
+    hp_varofcond = pf$hpinvg_default
   )
   ## default init params
   dip <- list(
-    hp_r = dftgamma,
-    nb_r = rep(dnb_r, g),
-    varofmu = dvarofmu,
+    hp_r = pf$hpgamma_default,
+    nb_r = rep(pf$r_default, g),
+    varofmu = pf$varofmu_default,
     mu = rep(0.0, g),
     raw_mu = rep(0.0, g),
     mu_cond = array(0.0, dim = c(g, j)),
     raw_mu_cond = array(0.0, dim = c(g, j)),
-    varofcond = 4.0,
+    varofcond = pf$varofcond_default,
     mu_ind = array(0.0, dim = c(g, k)),
     raw_mu_ind = array(0.0, dim = c(g, k)),
     varofind = rep(1.0, g)
@@ -141,7 +133,7 @@ set_hi_params <- function(k, j, g,
   )
   r <- pf$init_hbnb_params(mat,
     murnm = murnm, mucondnm = mucondnm,
-    muindnm = muindnm, scale = scale, default_varofmu = dvarofmu
+    muindnm = muindnm, scale = scale
   )
 
   ## update the gene scale log mean expression estimation

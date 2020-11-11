@@ -1,6 +1,15 @@
 ## use stan for snb fitting
 ## provide other functions specific for hbnb
 
+## ** default parameters
+hpgamma_default <- c(1.0, 1.0)
+## default invgamma param
+hpinvg_default <- c(1.0, 10.0)
+r_default <- 10.0
+mu_default <- 0.0
+varofmu_default <- 25.0
+varofcond_default <- 4.0
+
 is_vi_or_opt_success <- function(vi_or_opt) {
   ## https://github.com/stan-dev/cmdstanr/issues/332
   if (vi_or_opt$runset$procs$get_proc(1)$get_exit_status() == 0) {
@@ -65,9 +74,8 @@ stanfit_scalenb <- function(s, y, scale_nb_model,
                             refresh = 5000, r_default = 50,
                             too_big_r = 100) {
   ## mu in scaled log level, and minus log(s)
-  ## use stan to fit
-  result <- list(mu = NaN, r = NaN, success = FALSE)
   # fit scaled negative binomial using stan
+  result <- list(mu = NaN, r = NaN, success = FALSE)
   init_mur <- init_snb(s, y, r_default)
 
   opt <- scale_nb_model$optimize(
@@ -113,7 +121,7 @@ stanfit_snb_fr <- function(s, r, y, model,
                            seed = 1, numiter = 5000,
                            refresh = 5000) {
   ## mu in scaled log level, and minus log(s)
-  ## use stan to fit
+  ## fitting scaled negative binomial while fixing r
 
   result <- list(mu = NaN, success = FALSE)
   # fit scaled negative binomial using stan
@@ -143,8 +151,7 @@ stanfit_snb_fr <- function(s, r, y, model,
 
 stanfit_gwsnb_to_ind_level <- function(s, y, vec_of_cond,
                                        vec_of_ind, snbm,
-                                       snbm_for_mucond,
-                                       r_default = 10.0) {
+                                       snbm_for_mucond) {
   ## fit mu0, r0; then mu_cond; then mu_ind
   ## index follows stan hbnb, starting from 1.
 
@@ -152,20 +159,20 @@ stanfit_gwsnb_to_ind_level <- function(s, y, vec_of_cond,
   ## we'll use init strategy to set up the parameters.
 
   ## y cannot be all the zeros (not test in the code)
-
   k <- max(vec_of_ind) # num of ind
+  j <- max(vec_of_cond) # num of cond, should be 2
   result <- list(
-    mu0 = NaN, r0 = NaN,
-    mu_cond = c(NaN, NaN),
-    mu_ind = rep(NaN, k),
+    mu0 = mu_default, r0 = r_default,
+    mu_cond = rep(0.0, j),
+    mu_ind = rep(0.0, k),
     s1 = FALSE,
     s2 = rep(FALSE, 2),
     s3 = rep(FALSE, k)
   )
-  ## if (sum(y) < 1) {
-  ##   message("[BUG]: sum of y is zero.")
-  ##   return(invisible(result))
-  ## }
+  if (sum(y) < 1) {
+    message("[BUG]: sum of y is zero.")
+    return(invisible(result))
+  }
   mur_all <- stanfit_scalenb(s, y, snbm)
   result$mu0 <- mur_all$mu
   result$r0 <- mur_all$r
@@ -173,7 +180,7 @@ stanfit_gwsnb_to_ind_level <- function(s, y, vec_of_cond,
 
 
   ## for mu_cond
-  for (i in c(1, 2)) {
+  for (i in seq_len(j)) {
     index <- (vec_of_cond == i)
     yi <- y[index]
     if (sum(yi) < 1) {
@@ -213,8 +220,7 @@ stanfit_gwsnb_to_ind_level <- function(s, y, vec_of_cond,
   return(invisible(result))
 }
 
-est_mu <- function(mu, scale = 1.96^2,
-                   default_v = 25) {
+est_mu <- function(mu, scale = 1.96^2) {
   ## use median instead of mu
   ## - if mu follows normal, median and mean should be almost same
   ## - when mu has Inf element, median is robust.
@@ -224,12 +230,13 @@ est_mu <- function(mu, scale = 1.96^2,
     ## happens when mu has Inf element.
     ## mu should not have this element
     message(stringr::str_glue("[WARNING]: v is NaN; set as {default_v}."))
-    v <- default_v
+    v <- varofmu_default
   }
   return(invisible(c(m, v)))
 }
 
 est_r <- function(r) {
+  ## TODO: check if we need add threshold for alpha, beta
   m <- mean(r)
   v <- var(r)
   beta <- m / v
@@ -313,7 +320,7 @@ init_hbnb_params <- function(est_mg_mat,
                              murnm = c("mu0", "r0"),
                              mucondnm = str_glue_vec("mu_cond", seq_len(2)),
                              muindnm = str_glue_vec("mu_ind", seq_len(k)),
-                             scale = 1.96^2, default_varofmu = 25.0) {
+                             scale = 1.96^2) {
   ## generate the initial hbnb params
   ## also set the hp params: mu0
 
@@ -322,7 +329,7 @@ init_hbnb_params <- function(est_mg_mat,
   mu_cond <- est_mg_mat[, mucondnm]
   mu_ind <- est_mg_mat[, muindnm]
 
-  r1 <- est_mu(mu, scale, default_varofmu)
+  r1 <- est_mu(mu, scale)
   mu0 <- r1[1]
   varofmu <- r1[2]
   raw_mu <- (mu - mu0) / sqrt(varofmu)
