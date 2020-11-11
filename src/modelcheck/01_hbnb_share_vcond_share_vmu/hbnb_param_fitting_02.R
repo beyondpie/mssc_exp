@@ -46,7 +46,7 @@ init_snb_logmu <- function(y, median_of_s) {
   ## otherwise, will return -20
   if (sum(y) < 1) {
     message("[WARNING]: y are all zeros.")
-    return(-20.0)
+    return(-20)
   }
   return(log(mean(y)) - log(median_of_s))
 }
@@ -78,14 +78,14 @@ stanfit_scalenb <- function(s, y, scale_nb_model,
   result <- list(mu = NaN, r = NaN, success = FALSE)
   init_mur <- init_snb(s, y, r_default)
 
-  opt <- scale_nb_model$optimize(
+  capture.output(opt <- scale_nb_model$optimize(
     data = list(n = length(s), s = s, y = y),
     seed = seed,
     refresh = refresh,
     iter = numiter,
     init = list(init_mur),
     algorithm = "lbfgs"
-  )
+  ))
 
   if (is_vi_or_opt_success(opt)) {
     t <- opt$mle()
@@ -129,7 +129,7 @@ stanfit_snb_fr <- function(s, r, y, model,
   ## ref: MASS::fitdistr for nb
   ## y should be not all zeros.
   init_mu <- init_snb_logmu(y, median(s))
-  opt <- model$optimize(
+  capture.output(opt <- model$optimize(
     data = list(n = n, s = s, y = y, r = r),
     seed = seed,
     refresh = refresh,
@@ -138,7 +138,7 @@ stanfit_snb_fr <- function(s, r, y, model,
       mu = init_mu
     )),
     algorithm = "lbfgs"
-  )
+  ))
   if (is_vi_or_opt_success(opt)) {
     t <- opt$mle()
     result$mu <- t["mu"]
@@ -170,7 +170,7 @@ stanfit_gwsnb_to_ind_level <- function(s, y, vec_of_cond,
     s3 = rep(FALSE, k)
   )
   if (sum(y) < 1) {
-    message("[BUG]: sum of y is zero.")
+    message("[WARNING]: [BAD EXPRESSION] sum of y is zero.")
     return(invisible(result))
   }
   mur_all <- stanfit_scalenb(s, y, snbm)
@@ -184,7 +184,7 @@ stanfit_gwsnb_to_ind_level <- function(s, y, vec_of_cond,
     index <- (vec_of_cond == i)
     yi <- y[index]
     if (sum(yi) < 1) {
-      message("y are zeros.")
+      message(stringr::str_glue("[WARNING] Cond [{i}]: y are zeros."))
       result$mu_cond[i] <- 0.0
     } else {
       mui <- stanfit_snb_fr(
@@ -203,7 +203,7 @@ stanfit_gwsnb_to_ind_level <- function(s, y, vec_of_cond,
     index <- (vec_of_ind == i)
     yi <- y[index]
     if (sum(yi) < 1) {
-      message("y are zeros")
+      message(stringr::str_glue("[WARNING] Ind [{i}]: y are zeros."))
       result$mu_ind[i] <- 0.0
     } else {
       mui <- stanfit_snb_fr(
@@ -229,7 +229,7 @@ est_mu <- function(mu, scale = 1.96^2) {
   if (is.nan(v)) {
     ## happens when mu has Inf element.
     ## mu should not have this element
-    message(stringr::str_glue("[WARNING]: v is NaN; set as {default_v}."))
+    message(stringr::str_glue("[WARNING]: [Bad Mu] v is NaN; set as {default_v}."))
     v <- varofmu_default
   }
   return(invisible(c(m, v)))
