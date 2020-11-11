@@ -261,10 +261,3 @@ pdf(str_glue("pbmc_naivecd4t_top_{num_top_gene}.pdf"),
     height = 15)
 p
 dev.off()
-
-## ggsave(path = here("exps", "pbmc", "vi"),
-##   filename = str_glue("pbmc_naivecd4t_top_{num_top_gene}.pdf"),
-##   device = "pdf",
-##   plot = p,
-##   width = 7,
-##   height = 30)
