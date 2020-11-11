@@ -121,20 +121,25 @@ get_default_hi_params <- function(k, j, g) {
 
 set_hi_params <- function(k, j, g,
                           cnt, s, cond, ind,
-                          scale = 1.96^2) {
+                          scale = 1.96^2, mg_snb_mat = NULL) {
   murnm <- c("mu0", "r0")
   mucondnm <- pf$str_glue_vec("mu_cond", seq_len(2))
   muindnm <- pf$str_glue_vec("mu_ind", seq_len(k))
 
   dhip <- get_default_hi_params(k, j, g)
-  mat <- pf$fit_mg_snb(
-    cnt = cnt, s = s, cond = cond, ind = ind,
-    snbm = snbm_for_mur,
-    snbm_for_mucond = snbm_for_mucond,
-    murnm = murnm, mucondnm = mucondnm,
-    muindnm = muindnm
-  )
-  r <- pf$init_hbnb_params(mat,
+  if (is.null(mg_snb_mat)) {
+    est_mat <- pf$fit_mg_snb(
+      cnt = cnt, s = s, cond = cond, ind = ind,
+      snbm = snbm_for_mur,
+      snbm_for_mucond = snbm_for_mucond,
+      murnm = murnm, mucondnm = mucondnm,
+      muindnm = muindnm
+    )
+  } else {
+    est_mat <- mg_snb_mat
+  }
+
+  r <- pf$init_hbnb_params(est_mat,
     murnm = murnm, mucondnm = mucondnm,
     muindnm = muindnm, scale = scale
   )
