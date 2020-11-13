@@ -62,7 +62,8 @@ hbnbm <- cmdstan_model(
 num_iter <- 5000
 ## set refresh as zero to reduce the output log from stan
 ## https://github.com/stan-dev/cmdstanr/issues/341
-refresh <- 0
+opt_refresh <- 0
+vi_refresh <- 2000
 eval_elbo <- 100
 ## vi_algorithm <- "fullrank"
 vi_algorithm <- "meanfield"
@@ -246,7 +247,7 @@ calibrate_init_params <- function(ip, data, scale = 1.96^2, seed = 1L) {
     data = data,
     init = list(ip),
     seed = seed,
-    refresh = refresh,
+    refresh = opt_refresh,
     iter = num_iter,
     algorithm = "lbfgs"
   )
@@ -289,7 +290,7 @@ run_hbnb_vi <- function(data, ip, seed = 1L) {
       data = data,
       init = list(ip),
       seed = seed,
-      refresh = refresh,
+      refresh = vi_refresh,
       iter = num_iter,
       eval_elbo = eval_elbo,
       adapt_engaged = TRUE,
@@ -418,7 +419,7 @@ test <- function() {
     data = data,
     init = list(ip),
     seed = 1,
-    refresh = refresh,
+    refresh = opt_refresh,
     iter = num_iter,
     algorithm = "lbfgs"
   )
