@@ -6,11 +6,14 @@ get_pseudobulk <- function(cnt_gbc, mybatches) {
 
   library(magrittr)
   ubatches <- sort(unique(mybatches))
-  pseudobulk <- ubatches %>%
-      map(.f = function(batch) {
-        rowSums(cnt_gbc[, mybatches %in% batch])
-      }) %>%
-      do.call(what = cbind, args = .)
+  pseudobulk <- vapply(ubatches, function(i) {
+    rowSums(cnt_gbc[ ,mybatches %in% i])
+  }, FUN.VALUE = rep(0, nrow(cnt_gbc)))
+  ## pseudobulk <- ubatches %>%
+  ##     map(.f = function(batch) {
+  ##       rowSums(cnt_gbc[, mybatches %in% batch])
+  ##     }) %>%
+  ##     do.call(what = cbind, args = .)
   colnames(pseudobulk) <- as.character(ubatches)
   invisible(pseudobulk)
 }
