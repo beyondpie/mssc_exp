@@ -32,7 +32,7 @@ sigma <- 0.2
 vary <- "all"
 evf_center <- 1 # should always fix as 1
 evf_type <- "discrete"
-ratio_ind2cond <- 1.2
+ratio_ind2cond <- 1.5
 
 ## * configs
 myggtitle <- theme(plot.title = element_text(size = 15, hjust = 0.5))
@@ -160,12 +160,13 @@ simu_ind_effect <- function(diffg, nondiffg,
       tmp <- rep(0.0, nind * 2)
       inds <- which(cond_of_ind == i)
       ind_added_eff <- sample(inds, size = nindeff, replace = FALSE)
-      tmp[ind_added_eff] <- truncnorm::rtruncnorm(nindeff,
-        a = 0.0,
-        b = 1.0,
-        mean = 0.0,
-        sd = variation_of_ind
-      )
+      ## tmp[ind_added_eff] <- truncnorm::rtruncnorm(nindeff,
+      ##   a = 0.0,
+      ##   b = 1.0,
+      ##   mean = 0.0,
+      ##   sd = variation_of_ind
+      ##   )
+      tmp[ind_added_eff] <- variation_of_ind
       return(invisible(tmp))
     }, FUN.VALUE = rep(0.0, nind * 2))
 
@@ -330,7 +331,7 @@ init_params_and_data <- function(symsim_umi) {
   return(invisible(list(hip = hi_params, data = data)))
 }
 
-get_auc_hbnb <- function(vifit, data, degs, ndegs, epsilon = 0.1) {
+get_auc_hbnb <- function(vifit, data, degs, ndegs, epsilon = 0.05) {
   mu_cond <- hbnbm$extract_vifit(vifit, data, "mu_cond")
   rank_stats <- hbnbm$get_rank_statistics(mu_cond,
     c1 = 1, c2 = 2,
@@ -374,7 +375,8 @@ lapply(seq_len(rpt), FUN = function(i) {
       symsim2be_vifit <- hbnbm$run_hbnb_vi(data = pd$data, ip = pd$hip$ip)
       hbnb_auc <- get_auc_hbnb(symsim2be_vifit,
         data = pd$data,
-        symsim_umi$diffg, symsim_umi$nondiffg
+        symsim_umi$diffg, symsim_umi$nondiffg,
+        epsilon = 0.02
       )
 
       message(hbnb_auc$auc_z)
@@ -385,8 +387,8 @@ lapply(seq_len(rpt), FUN = function(i) {
       myconds <- symsim_umi$cond
       pseudo_deseq2_res <- mypseudo$pseudobulk_deseq2(round(mycnt), mybatches, myconds)
       tmp <- mypseudo$calc_auc(
-        pseudo_deseq2_res, symsim_degenes,
-        symsim_ndegs
+        pseudo_deseq2_res, symsim_umi$diffg,
+        symsim_umi$nondiffg
       )
       message(tmp$auc)
     })
