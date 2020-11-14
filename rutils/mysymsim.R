@@ -237,6 +237,7 @@ get_symsim_degenes <- function(symsim_dea,
 get_symsim_strict_ndegenes <- function(symsim_dea,
                                        nDiffEVF = 0,
                                        logFC = 0.1) {
+  ## use absolute value of log fold change.
   invisible((symsim_dea$nDiffEVF <= nDiffEVF) &
     (abt(symsim_dea$logFC_theoretical) <= logFC))
 }

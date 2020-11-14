@@ -89,16 +89,16 @@ stanfit_scalenb <- function(s, y, scale_nb_model,
 
   if (is_vi_or_opt_success(opt)) {
     t <- opt$mle()
+    r <- t["r"]
     if (is.infinite(t["mu"])) {
       ## This should not happen.
       message("[WARNING] Fitting faces mu inifinity, but opt success.")
       result$mu <- init_mur$mu
       result$r <- init_mur$r
       result$success <- FALSE
-    } else if (t["r"] > too_big_r) {
+    } else if (r > too_big_r) {
       ## CHECK: r can be quite large when y does not follow NB distribution.
-      tmp <- t["r"]
-      message(stringr::str_glue("[WARNING]: Fitted r {tmp} > {too_big_r}"))
+      message(stringr::str_glue("[WARNING]: Fitted r {r} > {too_big_r}"))
       message(stringr::str_glue("Set r as {r_default}"))
       result$mu <- init_mur$mu
       result$r <- init_mur$r
@@ -106,7 +106,7 @@ stanfit_scalenb <- function(s, y, scale_nb_model,
     }
     else {
       result$mu <- t["mu"]
-      result$r <- t["r"]
+      result$r <- r
       result$success <- TRUE
     }
   } else {
@@ -151,7 +151,8 @@ stanfit_snb_fr <- function(s, r, y, model,
 
 stanfit_gwsnb_to_ind_level <- function(s, y, vec_of_cond,
                                        vec_of_ind, snbm,
-                                       snbm_for_mucond) {
+                                       snbm_for_mucond,
+                                       to_ind = TRUE) {
   ## fit mu0, r0; then mu_cond; then mu_ind
   ## index follows stan hbnb, starting from 1.
 
@@ -199,22 +200,24 @@ stanfit_gwsnb_to_ind_level <- function(s, y, vec_of_cond,
   }
 
   ## for mu_ind
-  for (i in seq_len(k)) {
-    index <- (vec_of_ind == i)
-    yi <- y[index]
-    if (sum(yi) < 1) {
-      message(stringr::str_glue("[WARNING] Ind [{i}]: y are zeros."))
-      result$mu_ind[i] <- 0.0
-    } else {
-      mui <- stanfit_snb_fr(
-        s = s[index],
-        r = result$r0,
-        y = yi,
-        model = snbm_for_mucond
-      )
-      condi <- vec_of_cond[vec_of_ind == i][1]
-      result$mu_ind[i] <- mui$mu - result$mu0 - result$mu_cond[condi]
-      result$s3[i] <- mui$success
+  if (to_ind) {
+    for (i in seq_len(k)) {
+      index <- (vec_of_ind == i)
+      yi <- y[index]
+      if (sum(yi) < 1) {
+        message(stringr::str_glue("[WARNING] Ind [{i}]: y are zeros."))
+        result$mu_ind[i] <- 0.0
+      } else {
+        mui <- stanfit_snb_fr(
+          s = s[index],
+          r = result$r0,
+          y = yi,
+          model = snbm_for_mucond
+        )
+        condi <- vec_of_cond[vec_of_ind == i][1]
+        result$mu_ind[i] <- mui$mu - result$mu0 - result$mu_cond[condi]
+        result$s3[i] <- mui$success
+      }
     }
   }
   return(invisible(result))
@@ -292,7 +295,8 @@ fit_mg_snb <- function(cnt, s, cond, ind,
                        snbm, snbm_for_mucond,
                        murnm = c("mu0", "r0"),
                        mucondnm = str_glue_vec("mu_cond", seq_len(2)),
-                       muindnm = str_glue_vec("mu_ind", seq_len(k))) {
+                       muindnm = str_glue_vec("mu_ind", seq_len(k)),
+                       to_ind = TRUE) {
   ## fit each gene (row of cnt) for mssc
   ## return each gene in row.
 
@@ -303,7 +307,8 @@ fit_mg_snb <- function(cnt, s, cond, ind,
         s = s, y = cnt[i, ], vec_of_cond = cond,
         vec_of_ind = ind,
         snbm = snbm,
-        snbm_for_mucond = snbm_for_mucond
+        snbm_for_mucond = snbm_for_mucond,
+        to_ind = to_ind
       )
       return(invisible(c(r$mu0, r$r0, r$mu_cond, r$mu_ind)))
     },
@@ -339,6 +344,8 @@ init_hbnb_params <- function(est_mg_mat,
   varofcond <- est_mucond(mu_cond, scale)
   raw_mu_cond <- mu_cond / sqrt(varofcond)
 
+  ## TODO: set default values if not fitting
+  ## to individual level
   r3 <- est_muind(mu_ind, scale)
   ## length equals to gene number
   varofind <- r3$varofind

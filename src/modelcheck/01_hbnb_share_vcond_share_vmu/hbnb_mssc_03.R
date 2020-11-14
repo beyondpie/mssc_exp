@@ -119,7 +119,8 @@ get_default_hi_params <- function(k, j, g) {
 
 set_hi_params <- function(k, j, g,
                           cnt, s, cond, ind,
-                          scale = 1.96^2) {
+                          scale = 1.96^2,
+                          to_ind = TRUE) {
   murnm <- c("mu0", "r0")
   mucondnm <- pf$str_glue_vec("mu_cond", seq_len(2))
   muindnm <- pf$str_glue_vec("mu_ind", seq_len(k))
@@ -130,7 +131,8 @@ set_hi_params <- function(k, j, g,
     snbm = snbm_for_mur,
     snbm_for_mucond = snbm_for_mucond,
     murnm = murnm, mucondnm = mucondnm,
-    muindnm = muindnm
+    muindnm = muindnm,
+    to_ind = to_ind
   )
   r <- pf$init_hbnb_params(mat,
     murnm = murnm, mucondnm = mucondnm,
