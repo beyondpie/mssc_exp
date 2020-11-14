@@ -19,7 +19,7 @@
 ## * load R env
 source("hbnb_set_r_lib_env_01.R")
 
-options("import.path" = here("rutils"))
+options("import.path" = here::here("rutils"))
 myt <- modules::import("transform")
 myfit <- modules::import("myfitdistr")
 mypseudo <- modules::import("pseudobulk")
@@ -52,7 +52,7 @@ snbm_for_mucond <- cmdstanr::cmdstan_model(
 ##   compile = T, quiet = F
 ## )
 
-hbnbm <- cmdstan_model(
+hbnbm <- cmdstanr::cmdstan_model(
   here::here("src", "dirty_stan", "mssc_hbnb_mat.stan"),
   compile = T, quiet = F
 )
