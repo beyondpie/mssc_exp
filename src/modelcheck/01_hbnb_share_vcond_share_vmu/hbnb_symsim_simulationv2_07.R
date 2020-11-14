@@ -32,7 +32,9 @@ sigma <- 0.2
 vary <- "all"
 evf_center <- 1 # should always fix as 1
 evf_type <- "discrete"
-ratio_ind2cond <- 1.5
+ratio_ind2cond <- 0.6
+nindeff <- 3
+
 
 ## * configs
 myggtitle <- theme(plot.title = element_text(size = 15, hjust = 0.5))
@@ -201,7 +203,11 @@ add_individual_effect <- function(y2c, ind,
 
   for (i in seq_len(length(nondiffg))) {
     g <- nondiffg[i]
-    result[g, ] <- y2c[g, ] * exp(g2indeff$nondgeff[i, ind])
+    t <- y2c[g,]
+    ## so that when the observed count is zero,
+    ## we will increase the counts.
+    t[t==0] <- 1
+    result[g, ] <- t * exp(g2indeff$nondgeff[i, ind])
   }
 
   return(invisible(round(result)))
@@ -216,7 +222,8 @@ simu_symsim_with_indeffect <- function(myseed = 1,
                                        nevf = 10,
                                        n_de_evf = 6,
                                        sigma = 0.2,
-                                       ratio_ind2cond = 0.2) {
+                                       ratio_ind2cond = 0.2,
+                                       nindeff = 3) {
   ## ncell: num of cell per individual
   ## nind: num of ind per condition, here we only consider two conditions.
   ## simulate the true
@@ -271,7 +278,7 @@ simu_symsim_with_indeffect <- function(myseed = 1,
     nind = nind,
     cond_of_ind = cond_of_ind,
     variation_of_ind = voi$voi,
-    nindeff = 3
+    nindeff = nindeff
   )
 
   ## add individual effect to the observed counts directly
@@ -368,27 +375,30 @@ lapply(seq_len(rpt), FUN = function(i) {
         nevf = nevf,
         n_de_evf = n_de_evf,
         sigma = sigma,
-        ratio_ind2cond = ratio_ind2cond
+        ratio_ind2cond = ratio_ind2cond,
+        nindeff = nindeff
       )
+      diffg <- symsim_umi$diffg
+      nondiffg <- symsim_umi$nondiffg
+      message(stringr::str_glue("diffg: {length(diffg)}"))
+      message(stringr::str_glue("nondiffg: {length(nondiffg)}"))
       ## * hbnb analysis
       pd <- init_params_and_data(symsim_umi)
       symsim2be_vifit <- hbnbm$run_hbnb_vi(data = pd$data, ip = pd$hip$ip)
       hbnb_auc <- get_auc_hbnb(symsim2be_vifit,
         data = pd$data,
-        symsim_umi$diffg, symsim_umi$nondiffg,
+        diffg, nondiffg,
         epsilon = 0.02
       )
 
       message(hbnb_auc$auc_z)
       message(hbnb_auc$auc_p)
 
-      mycnt <- symsim_umi$obs
-      mybatches <- symsim_umi$ind
-      myconds <- symsim_umi$cond
-      pseudo_deseq2_res <- mypseudo$pseudobulk_deseq2(round(mycnt), mybatches, myconds)
+      pseudo_deseq2_res <- mypseudo$pseudobulk_deseq2(symsim_umi$obs, symsim_umi$ind,
+                                                      factor(symsim_umi$cond))
       tmp <- mypseudo$calc_auc(
-        pseudo_deseq2_res, symsim_umi$diffg,
-        symsim_umi$nondiffg
+        pseudo_deseq2_res, diffg,
+       nondiffg
       )
       message(tmp$auc)
     })
