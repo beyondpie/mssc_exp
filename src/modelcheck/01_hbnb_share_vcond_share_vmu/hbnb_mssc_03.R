@@ -67,7 +67,9 @@ vi_refresh <- 2000
 eval_elbo <- 100
 ## vi_algorithm <- "fullrank"
 vi_algorithm <- "meanfield"
-output_samples <- 1500
+output_samples <- 2000
+tol_rel_obj <- 0.0005
+eta <- 0.1
 
 ## * functions
 get_hbnb_param_nms <- function(k, j, g) {
@@ -297,7 +299,9 @@ run_hbnb_vi <- function(data, ip, seed = 1L) {
       eval_elbo = eval_elbo,
       adapt_engaged = TRUE,
       algorithm = vi_algorithm,
-      output_samples = output_samples
+      output_samples = output_samples,
+      tol_rel_obj = tol_rel_obj,
+      eta = eta
     )
   )
 }

@@ -27,12 +27,12 @@ ncond <- 2
 ncells <- c(10, 20, 40, 80, 100, 200)
 ## symsim related
 nevf <- 10
-n_de_evf <- 7
+n_de_evf <- 8
 sigma <- 0.2
-vary <- "all"
+vary <- "s"
 evf_center <- 1 # should always fix as 1
 evf_type <- "discrete"
-ratio_ind2cond <- 0.6
+ratio_ind2cond <- 1.0
 nindeff <- 3
 
 
@@ -198,7 +198,9 @@ add_individual_effect <- function(y2c, ind,
   nondiffg <- g2indeff$nondg
   for (i in seq_len(length(diffg))) {
     g <- diffg[i]
-    result[g, ] <- y2c[g, ] * exp(g2indeff$dgeff[i, ind])
+    t <- y2c[g, ]
+    t[t == 0] <- 1
+    result[g, ] <- t * exp(g2indeff$dgeff[i, ind])
   }
 
   for (i in seq_len(length(nondiffg))) {
@@ -222,7 +224,7 @@ simu_symsim_with_indeffect <- function(myseed = 1,
                                        nevf = 10,
                                        n_de_evf = 6,
                                        sigma = 0.2,
-                                       ratio_ind2cond = 0.2,
+                                       ratio_ind2cond = 1.0,
                                        nindeff = 3) {
   ## ncell: num of cell per individual
   ## nind: num of ind per condition, here we only consider two conditions.
@@ -388,7 +390,7 @@ lapply(seq_len(rpt), FUN = function(i) {
       hbnb_auc <- get_auc_hbnb(symsim2be_vifit,
         data = pd$data,
         diffg, nondiffg,
-        epsilon = 0.02
+        epsilon = 0.1
       )
 
       message(hbnb_auc$auc_z)
