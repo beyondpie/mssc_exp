@@ -32,8 +32,11 @@ sigma <- 0.2
 vary <- "s"
 evf_center <- 1 # should always fix as 1
 evf_type <- "discrete"
-ratio_ind2cond <- 1.0
-nindeff <- 3
+ratio_ind2cond <- 0.5
+add_on_diffg <- TRUE
+scale_in_diffg <- 0.01
+scale_in_nondiffg <- 1.0
+nindeff <- 2
 
 
 ## * configs
@@ -140,7 +143,9 @@ simu_ind_effect <- function(diffg, nondiffg,
                             nind,
                             cond_of_ind,
                             variation_of_ind = 0.0001,
-                            nindeff = 2) {
+                            nindeff = 2,
+                            scale_in_diffg = 0.1,
+                            scale_in_nondiffg = 1.0) {
   ## simulate individual effect per gene per individual
   ## diffg: index of differentially expressed genes
   ## nondiffg: index of non-differentially expressed genes
@@ -157,7 +162,7 @@ simu_ind_effect <- function(diffg, nondiffg,
   ##   diffg_indeff: diffg by ind
   ##   nondiffg_indeff: nondiffg by ind
 
-  get_indeff <- function(cond) {
+  get_indeff <- function(cond, scale_level) {
     t_result <- vapply(cond, function(i) {
       tmp <- rep(0.0, nind * 2)
       inds <- which(cond_of_ind == i)
@@ -168,16 +173,16 @@ simu_ind_effect <- function(diffg, nondiffg,
       ##   mean = 0.0,
       ##   sd = variation_of_ind
       ##   )
-      tmp[ind_added_eff] <- variation_of_ind
+      tmp[ind_added_eff] <- variation_of_ind * scale_level
       return(invisible(tmp))
     }, FUN.VALUE = rep(0.0, nind * 2))
 
     return(invisible(t(t_result)))
   }
   ## For ndiffg
-  indeff_nondiffg <- get_indeff(nondiffg_cond)
+  indeff_nondiffg <- get_indeff(nondiffg_cond, scale_in_nondiffg)
   ## For diffg
-  indeff_diffg <- get_indeff(low_exp_cond)
+  indeff_diffg <- get_indeff(low_exp_cond, scale_in_diffg)
   ## g2i <- outer(on_gene, on_ind, FUN = "+")
   ## g2i <- g2i * sample(c(-1, 1), ngene * nind, replace = T)
   return(invisible(list(
@@ -189,26 +194,28 @@ simu_ind_effect <- function(diffg, nondiffg,
 }
 
 add_individual_effect <- function(y2c, ind,
-                                  g2indeff) {
+                                  g2indeff,
+                                  add_on_diffg = TRUE) {
   ## y2c: ngene by ncell
   ## ind: index of individual for each cell
   result <- y2c
-  s <- colSums(y2c)
   diffg <- g2indeff$dg
   nondiffg <- g2indeff$nondg
-  for (i in seq_len(length(diffg))) {
-    g <- diffg[i]
-    t <- y2c[g, ]
-    t[t == 0] <- 1
-    result[g, ] <- t * exp(g2indeff$dgeff[i, ind])
+  if (add_on_diffg) {
+    for (i in seq_len(length(diffg))) {
+      g <- diffg[i]
+      t <- y2c[g, ]
+      t[t == 0] <- 1
+      result[g, ] <- t * exp(g2indeff$dgeff[i, ind])
+    }
   }
 
   for (i in seq_len(length(nondiffg))) {
     g <- nondiffg[i]
-    t <- y2c[g,]
+    t <- y2c[g, ]
     ## so that when the observed count is zero,
     ## we will increase the counts.
-    t[t==0] <- 1
+    t[t == 0] <- 1
     result[g, ] <- t * exp(g2indeff$nondgeff[i, ind])
   }
 
@@ -225,7 +232,10 @@ simu_symsim_with_indeffect <- function(myseed = 1,
                                        n_de_evf = 6,
                                        sigma = 0.2,
                                        ratio_ind2cond = 1.0,
-                                       nindeff = 3) {
+                                       nindeff = 2,
+                                       add_on_diffg = TRUE,
+                                       scale_in_diffg = 1.0,
+                                       scale_in_nondiffg = 1.0) {
   ## ncell: num of cell per individual
   ## nind: num of ind per condition, here we only consider two conditions.
   ## simulate the true
@@ -252,12 +262,11 @@ simu_symsim_with_indeffect <- function(myseed = 1,
   symsim_ndegs <- setdiff(seq_len(ngene), symsim_degenes)
 
   diffg_low_exp_cond <- 1 +
-    (symsim_dea$logFC_theoretical[symsim_degenes] < 0)
+    (symsim_dea$logFC_theoretical[symsim_degenes] > 0)
   nondiffg_cond <- sample(c(1, 2),
     size = length(symsim_ndegs),
     replace = TRUE
   )
-
 
   cond <- symsim_umi$cell_meta$pop
   ind2cond <- assign_ind_for_two_cond(cond,
@@ -280,19 +289,23 @@ simu_symsim_with_indeffect <- function(myseed = 1,
     nind = nind,
     cond_of_ind = cond_of_ind,
     variation_of_ind = voi$voi,
-    nindeff = nindeff
+    nindeff = nindeff,
+    scale_in_diffg = scale_in_diffg,
+    scale_in_nondiffg = scale_in_nondiffg
   )
 
   ## add individual effect to the observed counts directly
   symsim_umi$obs <- add_individual_effect(
     symsim_umi$counts, ind,
-    g2indeff
+    g2indeff,
+    add_on_diffg = add_on_diffg
   )
   symsim_umi$ind <- ind
   symsim_umi$cond <- cond
   symsim_umi$voi <- voi
   symsim_umi$diffg <- symsim_degenes
   symsim_umi$nondiffg <- symsim_ndegs
+  symsim_umi$dea <- symsim_dea
   saveRDS(
     object = symsim_umi,
     file = file.path(
@@ -382,11 +395,13 @@ lapply(seq_len(rpt), FUN = function(i) {
       )
       diffg <- symsim_umi$diffg
       nondiffg <- symsim_umi$nondiffg
+      message(stringr::str_glue("ncell: {ncell}"))
       message(stringr::str_glue("diffg: {length(diffg)}"))
       message(stringr::str_glue("nondiffg: {length(nondiffg)}"))
       ## * hbnb analysis
       pd <- init_params_and_data(symsim_umi)
       symsim2be_vifit <- hbnbm$run_hbnb_vi(data = pd$data, ip = pd$hip$ip)
+      ## set a rule or use a vector of epsilon
       hbnb_auc <- get_auc_hbnb(symsim2be_vifit,
         data = pd$data,
         diffg, nondiffg,
@@ -396,13 +411,106 @@ lapply(seq_len(rpt), FUN = function(i) {
       message(hbnb_auc$auc_z)
       message(hbnb_auc$auc_p)
 
-      pseudo_deseq2_res <- mypseudo$pseudobulk_deseq2(symsim_umi$obs, symsim_umi$ind,
-                                                      factor(symsim_umi$cond))
+      pseudo_deseq2_res <- mypseudo$pseudobulk_deseq2(
+        symsim_umi$obs,
+        symsim_umi$ind,
+        factor(symsim_umi$cond)
+      )
       tmp <- mypseudo$calc_auc(
         pseudo_deseq2_res, diffg,
-       nondiffg
+        nondiffg
       )
       message(tmp$auc)
     })
   }
 })
+
+
+## * debug symsim simulations
+myseed <- 355113
+ncell <- 50
+ratio_ind2cond <- 0.3
+add_on_diffg <- TRUE
+scale_in_diffg <- 1.0
+scale_in_nondiffg <- 1.0
+nindeff <- 2
+
+
+## * generate simulaiton data
+symsim_umi <- simu_symsim_with_indeffect(
+  myseed = myseed,
+  save_data_path = save_data_path,
+  vary = vary,
+  ncell = ncell,
+  nind = nind,
+  ngene = ngene,
+  nevf = nevf,
+  n_de_evf = n_de_evf,
+  sigma = sigma,
+  ratio_ind2cond = ratio_ind2cond,
+  nindeff = nindeff,
+  add_on_diffg = add_on_diffg,
+  scale_in_diffg = scale_in_diffg,
+  scale_in_nondiffg = scale_in_nondiffg
+)
+
+## ** get symsim violin plots
+diffg <- symsim_umi$diffg
+nondiffg <- symsim_umi$nondiffg
+message(stringr::str_glue("ncell: {ncell}"))
+message(stringr::str_glue("diffg: {length(diffg)}"))
+message(stringr::str_glue("nondiffg: {length(nondiffg)}"))
+
+vln <- plot_genes_after_batcheffect(symsim_umi,
+  nde = length(diffg),
+  nnde = length(nondiffg)
+)
+
+vln$spvln_degs
+
+vln$spvln_ndegs
+
+## *** pseudobulk result
+pseudo_deseq2_res <- mypseudo$pseudobulk_deseq2(
+  symsim_umi$obs,
+  symsim_umi$ind,
+  factor(symsim_umi$cond)
+)
+tmp <- mypseudo$calc_auc(
+  pseudo_deseq2_res, diffg,
+  nondiffg
+)
+message(tmp$auc)
+
+
+
+## * hbnb analysis
+pd <- init_params_and_data(symsim_umi)
+symsim2be_vifit <- hbnbm$run_hbnb_vi(data = pd$data, ip = pd$hip$ip)
+## set a rule or use a vector of epsilon
+hbnb_auc <- get_auc_hbnb(symsim2be_vifit,
+  data = pd$data,
+  diffg, nondiffg,
+  epsilon = ratio_ind2cond * 2
+  )
+
+hbnb_auc <- get_auc_hbnb(symsim2be_vifit,
+  data = pd$data,
+  diffg, nondiffg,
+  epsilon = 0.6
+)
+
+
+message(hbnb_auc$auc_z)
+message(hbnb_auc$auc_p)
+
+pseudo_deseq2_res <- mypseudo$pseudobulk_deseq2(
+  symsim_umi$obs,
+  symsim_umi$ind,
+  factor(symsim_umi$cond)
+)
+tmp <- mypseudo$calc_auc(
+  pseudo_deseq2_res, diffg,
+  nondiffg
+)
+message(tmp$auc)

@@ -59,7 +59,7 @@ hbnbm <- cmdstanr::cmdstan_model(
 
 ## * constants
 ## ** stan training
-num_iter <- 5000
+num_iter <- 50000
 ## set refresh as zero to reduce the output log from stan
 ## https://github.com/stan-dev/cmdstanr/issues/341
 opt_refresh <- 0
@@ -67,8 +67,8 @@ vi_refresh <- 2000
 eval_elbo <- 100
 ## vi_algorithm <- "fullrank"
 vi_algorithm <- "meanfield"
-output_samples <- 2000
-tol_rel_obj <- 0.0005
+output_samples <- 5000
+tol_rel_obj <- 0.0001
 eta <- 0.1
 
 ## * functions

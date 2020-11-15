@@ -5,7 +5,7 @@
 hpgamma_default <- c(1.0, 1.0)
 ## default invgamma param
 hpinvg_default <- c(1.0, 10.0)
-r_default <- 10.0
+r_default <- 20.0
 mu_default <- 0.0
 varofmu_default <- 25.0
 varofcond_default <- 4.0
@@ -51,7 +51,7 @@ init_snb_logmu <- function(y, median_of_s) {
   return(log(mean(y)) - log(median_of_s))
 }
 
-init_snb <- function(s, y, r_default = 10) {
+init_snb <- function(s, y, init_r = r_default) {
   ## directly use sample mean and variance to
   ## estiamte the parameters for scaled negative binomial
   ## ref: MASS::fitdistr for nb
@@ -60,7 +60,7 @@ init_snb <- function(s, y, r_default = 10) {
   r <- if (v > m) {
     m^2 / (v - m)
   } else {
-    r_default
+    init_r
   }
   invisible(list(
     mu = init_snb_logmu(y, median(s)),
@@ -71,12 +71,12 @@ init_snb <- function(s, y, r_default = 10) {
 
 stanfit_scalenb <- function(s, y, scale_nb_model,
                             seed = 1, numiter = 5000,
-                            refresh = 5000, r_default = 50,
-                            too_big_r = 100) {
+                            refresh = 5000, init_r = r_default,
+                            too_big_r = r_default) {
   ## mu in scaled log level, and minus log(s)
   # fit scaled negative binomial using stan
   result <- list(mu = NaN, r = NaN, success = FALSE)
-  init_mur <- init_snb(s, y, r_default)
+  init_mur <- init_snb(s, y, init_r)
 
   capture.output(opt <- scale_nb_model$optimize(
     data = list(n = length(s), s = s, y = y),
@@ -97,14 +97,12 @@ stanfit_scalenb <- function(s, y, scale_nb_model,
       result$r <- init_mur$r
       result$success <- FALSE
     } else if (r > too_big_r) {
-      ## CHECK: r can be quite large when y does not follow NB distribution.
       message(stringr::str_glue("[WARNING]: Fitted r {r} > {too_big_r}"))
       message(stringr::str_glue("Set r as {r_default}"))
       result$mu <- init_mur$mu
       result$r <- init_mur$r
       result$success <- FALSE
-    }
-    else {
+    } else {
       result$mu <- t["mu"]
       result$r <- r
       result$success <- TRUE
