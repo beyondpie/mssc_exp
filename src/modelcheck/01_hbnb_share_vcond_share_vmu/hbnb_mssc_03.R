@@ -372,7 +372,7 @@ extract_vifit <- function(vifit, data, param) {
 }
 
 get_rank_statistics <- function(mu_cond, c1 = 1, c2 = 2,
-                                epsilon = 0.1, varofcond = 1.0) {
+                                std_cond = 1) {
   ## mu_cond: n by ngene by ncond
   ## c1, c2 correspond to different conditions
 
@@ -391,12 +391,11 @@ get_rank_statistics <- function(mu_cond, c1 = 1, c2 = 2,
 
   ## probability larger than a given epision
   ## sqrt of var_of_cond
-  ## deprecated
-  p <- colSums(abs_delta >= epsilon) / n
+  p <- colSums(abs_delta >= std_cond) / n
 
-  p10 <- colSums(abs_delta >= (sd_delta * 1.28)) / n
-  p05 <- colSums(abs_delta >= (sd_delta * 1.645)) / n
-  p025 <- colSums(abs_delta >= (sd_delta * 1.96)) / n
+  p10 <- colSums(abs_delta >= (std_cond * 1.28)) / n
+  p05 <- colSums(abs_delta >= (std_cond * 1.645)) / n
+  p025 <- colSums(abs_delta >= (std_cond * 1.96)) / n
 
   p0 <- colSums(abs_delta > 0.0) / n
   bf <- abs(log(p0 + 1e-06) - log(1 - p0 + 1e-06))

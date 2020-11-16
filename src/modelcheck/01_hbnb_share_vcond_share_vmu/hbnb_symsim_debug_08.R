@@ -337,11 +337,13 @@ init_params_and_data <- function(symsim_umi) {
   return(invisible(list(hip = hi_params, data = data)))
 }
 
-get_auc_hbnb <- function(vifit, data, degs, ndegs, epsilon = 0.05) {
+get_auc_hbnb <- function(vifit, data, degs, ndegs) {
   mu_cond <- hbnbm$extract_vifit(vifit, data, "mu_cond")
+  std_cond <- mean(sqrt(est_params$varofcond))
+
   rank_stats <- hbnbm$get_rank_statistics(mu_cond,
     c1 = 1, c2 = 2,
-    epsilon = epsilon
+    std_cond = std_cond
   )
   auc <- hbnbm$get_auc(rank_stats, degs, ndegs)
   return(invisible(auc))
@@ -416,12 +418,11 @@ names(est_params) <- hbnbm$nm_params
 ## set a rule or use a vector of epsilon
 hbnb_auc <- get_auc_hbnb(vifit_symsim,
   data = pd$data,
-  diffg, nondiffg,
-  epsilon = mean(sqrt(est_params$varofcond)))
+  diffg, nondiffg)
 ## rank_stats <- hbnbm$get_rank_statistics(mu_cond = est_params$mu_cond,
 ##   c1 = 1, c2 = 2,
 ##   epsilon = mean(sqrt(est_params$varofcond)))
-message(hbnb_auc)
+str(hbnb_auc)
 
 pseudo_deseq2_res <- mypseudo$pseudobulk_deseq2(
   symsim_umi$obs,
