@@ -176,11 +176,24 @@ add_individual_effect <- function(y2c, ind,
   result <- y2c
   diffg <- g2indeff$dg
   nondiffg <- g2indeff$nondg
+  ## add_indeff <- function(genes, g2ind) {
+  ##   for (i in seq_len(length(genes))) {
+  ##     g <- genes[i]
+  ##     t <- y2c[g, ]
+  ##     if (add_on_diffg) {
+  ##       t[t==0] <- 1
+  ##     }
+  ##     result[g, ] <- t * exp(g2ind[i, ind])
+  ##   }
+  ## }
+
+  ## add_indeff(diffg, g2indeff$dgeff, add_on_diffg)
+  ## add_indeff(nondiffg, g2indeff$nondgeff, add_on_diffg)
   if (add_on_diffg) {
     for (i in seq_len(length(diffg))) {
       g <- diffg[i]
       t <- y2c[g, ]
-      t[t == 0] <- 1
+      ## t[t == 0] <- 1
       result[g, ] <- t * exp(g2indeff$dgeff[i, ind])
     }
   }
@@ -190,7 +203,7 @@ add_individual_effect <- function(y2c, ind,
     t <- y2c[g, ]
     ## so that when the observed count is zero,
     ## we will increase the counts.
-    t[t == 0] <- 1
+    ## t[t == 0] <- 1
     result[g, ] <- t * exp(g2indeff$nondgeff[i, ind])
   }
 
@@ -330,29 +343,30 @@ get_auc_hbnb <- function(vifit, data, degs, ndegs) {
 }
 
 
-main <- function() {
+main <- function(ratio_ind2cond = 0.5,
+                 scale_in_diffg = 1.0,
+                 scale_in_nondiffg = 1.0,
+                 ngene = 20) {
   ## * configs
-  rpt <- 5
+  rpt <- 3
   ## rpt <- 2
-  ngene <- 80
-  ## ngene <- 20
+  ngene <- ngene
   nind <- 5
+  nindeff <- 2
   ## ncond <- 2
-  ncells <- c(10, 20, 40, 80, 100, 200)
+  ncells <- c(20, 40, 80, 120, 160, 200)
   ## ncells <- c(10, 20)
   ## symsim related
   nevf <- 10
-  n_de_evf <- 8
+  n_de_evf <- 7
   sigma <- 0.2
   vary <- "s"
   ## evf_center <- 1 # should always fix as 1
   ## evf_type <- "discrete"
-  ratio_ind2cond <- 0.4
+  ratio_ind2cond <- ratio_ind2cond
   add_on_diffg <- TRUE
-  scale_in_diffg <- 0.1
-  scale_in_nondiffg <- 1.0
-  nindeff <- 2
-
+  scale_in_diffg <- scale_in_diffg
+  scale_in_nondiffg <- scale_in_nondiffg
 
   ## * configs
   ## myggtitle <- theme(plot.title = element_text(size = 15, hjust = 0.5))
@@ -460,4 +474,29 @@ main <- function() {
   }
 }
 
-main()
+library(optparse)
+option_list <- list(make_option(c("--ratio_ind2cond"),
+                                action = "store",
+                                type = "double",
+                                default = 0.3),
+                    make_option(c("--scale_in_diffg"),
+                                action = "store",
+                                type = "double",
+                                default = 0.1),
+                    make_option(c("--scale_in_nondiffg"),
+                                action = "store",
+                                type = "double",
+                                default = 1.0),
+                    make_option(c("--ngene"),
+                      action = "store",
+                      type = "integer",
+                      default = 20)
+                    )
+args <- option_list %>%
+  OptionParser(option_list = .) %>%
+  parse_args()
+
+main(ratio_ind2cond = args$ratio_ind2cond,
+     scale_in_diffg = args$scale_in_diffg,
+     scale_in_nondiffg = args$scale_in_nondiffg,
+     ngene = args$ngene)
