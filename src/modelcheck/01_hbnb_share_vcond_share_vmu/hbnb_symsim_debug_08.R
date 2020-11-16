@@ -154,7 +154,7 @@ simu_ind_effect <- function(diffg, nondiffg,
 
     return(invisible(t(t_result)))
   }
-  ## For ndiffg
+  ## For nondiffg
   indeff_nondiffg <- get_indeff(nondiffg_cond, scale_in_nondiffg)
   ## For diffg
   indeff_diffg <- get_indeff(low_exp_cond, scale_in_diffg)
@@ -180,7 +180,7 @@ add_individual_effect <- function(y2c, ind,
     for (i in seq_len(length(diffg))) {
       g <- diffg[i]
       t <- y2c[g, ]
-      ## t[t == 0] <- 1
+      t[t == 0] <- 1
       result[g, ] <- t * exp(g2indeff$dgeff[i, ind])
     }
   }
@@ -190,7 +190,7 @@ add_individual_effect <- function(y2c, ind,
     t <- y2c[g, ]
     ## so that when the observed count is zero,
     ## we will increase the counts.
-    ## t[t == 0] <- 1
+    t[t == 0] <- 1
     result[g, ] <- t * exp(g2indeff$nondgeff[i, ind])
   }
 
@@ -347,15 +347,11 @@ main <- function() {
   vary <- "s"
   ## evf_center <- 1 # should always fix as 1
   ## evf_type <- "discrete"
-  ratio_ind2cond <- 0.3
+  ratio_ind2cond <- 0.4
   add_on_diffg <- TRUE
-  scale_in_diffg <- 0.01
+  scale_in_diffg <- 0.1
   scale_in_nondiffg <- 1.0
   nindeff <- 2
-  add_on_diffg <- TRUE
-  ## scale_in_diffg <- 0.1
-  scale_in_diffg <- 1.0
-  scale_in_nondiffg <- 1.0
 
 
   ## * configs
