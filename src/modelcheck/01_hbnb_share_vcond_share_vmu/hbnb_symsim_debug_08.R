@@ -332,14 +332,14 @@ get_auc_hbnb <- function(vifit, data, degs, ndegs) {
 
 main <- function() {
   ## * configs
-  ## rpt <- 5
-  rpt <- 2
-  ## ngene <- 80
-  ngene <- 20
+  rpt <- 5
+  ## rpt <- 2
+  ngene <- 80
+  ## ngene <- 20
   nind <- 5
   ## ncond <- 2
-  ## ncells <- c(10, 20, 40, 80, 100, 200)
-  ncells <- c(10, 20)
+  ncells <- c(10, 20, 40, 80, 100, 200)
+  ## ncells <- c(10, 20)
   ## symsim related
   nevf <- 10
   n_de_evf <- 8
@@ -353,6 +353,7 @@ main <- function() {
   scale_in_nondiffg <- 1.0
   nindeff <- 2
   add_on_diffg <- TRUE
+  ## scale_in_diffg <- 0.1
   scale_in_diffg <- 1.0
   scale_in_nondiffg <- 1.0
 
@@ -378,12 +379,12 @@ main <- function() {
     dimnames = list(nms_auc, ncells, NULL)
   )
   for (i in seq_len(rpt)) {
+    rpt_slice <- matrix(NA,
+      nrow = length(nms_auc),
+      ncol = length(ncells)
+    )
     for (j in seq_len(length(ncells))) {
       ncell <- ncells[j]
-      rpt_slice <- matrix(NA,
-        nrow = length(nms_auc),
-        ncol = length(ncells)
-      )
       symsim_umi <- simu_symsim_with_indeffect(
         myseed = i,
         save_data_path = save_data_path,
