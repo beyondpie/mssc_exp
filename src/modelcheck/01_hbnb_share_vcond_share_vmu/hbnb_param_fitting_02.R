@@ -5,7 +5,7 @@
 hpgamma_default <- c(1.0, 1.0)
 ## default invgamma param
 hpinvg_default <- c(1.0, 10.0)
-r_default <- 20.0
+r_default <- 100.0
 mu_default <- 0.0
 varofmu_default <- 25.0
 varofcond_default <- 4.0

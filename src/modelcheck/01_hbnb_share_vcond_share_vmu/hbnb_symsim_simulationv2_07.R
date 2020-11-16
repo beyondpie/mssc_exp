@@ -377,53 +377,55 @@ get_auc_hbnb <- function(vifit, data, degs, ndegs, epsilon = 0.05) {
 ## )
 
 ## * generate data
-lapply(seq_len(rpt), FUN = function(i) {
-  for (ncell in ncells) {
-    tryCatch({
-      symsim_umi <- simu_symsim_with_indeffect(
-        myseed = i,
-        save_data_path = save_data_path,
-        vary = vary,
-        ncell = ncell,
-        nind = nind,
-        ngene = ngene,
-        nevf = nevf,
-        n_de_evf = n_de_evf,
-        sigma = sigma,
-        ratio_ind2cond = ratio_ind2cond,
-        nindeff = nindeff
-      )
-      diffg <- symsim_umi$diffg
-      nondiffg <- symsim_umi$nondiffg
-      message(stringr::str_glue("ncell: {ncell}"))
-      message(stringr::str_glue("diffg: {length(diffg)}"))
-      message(stringr::str_glue("nondiffg: {length(nondiffg)}"))
-      ## * hbnb analysis
-      pd <- init_params_and_data(symsim_umi)
-      symsim2be_vifit <- hbnbm$run_hbnb_vi(data = pd$data, ip = pd$hip$ip)
-      ## set a rule or use a vector of epsilon
-      hbnb_auc <- get_auc_hbnb(symsim2be_vifit,
-        data = pd$data,
-        diffg, nondiffg,
-        epsilon = 0.1
-      )
+do_symsim <- function() {
+  lapply(seq_len(rpt), FUN = function(i) {
+    for (ncell in ncells) {
+      tryCatch({
+        symsim_umi <- simu_symsim_with_indeffect(
+          myseed = i,
+          save_data_path = save_data_path,
+          vary = vary,
+          ncell = ncell,
+          nind = nind,
+          ngene = ngene,
+          nevf = nevf,
+          n_de_evf = n_de_evf,
+          sigma = sigma,
+          ratio_ind2cond = ratio_ind2cond,
+          nindeff = nindeff
+        )
+        diffg <- symsim_umi$diffg
+        nondiffg <- symsim_umi$nondiffg
+        message(stringr::str_glue("ncell: {ncell}"))
+        message(stringr::str_glue("diffg: {length(diffg)}"))
+        message(stringr::str_glue("nondiffg: {length(nondiffg)}"))
+        ## * hbnb analysis
+        pd <- init_params_and_data(symsim_umi)
+        symsim2be_vifit <- hbnbm$run_hbnb_vi(data = pd$data, ip = pd$hip$ip)
+        ## set a rule or use a vector of epsilon
+        hbnb_auc <- get_auc_hbnb(symsim2be_vifit,
+          data = pd$data,
+          diffg, nondiffg,
+          epsilon = 0.1
+        )
 
-      message(hbnb_auc$auc_z)
-      message(hbnb_auc$auc_p)
+        message(hbnb_auc$auc_z)
+        message(hbnb_auc$auc_p)
 
-      pseudo_deseq2_res <- mypseudo$pseudobulk_deseq2(
-        symsim_umi$obs,
-        symsim_umi$ind,
-        factor(symsim_umi$cond)
-      )
-      tmp <- mypseudo$calc_auc(
-        pseudo_deseq2_res, diffg,
-        nondiffg
-      )
-      message(tmp$auc)
-    })
-  }
-})
+        pseudo_deseq2_res <- mypseudo$pseudobulk_deseq2(
+          symsim_umi$obs,
+          symsim_umi$ind,
+          factor(symsim_umi$cond)
+        )
+        tmp <- mypseudo$calc_auc(
+          pseudo_deseq2_res, diffg,
+          nondiffg
+        )
+        message(tmp$auc)
+      })
+    }
+  })
+}
 
 
 ## * debug symsim simulations
@@ -492,7 +494,7 @@ hbnb_auc <- get_auc_hbnb(symsim2be_vifit,
   data = pd$data,
   diffg, nondiffg,
   epsilon = ratio_ind2cond * 2
-  )
+)
 
 hbnb_auc <- get_auc_hbnb(symsim2be_vifit,
   data = pd$data,

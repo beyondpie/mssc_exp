@@ -67,7 +67,7 @@ vi_refresh <- 2000
 eval_elbo <- 100
 ## vi_algorithm <- "fullrank"
 vi_algorithm <- "meanfield"
-output_samples <- 5000
+output_samples <- 2000
 tol_rel_obj <- 0.0001
 eta <- 0.1
 
@@ -372,29 +372,71 @@ extract_vifit <- function(vifit, data, param) {
 }
 
 get_rank_statistics <- function(mu_cond, c1 = 1, c2 = 2,
-                                epsilon = 0.1) {
+                                epsilon = 0.1, varofcond = 1.0) {
   ## mu_cond: n by ngene by ncond
   ## c1, c2 correspond to different conditions
 
-  delta <- as.matrix(abs(mu_cond[, , c1] - mu_cond[, , c2]))
+  delta <- as.matrix(mu_cond[, , c1] - mu_cond[, , c2])
+  n <- nrow(delta)
   if (!is.null(dimnames(mu_cond)[[2]])) {
     colnames(delta) <- dimnames(mu_cond)[[2]]
   }
+  sd_delta <- matrixStats::colSds(delta)
+  abs_mean_delta <- abs(colMeans(delta))
   abs_delta <- abs(delta)
-  ## z score
-  z <- colMeans(abs_delta) / matrixStats::colSds(abs_delta)
+
+  ## z_score (actually t_score)
+  z <- abs_mean_delta * sqrt(n) / sd_delta
+  m <- abs_mean_delta
+
   ## probability larger than a given epision
-  p <- colSums(abs_delta >= epsilon) / nrow(delta)
-  return(invisible(list(z = z, p = p, delta = delta)))
+  ## sqrt of var_of_cond
+  ## deprecated
+  p <- colSums(abs_delta >= epsilon) / n
+
+  p10 <- colSums(abs_delta >= (sd_delta * 1.28)) / n
+  p05 <- colSums(abs_delta >= (sd_delta * 1.645)) / n
+  p025 <- colSums(abs_delta >= (sd_delta * 1.96)) / n
+
+  p0 <- colSums(abs_delta > 0.0) / n
+  bf <- abs(log(p0 + 1e-06) - log(1 - p0 + 1e-06))
+
+  return(invisible(list(
+    z = z, p = p, delta = delta,
+    p10 = p10,
+    p05 = p05,
+    p025 = p025,
+    bf = bf,
+    m = m
+  )))
 }
 
 get_auc <- function(rank_stats, diffg, ndiffg) {
   true_class <- c(rep(TRUE, length(diffg)), rep(FALSE, length(ndiffg)))
   z <- rank_stats$z[c(diffg, ndiffg)]
+  m <- rank_stats$m[c(diffg, ndiffg)]
   p <- rank_stats$p[c(diffg, ndiffg)]
+  p10 <- rank_stats$p10[c(diffg, ndiffg)]
+  p05 <- rank_stats$p05[c(diffg, ndiffg)]
+  p025 <- rank_stats$p025[c(diffg, ndiffg)]
+  bf <- rank_stats$p[c(diffg, ndiffg)]
+
+
   auc_z <- caTools::colAUC(z, true_class)
+  auc_m <- caTools::colAUC(m, true_class)
   auc_p <- caTools::colAUC(p, true_class)
-  return(invisible(list(auc_z = auc_z, auc_p = auc_p)))
+  auc_p10 <- caTools::colAUC(p10, true_class)
+  auc_p05 <- caTools::colAUC(p05, true_class)
+  auc_p025 <- caTools::colAUC(p025, true_class)
+
+  auc_bf <- caTools::colAUC(bf, true_class)
+  return(invisible(list(auc_z = auc_z,
+                        auc_m = auc_m,
+                        auc_p = auc_p,
+                        auc_p10 = auc_p10,
+                        auc_p05 = auc_p05,
+                        auc_p025 = auc_p025,
+                        auc_bf = auc_bf)))
 }
 
 ## * test hbnb_mssc here
