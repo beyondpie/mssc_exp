@@ -19,32 +19,7 @@ mypbmc <- modules::import("pbmc")
 mysymsim <- modules::import("mysymsim")
 
 options(warn = -1)
-## * configs
-rpt <- 5
-ngene <- 80
-nind <- 5
-ncond <- 2
-ncells <- c(10, 20, 40, 80, 100, 200)
-## symsim related
-nevf <- 10
-n_de_evf <- 8
-sigma <- 0.2
-vary <- "s"
-evf_center <- 1 # should always fix as 1
-evf_type <- "discrete"
-ratio_ind2cond <- 0.5
-add_on_diffg <- TRUE
-scale_in_diffg <- 0.01
-scale_in_nondiffg <- 1.0
-nindeff <- 2
-
-
-## * configs
-myggtitle <- theme(plot.title = element_text(size = 15, hjust = 0.5))
-save_data_path <- here::here("data", "symsim")
-
 ## * utils
-
 plotviolin <- function(cnt, ind, genes) {
   n <- length(genes)
   gnm <- paste0("gene", genes)
@@ -339,6 +314,11 @@ init_params_and_data <- function(symsim_umi) {
 
 get_auc_hbnb <- function(vifit, data, degs, ndegs) {
   mu_cond <- hbnbm$extract_vifit(vifit, data, "mu_cond")
+  est_params <- lapply(hbnbm$nm_params, function(nm) {
+    hbnbm$extract_vifit(vifit, data, nm)
+  })
+  names(est_params) <- hbnbm$nm_params
+
   std_cond <- mean(sqrt(est_params$varofcond))
 
   rank_stats <- hbnbm$get_rank_statistics(mu_cond,
@@ -349,95 +329,138 @@ get_auc_hbnb <- function(vifit, data, degs, ndegs) {
   return(invisible(auc))
 }
 
-## * debug symsim simulations
-myseed <- 355113
-ncell <- 100
-ratio_ind2cond <- 0.3
-add_on_diffg <- TRUE
-scale_in_diffg <- 1.0
-scale_in_nondiffg <- 1.0
-nindeff <- 2
+
+main <- function() {
+  ## * configs
+  ## rpt <- 5
+  rpt <- 2
+  ## ngene <- 80
+  ngene <- 20
+  nind <- 5
+  ## ncond <- 2
+  ## ncells <- c(10, 20, 40, 80, 100, 200)
+  ncells <- c(10, 20)
+  ## symsim related
+  nevf <- 10
+  n_de_evf <- 8
+  sigma <- 0.2
+  vary <- "s"
+  ## evf_center <- 1 # should always fix as 1
+  ## evf_type <- "discrete"
+  ratio_ind2cond <- 0.3
+  add_on_diffg <- TRUE
+  scale_in_diffg <- 0.01
+  scale_in_nondiffg <- 1.0
+  nindeff <- 2
+  add_on_diffg <- TRUE
+  scale_in_diffg <- 1.0
+  scale_in_nondiffg <- 1.0
 
 
-## * generate simulaiton data
-symsim_umi <- simu_symsim_with_indeffect(
-  myseed = myseed,
-  save_data_path = save_data_path,
-  vary = vary,
-  ncell = ncell,
-  nind = nind,
-  ngene = ngene,
-  nevf = nevf,
-  n_de_evf = n_de_evf,
-  sigma = sigma,
-  ratio_ind2cond = ratio_ind2cond,
-  nindeff = nindeff,
-  add_on_diffg = add_on_diffg,
-  scale_in_diffg = scale_in_diffg,
-  scale_in_nondiffg = scale_in_nondiffg
-)
+  ## * configs
+  ## myggtitle <- theme(plot.title = element_text(size = 15, hjust = 0.5))
+  save_data_path <- here::here("data", "symsim")
 
-## ** get symsim violin plots
-diffg <- symsim_umi$diffg
-nondiffg <- symsim_umi$nondiffg
-message(stringr::str_glue("ncell: {ncell}"))
-message(stringr::str_glue("diffg: {length(diffg)}"))
-message(stringr::str_glue("nondiffg: {length(nondiffg)}"))
+  ## * calc auc
 
-vln <- plot_genes_after_batcheffect(symsim_umi,
-  nde = length(diffg),
-  nnde = length(nondiffg)
-)
-
-vln$spvln_degs
-
-vln$spvln_ndegs
-
-## *** pseudobulk result
-pseudo_deseq2_res <- mypseudo$pseudobulk_deseq2(
-  symsim_umi$obs,
-  symsim_umi$ind,
-  factor(symsim_umi$cond)
-)
-tmp <- mypseudo$calc_auc(
-  pseudo_deseq2_res, diffg,
-  nondiffg
-)
-message(tmp$auc)
-
-## * hbnb analysis
-pd <- init_params_and_data(symsim_umi)
-vifit_symsim <- hbnbm$run_hbnb_vi(data = pd$data, ip = pd$hip$ip)
-
-## examine the fitted parameters
-est_params <- lapply(hbnbm$nm_params, function(nm) {
-  hbnbm$extract_vifit(vifit_symsim, pd$data, nm)
-})
-names(est_params) <- hbnbm$nm_params
-
-## set a rule or use a vector of epsilon
-hbnb_auc <- get_auc_hbnb(vifit_symsim,
-  data = pd$data,
-  diffg, nondiffg)
-## rank_stats <- hbnbm$get_rank_statistics(mu_cond = est_params$mu_cond,
-##   c1 = 1, c2 = 2,
-##   epsilon = mean(sqrt(est_params$varofcond)))
-str(hbnb_auc)
-
-pseudo_deseq2_res <- mypseudo$pseudobulk_deseq2(
-  symsim_umi$obs,
-  symsim_umi$ind,
-  factor(symsim_umi$cond)
-)
-tmp <- mypseudo$calc_auc(
-  pseudo_deseq2_res, diffg,
-  nondiffg
-)
-message(tmp$auc)
+  nms_auc <- c(
+    "auc_z", "auc_m", "auc_p", "auc_p10",
+    "auc_p05", "auc_p025", "auc_bf", "auc_pseudo"
+  )
 
 
-delta_mucond <- as.matrix(est_params$mu_cond[, , 1] - est_params$mu_cond[, , 2])
-mu_ind <- est_params$mu_ind
+  result <- array(
+    data = NA, dim = c(
+      length(nms_auc),
+      length(ncells),
+      rpt
+    ),
+    dimnames = list(nms_auc, ncells, NULL)
+  )
+  for (i in seq_len(rpt)) {
+    for (j in seq_len(length(ncells))) {
+      ncell <- ncells[j]
+      rpt_slice <- matrix(NA,
+        nrow = length(nms_auc),
+        ncol = length(ncells)
+      )
+      symsim_umi <- simu_symsim_with_indeffect(
+        myseed = i,
+        save_data_path = save_data_path,
+        vary = vary,
+        ncell = ncell,
+        nind = nind,
+        ngene = ngene,
+        nevf = nevf,
+        n_de_evf = n_de_evf,
+        sigma = sigma,
+        ratio_ind2cond = ratio_ind2cond,
+        nindeff = nindeff,
+        add_on_diffg = add_on_diffg,
+        scale_in_diffg = scale_in_diffg,
+        scale_in_nondiffg = scale_in_nondiffg
+      )
+      ## ** get symsim violin plots
+      diffg <- symsim_umi$diffg
+      nondiffg <- symsim_umi$nondiffg
+      message(stringr::str_glue("ncell: {ncell}"))
+      message(stringr::str_glue("diffg: {length(diffg)}"))
+      message(stringr::str_glue("nondiffg: {length(nondiffg)}"))
+      ## vln <- plot_genes_after_batcheffect(symsim_umi,
+      ##   nde = length(diffg),
+      ##   nnde = length(nondiffg)
+      ## )
+      ## vln$spvln_degs
+      ## vln$spvln_ndegs
+      pseudo_deseq2_res <- mypseudo$pseudobulk_deseq2(
+        symsim_umi$obs,
+        symsim_umi$ind,
+        factor(symsim_umi$cond)
+      )
+      pseudo_auc <- mypseudo$calc_auc(
+        pseudo_deseq2_res, diffg,
+        nondiffg
+      )
 
+      pd <- init_params_and_data(symsim_umi)
+      vifit_symsim <- hbnbm$run_hbnb_vi(data = pd$data, ip = pd$hip$ip)
 
-p <-  plotviolin(symsim_umi$obs, symsim_umi$ind, c(1,4))
+      ## examine the fitted parameters
+      est_params <- lapply(hbnbm$nm_params, function(nm) {
+        hbnbm$extract_vifit(vifit_symsim, pd$data, nm)
+      })
+      names(est_params) <- hbnbm$nm_params
+
+      hbnb_auc <- get_auc_hbnb(vifit_symsim,
+        data = pd$data,
+        diffg, nondiffg
+      )
+
+      rpt_slice[, j] <- c(unlist(hbnb_auc), pseudo_auc$auc)
+      ## show result
+      print(rpt_slice)
+      ## save symsim-related object
+      saveRDS(
+        object = list(
+          symsim = symsim_umi,
+          pd = pd,
+          vifit = vifit_symsim,
+          est_params = est_params,
+          diffg = diffg,
+          nondiffg = nondiffg
+        ),
+        file = file.path(
+          save_data_path,
+          stringr::str_glue("{ngene}gene_{nind*2}ind_{ncell}cell_{ratio_ind2cond}_{scale_in_diffg}_{scale_in_nondiffg}_{i}.rds")
+        )
+      )
+    } ## end of ncells
+    result[, , i] <- rpt_slice
+    saveRDS(
+      object = result,
+      file = file.path(save_data_path, stringr::str_glue("{ngene}gene_{nind*2}ind_{ratio_ind2cond}_{scale_in_diffg}_{scale_in_nondiffg}.rds"))
+    )
+  }
+}
+
+main()

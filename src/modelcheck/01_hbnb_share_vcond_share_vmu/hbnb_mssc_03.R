@@ -68,7 +68,7 @@ eval_elbo <- 100
 ## vi_algorithm <- "fullrank"
 vi_algorithm <- "meanfield"
 output_samples <- 2000
-tol_rel_obj <- 0.0001
+tol_rel_obj <- 0.001
 eta <- 0.1
 
 ## * functions
