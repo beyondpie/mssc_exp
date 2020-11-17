@@ -158,7 +158,7 @@ init_snb <- function(s, y) {
   ## ref: MASS::fitdistr for nb
   if (sum(y) < 1) {
     warning("[INIT SNB]: all the y are zeros.")
-    return( invisible(list(mu = mu_default, r = r_default)))
+    return(invisible(list(mu = mu_default, r = r_default)))
   }
   invisible(list(
     mu = init_snb_logmu(y, median(s)),
@@ -200,8 +200,10 @@ stanfit_scalenb <- function(s, y, scale_nb_model,
       result$r <- init_mur$r
       result$success <- FALSE
     } else if (r > too_big_r) {
-      warning(stringr::str_glue("[STANFIT SNB USING OPT]: r {r} > {too_big_r}. ",
-                                "Using init params"))
+      warning(stringr::str_glue(
+        "[STANFIT SNB USING OPT]: r {r} > {too_big_r}. ",
+        "Using init params"
+      ))
       result$mu <- init_mur$mu
       result$r <- init_mur$r
       result$success <- FALSE
@@ -244,7 +246,7 @@ stanfit_snb_fr <- function(s, r, y, model,
       mu = init_mu
     )),
     algorithm = "lbfgs"
-    ))
+  ))
 
   if (is_vi_or_opt_success(opt)) {
     t <- opt$mle()
@@ -321,8 +323,10 @@ est_mu <- function(mu, scale = 1.96^2) {
     v <- varofmu_default
   }
   if (v < varofmu_default_min) {
-    warning(stringr::str_glue("[EST Mu0 VAR]: VAR {v} < {varofmu_default_min}",
-                              " Using the default min."))
+    warning(stringr::str_glue(
+      "[EST Mu0 VAR]: VAR {v} < {varofmu_default_min}",
+      " Using the default min."
+    ))
     v <- varofmu_default_min
   }
   return(invisible(c(m, v)))
@@ -339,8 +343,10 @@ est_varofcond <- function(mucond, scale = 1.96^2) {
   )
   v <- max(d * scale)
   if (v < varofcond_default_min) {
-    warning(stringr::str_glue("[EST MUCOND VAR]: VAR {v} < {varofcond_default_min}",
-                              "Using the default min."))
+    warning(stringr::str_glue(
+      "[EST MUCOND VAR]: VAR {v} < {varofcond_default_min}",
+      "Using the default min."
+    ))
     v <- varofcond_default_min
   }
   return(invisible(v))
@@ -767,28 +773,29 @@ get_auc <- function(rank_stats, diffg, ndiffg) {
 }
 
 ## * test
-pbmc <- readRDS(here::here(
-  "src", "modelcheck",
-  "snb_pool_ref_pbmc.rds"
-))
-k <- max(pbmc$ind)
-j <- 2
-g <- nrow(pbmc$y2c)
+test <- function() {
+  pbmc <- readRDS(here::here(
+    "src", "modelcheck",
+    "snb_pool_ref_pbmc.rds"
+  ))
+  k <- max(pbmc$ind)
+  j <- 2
+  g <- nrow(pbmc$y2c)
 
-hi_params <- set_hi_params(
-  k = k, j = j, g = g,
-  cnt = pbmc$y2c, s = pbmc$s, cond = pbmc$cond,
-  ind = pbmc$ind, scale = 1.96^2
-)
+  hi_params <- set_hi_params(
+    k = k, j = j, g = g,
+    cnt = pbmc$y2c, s = pbmc$s, cond = pbmc$cond,
+    ind = pbmc$ind, scale = 1.96^2
+  )
 
-data <- to_hbnb_data(pbmc$y2c,
-  ind = pbmc$ind, cond = pbmc$cond,
-  s = pbmc$s, hp = hi_params$hp
-)
+  data <- to_hbnb_data(pbmc$y2c,
+    ind = pbmc$ind, cond = pbmc$cond,
+    s = pbmc$s, hp = hi_params$hp
+  )
 
-param_nms <- get_hbnb_param_nms(k = k, j = j, g = g)
-vi_sampler <- run_hbnb_vi(data = data, ip = hi_params$ip)
-est_params <- lapply(nm_params, function(nm) {
-  extract_vifit(vi_sampler, data, nm)
-})
-names(est_params) <- nm_params
+  vi_sampler <- run_hbnb_vi(data = data, ip = hi_params$ip)
+  est_params <- lapply(nm_params, function(nm) {
+    extract_vifit(vi_sampler, data, nm)
+  })
+  names(est_params) <- nm_params
+}
