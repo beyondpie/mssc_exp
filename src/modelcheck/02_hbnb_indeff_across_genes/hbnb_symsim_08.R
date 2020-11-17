@@ -122,7 +122,7 @@ est_variation_of_ind <- function(symsim_obs, ind,
   hi_params <- hbnbm$set_hi_params(
     k = k, j = j, g = g, cnt = y2c,
     s = s, cond = cond, ind = ind,
-    scale = 1.0, to_ind = FALSE
+    scale = 1.0
   )
   varofcond <- hi_params$ip$varofcond
   variation_of_ind <- ratio_ind2cond * sqrt(varofcond)
