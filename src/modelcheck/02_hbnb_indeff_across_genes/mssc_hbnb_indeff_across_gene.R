@@ -82,7 +82,8 @@ eta <- 0.1
 hpgamma_default <- c(1.0, 1.0)
 ## default invgamma param
 hpinvg_default <- c(1.0, 1.0)
-r_default <- 20.0
+## how to set r_default appropriately
+r_default <- 50.0
 mu_default <- 0.0
 varofmu_default <- 16.0
 varofmu_default_min <- 2.0
@@ -199,7 +200,7 @@ stanfit_scalenb <- function(s, y, scale_nb_model,
       result$r <- init_mur$r
       result$success <- FALSE
     } else if (r > too_big_r) {
-      warning(stringr::str_glue("[STANFIT SNB USING OPT]: r {r} > {too_big_r}.",
+      warning(stringr::str_glue("[STANFIT SNB USING OPT]: r {r} > {too_big_r}. ",
                                 "Using init params"))
       result$mu <- init_mur$mu
       result$r <- init_mur$r
@@ -647,11 +648,17 @@ extract_vifit <- function(vifit, data, param) {
     genenms <- seq_len(data$g)
   }
 
-  if (param %in% c("nb_r", "varofind")) {
+  if (param == "nb_r") {
     r <- vifit$draws(str_glue_vec(param, data$g))
     colnames(r) <- genenms
     return(invisible(r))
   }
+
+  if (param == "varofind") {
+    r <- vifit$draws(str_glue_vec(param, data$k))
+    return(invisible(r))
+  }
+
 
   if (param %in% c("raw_mu", "mu")) {
     r <- vifit$draws(str_glue_vec("raw_mu", data$g))
@@ -780,7 +787,6 @@ data <- to_hbnb_data(pbmc$y2c,
 )
 
 param_nms <- get_hbnb_param_nms(k = k, j = j, g = g)
-
 vi_sampler <- run_hbnb_vi(data = data, ip = hi_params$ip)
 est_params <- lapply(nm_params, function(nm) {
   extract_vifit(vi_sampler, data, nm)
