@@ -74,7 +74,7 @@ vi_refresh <- 2000
 eval_elbo <- 100
 ## vi_algorithm <- "fullrank"
 vi_algorithm <- "meanfield"
-output_samples <- 2000
+output_samples <- 3000
 tol_rel_obj <- 0.0002
 eta <- 0.1
 
