@@ -93,3 +93,8 @@ vignettes/*.pdf
 /src/modelcheck/Rplots.pdf
 /src/dirty_stan/gwnb_simu_from_prior
 /src/dirty_stan/gwnb_rndeffect
+/stanutils/scale_nb
+/stanutils/scale_nb_fixed_r
+/src/dirty_stan/mssc_hbnb_fix_vmu_vcond
+/src/dirty_stan/mssc_hbnb_indeff_across_gene
+/src/dirty_stan/mssc_hbnb_mat
