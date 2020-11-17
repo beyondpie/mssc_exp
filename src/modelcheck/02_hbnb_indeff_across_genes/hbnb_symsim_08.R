@@ -365,14 +365,14 @@ main <- function(ratio_ind2cond = 0.5,
                  scale_in_nondiffg = 1.0,
                  ngene = 20) {
   ## * configs
-  rpt <- 3
+  rpt <- 5
   ## rpt <- 2
   ngene <- ngene
   nind <- 5
   nindeff <- 2
   ## ncond <- 2
-  ## ncells <- c(20, 40, 80, 120, 160, 200)
-  ncells <- c(10, 20)
+  ncells <- c(20, 40, 80, 120, 160, 200)
+  ## ncells <- c(10, 20)
   ## symsim related
   nevf <- 10
   n_de_evf <- 7
