@@ -90,6 +90,8 @@ varofmu_default_min <- 2.0
 varofcond_default <- 4.0
 varofcond_default_min <- 1.0
 varofind_default <- 1.0
+sd_init_mucond <- 0.01
+sd_init_muind <- 0.01
 
 ## * functions
 
@@ -229,7 +231,10 @@ stanfit_snb_fr <- function(s, r, y, model,
 
   result <- list(mu = mu_default, success = FALSE)
   if (sum(y) < 1) {
-    warning("[STANFIT SNB FIXED R USING OPT]: all the y are zeros. Using default.")
+    warning(paste(
+      "[STANFIT SNB FIXED R USING OPT]:",
+      "all the y are zeros. Using default"
+    ))
     return(invisible(result))
   }
   # fit scaled negative binomial using stan
@@ -253,7 +258,10 @@ stanfit_snb_fr <- function(s, r, y, model,
     result$mu <- t["mu"]
     result$success <- TRUE
   } else {
-    warning("[STANFIT SNB FIXED R USING OPT]: OPT failed. Using init_snb_logmu result.")
+    warning(paste(
+      "[STANFIT SNB FIXED R USING OPT]:",
+      "OPT failed. Using init_snb_logmu result."
+    ))
     result$mu <- init_mu
   }
   invisible(result)
@@ -268,15 +276,16 @@ stanfit_gwsnb_to_cond_level <- function(s, y, vec_of_cond,
   ## Result must be set even when the fitting is bad,
   ## we'll use init strategy to set up the parameters.
 
-  ## [MUIND]: all the muind will be filled with zeros.
+  ## [MUIND]: all the muind will be filled with
+  ## small values around 0.0
 
   ## y cannot be all the zeros (not test in the code)
   k <- max(vec_of_ind) # num of ind
   j <- max(vec_of_cond) # num of cond, should be 2
   result <- list(
     mu0 = mu_default, r0 = r_default,
-    mu_cond = rep(0.0, j),
-    mu_ind = rep(0.0, k),
+    mu_cond = rnorm(n = j, mean = 0, sd = sd_init_mucond),
+    mu_ind = rnorm(n = k, mean = 0, sd = sd_init_muind),
     s1 = FALSE,
     s2 = rep(FALSE, 2)
   )
@@ -294,7 +303,8 @@ stanfit_gwsnb_to_cond_level <- function(s, y, vec_of_cond,
     index <- (vec_of_cond == i)
     yi <- y[index]
     if (sum(yi) < 1) {
-      warning(stringr::str_glue("[STANFIT COND LEVEL] Cond[{i}]: y are zeros."))
+      warning(stringr::str_glue("[STANFIT COND LEVEL] ",
+                                "Cond[{i}]: y are zeros."))
       result$mu_cond[i] <- 0.0
     } else {
       mui <- stanfit_snb_fr(
@@ -631,8 +641,9 @@ run_hbnb_vi <- function(data, ip, seed = 1L) {
   )
 }
 
-extract_vifit <- function(vifit, data, param) {
-
+extract_vifit <- function(vifit,
+                          data,
+                          param) {
   ## get the draw matrix for the param
   ## if not exist, return NaN
 
@@ -768,6 +779,28 @@ get_auc <- function(rank_stats, diffg, ndiffg) {
     auc_p10 = auc_p10,
     auc_p05 = auc_p05,
     auc_p025 = auc_p025,
+    auc_bf = auc_bf
+  )))
+}
+
+get_auc_v2 <- function(rank_stats, diffg, ndiffg) {
+  ## simplify the auc calculations
+  true_class <- c(rep(TRUE, length(diffg)), rep(FALSE, length(ndiffg)))
+  z <- rank_stats$z[c(diffg, ndiffg)]
+  m <- rank_stats$m[c(diffg, ndiffg)]
+  p <- rank_stats$p[c(diffg, ndiffg)]
+  bf <- rank_stats$p[c(diffg, ndiffg)]
+
+
+  auc_z <- caTools::colAUC(z, true_class)
+  auc_m <- caTools::colAUC(m, true_class)
+  auc_p <- caTools::colAUC(p, true_class)
+
+  auc_bf <- caTools::colAUC(bf, true_class)
+  return(invisible(list(
+    auc_z = auc_z,
+    auc_m = auc_m,
+    auc_p = auc_p,
     auc_bf = auc_bf
   )))
 }
