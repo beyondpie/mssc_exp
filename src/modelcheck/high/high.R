@@ -615,7 +615,9 @@ vi_muind_transform_from_raw <- function(vi_raw_mu_ind, vi_varofind, g, k,
   return(r)
 }
 
-run_hbnb_vi <- function(data, ip, seed = 1L) {
+run_hbnb_vi <- function(data, ip,
+                        adapt_engaged = TRUE,
+                        seed = 1L) {
   invisible(
     hbnbm$variational(
       data = data,
@@ -624,7 +626,7 @@ run_hbnb_vi <- function(data, ip, seed = 1L) {
       refresh = vi_refresh,
       iter = num_iter,
       eval_elbo = eval_elbo,
-      adapt_engaged = TRUE,
+      adapt_engaged = adapt_engaged,
       algorithm = vi_algorithm,
       output_samples = output_samples,
       tol_rel_obj = tol_rel_obj,

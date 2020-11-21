@@ -364,7 +364,8 @@ main <- function(ratio_ind2cond = 0.5,
                  scale_in_diffg = 1.0,
                  scale_in_nondiffg = 1.0,
                  ngene = 200,
-                 rpt = 20) {
+                 rpt = 20,
+                 adapt_engaged = FALSE) {
   ## * configs
   rpt <- rpt
   ## rpt <- 2
@@ -451,7 +452,8 @@ main <- function(ratio_ind2cond = 0.5,
       )
 
       pd <- init_params_and_data(symsim_umi)
-      vifit_symsim <- high$run_hbnb_vi(data = pd$data, ip = pd$hip$ip)
+      vifit_symsim <- high$run_hbnb_vi(data = pd$data, ip = pd$hip$ip,
+                                       adapt_engaged = adapt_engaged)
 
       ## examine the fitted parameters
       est_params <- lapply(high$nm_params, function(nm) {
@@ -528,5 +530,6 @@ main(
   scale_in_diffg = args$scale_in_diffg,
   scale_in_nondiffg = args$scale_in_nondiffg,
   ngene = args$ngene,
-  rpt = args$rpt
+  rpt = args$rpt,
+  adapt_engaged = FALSE
 )
