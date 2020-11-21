@@ -74,9 +74,9 @@ eval_elbo <- 100
 ## vi_algorithm <- "fullrank"
 vi_algorithm <- "meanfield"
 output_samples <- 3000
-tol_rel_obj <- 0.0002
+tol_rel_obj <- 0.0001
 adapt_iter <- 1000
-eta <- 0.1
+eta <- 0.5
 
 ## ** default parameters
 hpgamma_default <- c(1.0, 1.0)
