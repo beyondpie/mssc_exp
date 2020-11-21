@@ -16,7 +16,6 @@
 ## it's fine.
 
 ## * load R env
-import::from(here, here)
 suppressPackageStartupMessages(library(tidyverse))
 library(MCMCpack)
 library(cmdstanr)
@@ -561,13 +560,6 @@ vi_mu_transform_from_raw <- function(vi_raw_mu, mu0,
   ## element-wise multiply, when second is column
   ## it will column by column.
   res <- vi_raw_mu * sqrt(as.numeric(vi_varofmu))
-
-  ## n <- nrow(vi_raw_mu)
-  ## d <- ncol(vi_raw_mu)
-  ## t_res <- vapply(seq_len(n), function(i) {
-  ##   mu_transform_from_raw(vi_raw_mu[i, ], mu0, vi_varofmu[i, ])
-  ## }, FUN.VALUE = rep(0.0, d))
-  ## res <- t(t_res)
   if (!is.null(genenms)) {
     colnames(res) <- genenms
   }
@@ -751,6 +743,14 @@ get_rank_statistics <- function(mu_cond, c1 = 1, c2 = 2,
     bf = bf,
     m = m
   )))
+}
+
+extract_all_params_from_fit <- function(vifit, data) {
+  est_params <- lapply(nm_params, function(nm) {
+    extract_vifit(vifit, data, nm)
+  })
+  names(est_params) <- nm_params
+  return(invisible(est_params))
 }
 
 get_auc <- function(rank_stats, diffg, ndiffg) {

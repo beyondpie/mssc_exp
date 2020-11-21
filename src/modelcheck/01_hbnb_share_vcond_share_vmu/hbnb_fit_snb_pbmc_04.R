@@ -1,4 +1,4 @@
-## fit scaled negative binomial for pbcm dataset.
+## fit scaled negative binomial for pbmc dataset.
 ## used for model parameters settings.
 
 ## * load R env
@@ -19,8 +19,6 @@ mypbmc <- modules::import("pbmc")
 ## * config
 cell_type <- "Naive CD4+ T"
 num_top_gene <- 200
-output_stan_fnm <- "pbmc_naivecd4t_top1000_hbnb_vi.rds"
-hbnb_p_epsilon <- 0.1
 
 myggtitle <- theme(
   plot.title = element_text(
@@ -63,7 +61,6 @@ select_data_rankby_pseudobulk <- function(num_top_gene = 10,
     decreasing = FALSE
   )[1:num_top_gene]
   ## pvalue_pseudo_deseq2 <- pseudo_analysis$pvalue[top_ranked_index]
-
   ## finally used pbmc data
   ## use all the counts to get sumcnt
   sumcnt <- colSums(subscdata$cnt)
@@ -157,7 +154,7 @@ est_hbnb_params <- function(vifit, data) {
 main <- function() {
   pbmc <- select_data_rankby_pseudobulk(num_top_gene = 20)
   vifit <- get_vifit(pbmc, 2)
-  est_params <- est_hbnb_params(vifit$vifit, vifit$data)
+  est_hbnb_params(vifit$vifit, vifit$data)
 }
 
 
@@ -209,7 +206,7 @@ get_comp_figure <- function(pseudo_scores,
       vjust = vjust,
       inherit.aes = FALSE,
       angle = text_angle,
-      size = text_size) + 
+      size = text_size) +
     geom_text(data = rank_comp %>%
                 dplyr::select(msscp_genenm, pseudo) %>%
                 dplyr::mutate(x = 3.2, y = pseudo),
