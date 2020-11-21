@@ -363,15 +363,16 @@ get_auc_hbnb <- function(vifit, data, degs, ndegs) {
 main <- function(ratio_ind2cond = 0.5,
                  scale_in_diffg = 1.0,
                  scale_in_nondiffg = 1.0,
-                 ngene = 20) {
+                 ngene = 200,
+                 rpt = 20) {
   ## * configs
-  rpt <- 5
+  rpt <- rpt
   ## rpt <- 2
   ngene <- ngene
   nind <- 5
   nindeff <- 2
   ## ncond <- 2
-  ncells <- c(20, 40, 80, 120, 160, 200)
+  ncells <- c(20, 40, 80, 100, 120, 160, 200, 320, 400)
   ## ncells <- c(10, 20)
   ## symsim related
   nevf <- 10
@@ -387,7 +388,7 @@ main <- function(ratio_ind2cond = 0.5,
 
   ## * configs
   ## myggtitle <- theme(plot.title = element_text(size = 15, hjust = 0.5))
-  save_data_path <- here::here("data", "symsim")
+  save_data_path <- here::here("src", "modelcheck", "high", "symsim")
 
   ## * calc auc
 
@@ -491,28 +492,41 @@ main <- function(ratio_ind2cond = 0.5,
 }
 
 library(optparse)
-option_list <- list(make_option(c("--ratio_ind2cond"),
-                                action = "store",
-                                type = "double",
-                                default = 0.3),
-                    make_option(c("--scale_in_diffg"),
-                                action = "store",
-                                type = "double",
-                                default = 0.1),
-                    make_option(c("--scale_in_nondiffg"),
-                                action = "store",
-                                type = "double",
-                                default = 1.0),
-                    make_option(c("--ngene"),
-                      action = "store",
-                      type = "integer",
-                      default = 20)
-                    )
+option_list <- list(
+  make_option(c("--ratio_ind2cond"),
+    action = "store",
+    type = "double",
+    default = 0.3
+  ),
+  make_option(c("--scale_in_diffg"),
+    action = "store",
+    type = "double",
+    default = 0.2
+  ),
+  make_option(c("--scale_in_nondiffg"),
+    action = "store",
+    type = "double",
+    default = 1.0
+  ),
+  make_option(c("--ngene"),
+    action = "store",
+    type = "integer",
+    default = 200
+  ),
+  make_option(c("--rpt"),
+    action = "store",
+    type = "integer",
+    default = 20
+  )
+)
 args <- option_list %>%
   OptionParser(option_list = .) %>%
   parse_args()
 
-main(ratio_ind2cond = args$ratio_ind2cond,
-     scale_in_diffg = args$scale_in_diffg,
-     scale_in_nondiffg = args$scale_in_nondiffg,
-     ngene = args$ngene)
+main(
+  ratio_ind2cond = args$ratio_ind2cond,
+  scale_in_diffg = args$scale_in_diffg,
+  scale_in_nondiffg = args$scale_in_nondiffg,
+  ngene = args$ngene,
+  rpt = args$rpt
+)
