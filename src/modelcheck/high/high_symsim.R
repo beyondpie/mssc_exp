@@ -365,7 +365,10 @@ main <- function(ratio_ind2cond = 0.5,
                  scale_in_nondiffg = 1.0,
                  ngene = 200,
                  rpt = 20,
-                 adapt_engaged = FALSE) {
+                 adapt_engaged = FALSE,
+                 eta = 0.5,
+                 adapt_iter = 1000,
+                 algorithm  =  "meanfield") {
   ## * configs
   rpt <- rpt
   ## rpt <- 2
@@ -453,7 +456,11 @@ main <- function(ratio_ind2cond = 0.5,
 
       pd <- init_params_and_data(symsim_umi)
       vifit_symsim <- high$run_hbnb_vi(data = pd$data, ip = pd$hip$ip,
-                                       adapt_engaged = adapt_engaged)
+                                       adapt_engaged = adapt_engaged,
+                                       eta = eta,
+                                       adapt_iter = adapt_iter,
+                                       algorithm  = algorithm
+                                       )
 
       ## examine the fitted parameters
       est_params <- lapply(high$nm_params, function(nm) {
@@ -519,17 +526,40 @@ option_list <- list(
     action = "store",
     type = "integer",
     default = 20
-  )
+    ),
+  ## for high method's parameter
+  make_option(c("--algorithm"),
+              action = "store",
+              type = "character",
+              default = "meanfield"),
+  make_option(c("--eta"),
+              action = "store",
+              type = "double",
+              default = 0.5),
+  make_option(c("--adapt_engaged"),
+              action = "store",
+              type = "integer",
+              default = 0),
+  make_option(c("--adapt_iter"),
+              action = "store",
+              type = "integer",
+              default = 1000)
 )
 args <- option_list %>%
   OptionParser(option_list = .) %>%
   parse_args()
 
+adapt_engaged <- ifelse(test = (args$adapt_engaged > 0),
+                        yes = TRUE,
+                        no = FALSE)
 main(
   ratio_ind2cond = args$ratio_ind2cond,
   scale_in_diffg = args$scale_in_diffg,
   scale_in_nondiffg = args$scale_in_nondiffg,
   ngene = args$ngene,
   rpt = args$rpt,
-  adapt_engaged = FALSE
+  adapt_engaged = adapt_engaged,
+  adapt_iter = args$adapt_iter,
+  eta = args$eta,
+  algorithm = args$algorithm
 )

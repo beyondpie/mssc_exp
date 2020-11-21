@@ -75,6 +75,7 @@ eval_elbo <- 100
 vi_algorithm <- "meanfield"
 output_samples <- 3000
 tol_rel_obj <- 0.0002
+adapt_iter <- 1000
 eta <- 0.1
 
 ## ** default parameters
@@ -617,6 +618,9 @@ vi_muind_transform_from_raw <- function(vi_raw_mu_ind, vi_varofind, g, k,
 
 run_hbnb_vi <- function(data, ip,
                         adapt_engaged = TRUE,
+                        adapt_iter = adapt_iter,
+                        eta = eta,
+                        algorithm = vi_algorithm,
                         seed = 1L) {
   invisible(
     hbnbm$variational(
@@ -627,7 +631,8 @@ run_hbnb_vi <- function(data, ip,
       iter = num_iter,
       eval_elbo = eval_elbo,
       adapt_engaged = adapt_engaged,
-      algorithm = vi_algorithm,
+      adapt_iter = adapt_iter,
+      algorithm = algorithm,
       output_samples = output_samples,
       tol_rel_obj = tol_rel_obj,
       eta = eta
