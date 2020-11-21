@@ -26,7 +26,7 @@ suppressPackageStartupMessages(library(SymSim))
 suppressPackageStartupMessages(library(ggpubr))
 library(truncnorm)
 
-hbnbm <- modules::import("mssc_hbnb_indeff_across_gene")
+high <- modules::import("high")
 
 options("import.path" = here::here("rutils"))
 myt <- modules::import("transform")
@@ -119,7 +119,7 @@ est_variation_of_ind <- function(symsim_obs, ind,
   s <- colSums(y2c)
   cond <- symsim_obs$cell_meta$pop
   ## only use degenes to esimtate the variations
-  hi_params <- hbnbm$set_hi_params(
+  hi_params <- high$set_hi_params(
     k = k, j = j, g = g, cnt = y2c,
     s = s, cond = cond, ind = ind,
     scale = 1.0
@@ -328,7 +328,7 @@ init_params_and_data <- function(symsim_umi) {
   sumcnt <- colSums(y2c)
   s <- sumcnt / median(sumcnt)
 
-  hi_params <- hbnbm$set_hi_params(
+  hi_params <- high$set_hi_params(
     k = max(ind),
     j = max(cond),
     g = nrow(y2c),
@@ -338,24 +338,24 @@ init_params_and_data <- function(symsim_umi) {
     scale = 1.96^2
   )
 
-  data <- hbnbm$to_hbnb_data(y2c, ind, cond, s, hi_params$hp)
+  data <- high$to_hbnb_data(y2c, ind, cond, s, hi_params$hp)
   return(invisible(list(hip = hi_params, data = data)))
 }
 
 get_auc_hbnb <- function(vifit, data, degs, ndegs) {
-  mu_cond <- hbnbm$extract_vifit(vifit, data, "mu_cond")
-  est_params <- lapply(hbnbm$nm_params, function(nm) {
-    hbnbm$extract_vifit(vifit, data, nm)
+  mu_cond <- high$extract_vifit(vifit, data, "mu_cond")
+  est_params <- lapply(high$nm_params, function(nm) {
+    high$extract_vifit(vifit, data, nm)
   })
-  names(est_params) <- hbnbm$nm_params
+  names(est_params) <- high$nm_params
 
   std_cond <- mean(sqrt(est_params$varofcond))
 
-  rank_stats <- hbnbm$get_rank_statistics(mu_cond,
+  rank_stats <- high$get_rank_statistics(mu_cond,
     c1 = 1, c2 = 2,
     std_cond = std_cond
   )
-  auc <- hbnbm$get_auc(rank_stats, degs, ndegs)
+  auc <- high$get_auc(rank_stats, degs, ndegs)
   return(invisible(auc))
 }
 
@@ -451,13 +451,13 @@ main <- function(ratio_ind2cond = 0.5,
       )
 
       pd <- init_params_and_data(symsim_umi)
-      vifit_symsim <- hbnbm$run_hbnb_vi(data = pd$data, ip = pd$hip$ip)
+      vifit_symsim <- high$run_hbnb_vi(data = pd$data, ip = pd$hip$ip)
 
       ## examine the fitted parameters
-      est_params <- lapply(hbnbm$nm_params, function(nm) {
-        hbnbm$extract_vifit(vifit_symsim, pd$data, nm)
+      est_params <- lapply(high$nm_params, function(nm) {
+        high$extract_vifit(vifit_symsim, pd$data, nm)
       })
-      names(est_params) <- hbnbm$nm_params
+      names(est_params) <- high$nm_params
 
       hbnb_auc <- get_auc_hbnb(vifit_symsim,
         data = pd$data,
