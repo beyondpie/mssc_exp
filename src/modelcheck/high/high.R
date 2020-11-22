@@ -622,7 +622,7 @@ run_hbnb_vi <- function(data, ip,
                         eta = eta,
                         algorithm = vi_algorithm,
                         seed = 1L) {
-  ## adapt_iter: 50 (default in cmdstan) * adapt_iter we set
+  ## adapt_iter: 5 (default in cmdstan) * adapt_iter we set
   invisible(
     hbnbm$variational(
       data = data,
