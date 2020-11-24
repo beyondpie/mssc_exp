@@ -14,12 +14,13 @@ transformed data {
 parameters {
 	real mu;
 	// r should not be too large
-	real<lower=0, upper = 1000> r;
+	real<lower=0> r;
 }
 
 
 model {
-	r ~ uniform(0.0, 1000);
+	// TODO: maybe a better prior.
+	r ~ gamma(1.0, 1.0);
 	mu ~ normal(0.0, 20);
 	y ~ neg_binomial_2_log(logs + mu, r);
 }

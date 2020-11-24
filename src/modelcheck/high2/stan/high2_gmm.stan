@@ -4,7 +4,8 @@
 // - model mu in hierarchical structure
 //   - where the mean of mu follows a non-informative prior
 // - model mucond:
-//   - two condition, but only one delta is estimated
+//   - two condition
+//   - one delta
 // - no more inv-gamma
 
 data {
@@ -27,8 +28,10 @@ data {
 	vector<lower=0>[2] hp_alpha_varofind;
 	vector<lower=0>[2] hp_beta_varofind;
 
+	// will be used for two variances
 	vector<lower=0>[2] hp_varofcond;
 
+	vector<lower=0>[2] hp_weightofcond;
 }
 
 transformed data {
@@ -40,16 +43,21 @@ transformed data {
 }
 
 parameters {
+	real<lower=0, upper=1> weightofcond;
+	// use ordered to keep the identifiable
+	// but our estimation not depends on the idenfilibility
+	// so vector should be OK.
+	// varofcond[1] (non-diff group) < varofcond[2] (diff group)
+	ordered<lower=0>[2] varofcond;
+	// mu_cond is two-component of Gaussian Mixture
+	vector[ngene] mu_cond;
+
 	vector<lower=0>[2] hp_r;
 	vector<lower=0>[ngene] nb_r;
 
 	real<lower=0> varofmu;
 	real centerofmu;
 	vector[ngene] raw_mu;
-
-	real<lower=0> varofcond;
-	// gaussian distributuon
-	vector[ngene] raw_mu_cond;
 
 	vector<lower=0>[2] hp_varofind;
 	vector<lower=0>[nind] varofind;
@@ -58,9 +66,8 @@ parameters {
 
 transformed parameters {
 	// cmdstanr accelarates the draws
-	vector[g] mu = raw_mu * sqrt(varofmu) + centerofmu;
-	vector[g] mu_cond = raw_mu_cond * sqrt(varofcond);
 	matrix[g, k] mu_ind = raw_mu_ind * sqrt(varofind);
+	vector[g] mu = raw_mu * sqrt(varofmu) + centerofmu;
 }
 
 model {
@@ -79,11 +86,18 @@ model {
 	// implicit mu_ind ~ N(0.0, sqrt(varofind))
 	to_vector(raw_mu_ind) ~ std_normal();
 
+	weightofcond ~ beta(hp_weightofcond[1], hp_weightofcond[2]);
   varofcond ~ gamma(hp_varofcond[1], hp_varofcond[2]);
-	// implicit mu_cond ~ N(0.0, sqrt(varofcond))
-	to_vector(raw_mu_cond) ~ std_normal();
-	matrix[ngene, 2] mu_cond_c2 = append_col(mu_cond, -1 * mu_cond);
+	// declare the log pdf of the prior of mu_cond
+	// which is a two-component Mixture of Gaussian
+	for (i in 1:ngene){
+		target += log_mix(weightofcond,
+											normal_lpdf(mu_cond[i] | 0.0, sqrt(varofcond[1])),
+											normal_lpdf(mu_cond[i] | 0.0, sqrt(varofcond[2]))
+											)
+	}
 
+	matrix[ngene, 2] mu_cond_c2 = append_col(mu_cond, -1 * mu_cond);
 	matrix[ngene, ncell] lambda = logs + rep_matrix(mu, ncell)
 		+ mu_cond_c2[, cond] + mu_ind[, ind];
 	matrix[ngene, ncell] nb_rr = rep_matrix(n_r, ncell);
