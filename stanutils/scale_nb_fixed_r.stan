@@ -19,6 +19,6 @@ parameters {
 }
 
 model {
-	// sigma2 follows non informative prior.
+	// mu follows non informative prior.
 	y ~ neg_binomial_2_log(logs + mu, r);
 }

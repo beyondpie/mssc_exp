@@ -83,6 +83,8 @@ model {
 	hp_varofind[1] ~ gamma(hp_alpha_varofind[1], hp_alpha_varofind[2]);
 	hp_varofind[2] ~ gamma(hp_beta_varofind[1], hp_beta_varofind[2]);
 	varofind ~ gamma(hp_varofind, hp_varofind);
+	// implicit mu_ind ~ N(0.0, sqrt(varofind))
+	to_vector(raw_mu_ind) ~ std_normal();
 
 	weightofcond ~ beta(hp_weightofcond[1], hp_weightofcond[2]);
   varofcond ~ gamma(hp_varofcond[1], hp_varofcond[2]);

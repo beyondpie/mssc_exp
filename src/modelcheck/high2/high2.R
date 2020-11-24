@@ -27,6 +27,7 @@ library(posterior)
 library(bbmle)
 library(sads)
 library(truncnorm)
+library(R6)
 
 ## warnings/errors traceback settings
 options(error = traceback)
@@ -34,11 +35,42 @@ options(warn = 1)
 options(mc.cores = 3)
 
 
-options("import.path" = here::here("rutils"))
-myt <- modules::import("transform")
-myfit <- modules::import("myfitdistr")
-mypseudo <- modules::import("pseudobulk")
-mypbmc <- modules::import("pbmc")
+High2 <- R6Class(
+  "High2",
+  public = list(
+    ## stan script
+    stan_snb_path = NULL,
+    stan_snb_cond_path = NULL,
+    stan_high2_path = NULL,
+    ## vi training parameters
+    num_iter = 50000,
+    opt_refresh = 0,
+    vi_refresh = 2000,
+    algorithm = "meanfield",
+    eval_elbo = 100,
+    output_samples = 2000,
+    tol_rel_obj = 0.0001,
+    adapt_iter = 1000,
+    ## default hyper parameters
+    r <- 50.0,
+    mu <- 0.0,
+    varofmu <- 16.0,
+    min_varofmu <- 2.0,
+    varofcond <- 4.0,
+    min_varofcond <- 1.0,
+    varofind <- 1.0,
+    sd_init_muind <- 0.01,
+    sd_init_mucond <- 0.01,
+    ## high2 parameter names
+    all_params_nms = c(
+      "nb_r", "hp_r", "varofmu", "mu",
+      "varofcond", "mu_cond",
+      "hp_varofind", "varofind", "mu_ind",
+      "raw_mu", "raw_mu_cond", "raw_mu_ind"
+    ),
+
+  )
+)
 
 ## * load stan model
 nm_params <- c(
