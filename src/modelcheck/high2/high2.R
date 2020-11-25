@@ -66,9 +66,8 @@ High2 <- R6Class(
     sd_init_muind = NULL,
     sd_init_mucond = NULL,
     ## other params with default values
-    scale_sd_mu = 1.96 * 2,
-    scale_sd_mucond = 1.96 * 2,
-    scale_varofcond_to_varofmu = 1/4,
+    scale_sd_mu = 1.96,
+    scale_sd_mucond = 1.96,
     opt_iter = 5000,
     seed = 1L,
     ## high2 parameter names
@@ -257,7 +256,7 @@ High2 <- R6Class(
       return(invisible(result))
     },
 
-    fit_gwsnb_to_cond_level <- function(y, s, cond, ind) {
+    fit_gwsnb_to_cond_level = function(y, s, cond, ind) {
       ## self$check_s(s)
       nind <- max(ind)
       result <- list(
@@ -284,53 +283,47 @@ High2 <- R6Class(
       return(invisible(result))
     },
 
-    est_varofmu <- function(mu) {
-      v <- var(mu) * self$scale
+    est_varofmu = function(mu) {
+      v <- var(mu) * (self$scale_sd_mu)^2
       if (is.nan(v)) {
-        warning("var of mu is NaN. Set it as default.")
+        warning("varofmu is NaN. Set it as default.")
         v <- self$varofmu
       }
       if (v < self$min_varofmu) {
-        warning("var: ", v,
-                " < ", self$min_varofmu, " and use default min.")
+        warning("varofmu: ", v,
+                " < ", self$min_varofmu, " and use default.")
         v <- self$min_varofmu
       }
       return(v)
     },
 
-    est_varofcond <- function(mucond) {
-      v_max <- max(mucond^2) * self$scale
-      min_vmax <- self$scale_varofcond_to_varofmu * self$min_varofmu
-      if (v_max < min_vmax) {
-        warning("The max var of cond: ", v_max,
-                " < min_vmax: ", min_vmax,
-                " so use the min_vmax.")
-        v_max <- min_vmax
+    est_varofcond = function(mucond) {
+      ## mucond: g by 1 vector
+      v <- max(abs(mucond)) * self$scale_sd_mucond
+      v <- v^2
+      if (v < self$min_varofcond) {
+        warning("varofcond: ", v, " < ", self$min_varofcond,
+                " and use the default.")
+        v <- self$min_varofcond
       }
+      return(invisible(v))
+    },
+
+    fit_mg_snb = function(cnt, s, cond, ind) {
+      nind <- max(ind)
+      t_res <- vapply(
+        seq_len(nrow(cnt)),
+        function(i) {
+          r <- self$fit_gwsnb_to_cond_level(
+            y = cnt[i,], s = s, cond = cond,
+            ind = ind
+          )
+          return(invisible(c(r$mu, r$r, r$mu_cond, r$mu_ind)))
+        }, FUN.VALUE = rep(0.0, 2 + 2 + k))
     }
   )
 )
 
-
-est_varofcond <- function(mucond, scale = 1.96^2) {
-  ## mucond: g by 2
-  d <- vapply(
-    seq_len(nrow(mucond)),
-    function(r) {
-      max(abs(mucond[r, ]))
-    },
-    0.0
-  )
-  v <- max(d * scale)
-  if (v < varofcond_default_min) {
-    warning(stringr::str_glue(
-      "[EST MUCOND VAR]: VAR {v} < {varofcond_default_min}",
-      "Using the default min."
-    ))
-    v <- varofcond_default_min
-  }
-  return(invisible(v))
-}
 
 fit_mg_snb <- function(cnt, s, cond, ind,
                        snbm, snbm_for_mucond,

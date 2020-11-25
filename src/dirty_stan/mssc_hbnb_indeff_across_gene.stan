@@ -66,7 +66,7 @@ model {
 	to_vector(raw_mu_ind) ~ std_normal();
 
 	vector[g] mu = raw_mu * sqrt(varofmu) + mu0;
-	matrix[g, j] mu_cond = raw_mu_cond * sqrt(varofcond);
+matrix[g, j] mu_cond = raw_mu_cond * sqrt(varofcond);
 	matrix[g, k] mu_ind = raw_mu_ind * diag_matrix(sqrt(varofind));
 
 	matrix[g, n] lambda = logs + rep_matrix(mu, n) + mu_cond[, cond] + mu_ind[, ind];

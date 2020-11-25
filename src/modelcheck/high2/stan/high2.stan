@@ -6,6 +6,8 @@
 // - model mucond:
 //   - two condition, but only one delta is estimated
 // - no more inv-gamma
+// - all the gamma of gamma-related prior are replaced with uniform
+//   distribution
 
 data {
 	int ncell;
@@ -23,9 +25,11 @@ data {
 
 	vector<lower=0>[2] hp_alpha_r;
 	vector<lower=0>[2] hp_beta_r;
+	vector<lower=0>[2] hp_uniform_r;
 
 	vector<lower=0>[2] hp_alpha_varofind;
 	vector<lower=0>[2] hp_beta_varofind;
+	vector<lower=0>[2] hp_uniform_varofind;
 
 	vector<lower=0>[2] hp_varofcond;
 
@@ -40,7 +44,8 @@ transformed data {
 }
 
 parameters {
-	vector<lower=0>[2] hp_r;
+	// vector<lower=0> hp_r;
+	vector<lower=hp_uniform_r[1], upper=hp_uniform_r[2]>[2] hp_r;
 	vector<lower=0>[ngene] nb_r;
 
 	real<lower=0> varofmu;
@@ -51,7 +56,8 @@ parameters {
 	// gaussian distributuon
 	vector[ngene] raw_mu_cond;
 
-	vector<lower=0>[2] hp_varofind;
+	// vector<lower=0> hp_varofind;
+	vector<lower=hp_uniform_varofind[1], upper=hp_uniform_varofind[2]>[2] hp_varofind;
 	vector<lower=0>[nind] varofind;
 	matrix[g,k] raw_mu_ind;
 }
@@ -64,8 +70,9 @@ transformed parameters {
 }
 
 model {
-	hp_r[1] ~ gamma(hp_alpha_r[1], hp_alpha_r[2]);
-	hp_r[2] ~ gamma(hp_beta_r[1], hp_beta_r[2]);
+	// hp_r[1] ~ gamma(hp_alpha_r[1], hp_alpha_r[2]);
+	// hp_r[2] ~ gamma(hp_beta_r[1], hp_beta_r[2]);
+	hp_r ~ uniform(hp_uniform_r[1], hp_uniform_r[2]);
 	nb_r ~ gamma(hp_r[1], hp_r[2]);
 
 	// centerofmu follows non-informative prior
@@ -73,8 +80,9 @@ model {
 	// implicit mu ~ N(centerofmu, sqrt(varofmu))
 	raw_mu ~ std_normal();
 
-	hp_varofind[1] ~ gamma(hp_alpha_varofind[1], hp_alpha_varofind[2]);
-	hp_varofind[2] ~ gamma(hp_beta_varofind[1], hp_beta_varofind[2]);
+	// hp_varofind[1] ~ gamma(hp_alpha_varofind[1], hp_alpha_varofind[2]);
+	// hp_varofind[2] ~ gamma(hp_beta_varofind[1], hp_beta_varofind[2]);
+	hp_varofind ~ uniform(hp_uniform_varofind[1], hp_uniform_varofind[2]);
 	varofind ~ gamma(hp_varofind, hp_varofind);
 	// implicit mu_ind ~ N(0.0, sqrt(varofind))
 	to_vector(raw_mu_ind) ~ std_normal();
