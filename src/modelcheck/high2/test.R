@@ -31,7 +31,7 @@ snb <- cmdstanr::cmdstan_model(
 
 n <- 100
 mu <- 0.1
-size <- 10
+size <- 20
 s <- rnorm(n = n, mean = 1.0, sd = 0.1)
 
 y <- rnbinom(n = n, mu = s*exp(mu), size = 10)

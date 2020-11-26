@@ -42,6 +42,8 @@ High2 <- R6Class(
     stan_snb_path = NULL,
     stan_snb_cond_path = NULL,
     stan_high2_path = NULL,
+    ## num of inds
+    nind = NULL,
     ## stan model
     snb = NULL,
     snb_cond = NULL,
@@ -71,6 +73,10 @@ High2 <- R6Class(
     opt_iter = 5000,
     seed = 1L,
     ## high2 parameter names
+    murnm = c("mu", "r"),
+    mucondnm = "mu_cond",
+    ## need initialize
+    muindnm = NULL,
     all_params_nms = c(
       "nb_r", "hp_r", "varofmu", "centerofmu", "mu",
       "varofcond", "mu_cond", "weightofcond",
@@ -80,6 +86,7 @@ High2 <- R6Class(
     initialize = function(stan_snb_path,
                           stan_snb_cond_path,
                           stan_high2_path,
+                          nind,
                           num_iter = 20000,
                           opt_refresh = 0,
                           vi_refresh = 2000,
@@ -117,6 +124,9 @@ High2 <- R6Class(
       self$varofind <- varofind
       self$sd_init_muind <- sd_init_muind
       self$sd_init_mucond <- sd_init_mucond
+      ## name
+      self$nind <- nind
+      self$muindnm <- self$str_glue_vec("mu_ind", self$nind)
       ## init stan model
       self$snb <- self$init_stan_model(self$stan_snb_path)
       self$snb_cond <- self$init_stan_model(self$stan_snb_cond_path)
@@ -310,7 +320,7 @@ High2 <- R6Class(
     },
 
     fit_mg_snb = function(cnt, s, cond, ind) {
-      nind <- max(ind)
+      ## return ngene by (2+1+k) estimation
       t_res <- vapply(
         seq_len(nrow(cnt)),
         function(i) {
@@ -319,39 +329,34 @@ High2 <- R6Class(
             ind = ind
           )
           return(invisible(c(r$mu, r$r, r$mu_cond, r$mu_ind)))
-        }, FUN.VALUE = rep(0.0, 2 + 2 + k))
+        }, FUN.VALUE = rep(0.0, 2 + 1 + self$nind))
+      ## gene name
+      colnames(t_res) <- rownames(cnt)
+      ## value name
+      rownames(t_res) <- c(self$murnm, self$mucondnm, self$muindnm)
+      return(invisible(t(t_res)))
+    },
+
+    init_params <- function(est_mg_mat) {
+      mu <- est_mg_mat[, self$murnm[1]]
+      varofmu <- self$est_varofmu(mu)
+      centerofmu <- median(mu)
+      raw_mu <- (mu - centerofmu) / sqrt(varofmu)
+
+      r <- est_mg_mat[, self$murnm[2]]
+
+      mu_cond <- est_mg_mat[, self$mucondnm]
+      varofcond <- self$est_varofcond(mu_cond)
+      raw_mu_cond <- mu_cond / sqrt(varofcond)
+
+      mu_ind <- est_mg_mat[, self$muindnm]
+      ## use varofcond to estimate varofind
+      varofind <- rep(varofcond, self$nind)
+      raw_mu_ind <- mu_ind / sqrt(varofind)
+
     }
   )
 )
-
-
-fit_mg_snb <- function(cnt, s, cond, ind,
-                       snbm, snbm_for_mucond,
-                       murnm,
-                       mucondnm,
-                       muindnm) {
-  ## fit scaled negative binomial dist for each gene (row of cnt) for mssc
-  ## return each gene in row.
-  ## individual effect will be set as zeros.
-
-  k <- max(ind)
-  t_res <- vapply(seq_len(nrow(cnt)),
-    FUN = function(i) {
-      r <- stanfit_gwsnb_to_cond_level(
-        s = s, y = cnt[i, ], vec_of_cond = cond,
-        vec_of_ind = ind,
-        snbm = snbm,
-        snbm_for_mucond = snbm_for_mucond
-      )
-      return(invisible(c(r$mu0, r$r0, r$mu_cond, r$mu_ind)))
-    },
-    FUN.VALUE = rep(0.0, 2 + 2 + k)
-  )
-
-  colnames(t_res) <- rownames(cnt)
-  rownames(t_res) <- c(murnm, mucondnm, muindnm)
-  return(invisible(t(t_res)))
-}
 
 
 init_hbnb_params <- function(est_mg_mat,
