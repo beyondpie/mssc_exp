@@ -105,11 +105,12 @@ prob_zero_nb <- function(x, rmoutliers = T) {
   if (is.null(nbfit)) {
     return(invisible(list(p0 = NA)))
   }
-  ## r or its reciprocal 1/r is also called dispersion
-  ## -- 1/r as dispersion  in the paper
-  ##    "Droplet scRNA-Seq is not zero-inflated." Nature Biotech, 2020
-  ## -- r as dispersion in stan
-  ## Here we choose r as dispersion following stan.
+  ## r (size) or 1/r is also called dispersion (ref: wiki)
+  ## but wiki and R use different term to describe NB.
+  ## In wiki, p is the success prob; in R, p is the failure prob.
+
+  ## Here under nbfit, r is the same meaning in R and STAN
+
   r <- unname(nbfit$estimate["size"])
   mu <- unname(nbfit$estimate["mu"])
   p <- unname(r / (r + mu))
