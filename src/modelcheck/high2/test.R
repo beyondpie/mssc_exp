@@ -116,3 +116,32 @@ opt3 <- snb$optimize(
 )
 
 opt3$mle()
+
+
+## test model loading and run.
+## * test
+test <- function() {
+  pbmc <- readRDS(here::here(
+    "src", "modelcheck",
+    "snb_pool_ref_pbmc.rds"
+  ))
+  k <- max(pbmc$ind)
+  j <- 2
+  g <- nrow(pbmc$y2c)
+
+  hi_params <- set_hi_params(
+    k = k, j = j, g = g,
+    cnt = pbmc$y2c, s = pbmc$s, cond = pbmc$cond,
+    ind = pbmc$ind, scale = 1.96^2
+  )
+
+  data <- to_hbnb_data(pbmc$y2c,
+    ind = pbmc$ind, cond = pbmc$cond,
+    s = pbmc$s, hp = hi_params$hp
+  )
+
+  vi_sampler <- run_hbnb_vi(data = data, ip = hi_params$ip)
+  est_params <- lapply(nm_params, function(nm) {
+    extract_vifit(vi_sampler, data, nm)
+  })
+}

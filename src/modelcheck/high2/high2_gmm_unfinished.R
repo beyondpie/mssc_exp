@@ -32,432 +32,328 @@ options(error = traceback)
 options(warn = 1)
 options(mc.cores = 3)
 
-## * common functions
-init_snb_log_mean <- function(y, s) {
-  ## this is similar with log(mean(y/s)) (or better)
-  ## y should be: not all zeros
-  ## s should no zeros.
-  mu <- log(mean(y)) - log(median(s))
-  invisible(mu)
-}
+High2 <- R6Class(
+  classname = "High2",
+  public = list(
+    ## stan script
+    stan_snb_path = NULL,
+    stan_snb_cond_path = NULL,
+    stan_high2_path = NULL,
+    ## num of inds
+    nind = NULL,
+    ## stan model
+    snb = NULL,
+    snb_cond = NULL,
+    high2 = NULL,
+    ## vi training parameters
+    num_iter = NULL,
+    opt_refresh = NULL,
+    vi_refresh = NULL,
+    algorithm = NULL,
+    eval_elbo = NULL,
+    output_samples = NULL,
+    tol_rel_obj = NULL,
+    adapt_iter = NULL,
+    ## default hyper parameters
+    r = NULL,
+    mu = NULL,
+    varofmu = NULL,
+    min_varofmu = NULL,
+    varofcond = NULL,
+    min_varofcond = NULL,
+    varofind = NULL,
+    sd_init_muind = NULL,
+    sd_init_mucond = NULL,
+    ## other params with default values
+    scale_sd_mu = 1.96,
+    scale_sd_mucond = 1.96,
+    opt_iter = 5000,
+    seed = 1L,
+    ## high2 parameter names
+    murnm = c("mu", "r"),
+    mucondnm = "mu_cond",
+    ## need initialize
+    muindnm = NULL,
+    all_params_nms = c(
+      "nb_r", "hp_r", "varofmu", "centerofmu", "mu",
+      "varofcond", "mu_cond", "weightofcond",
+      "hp_varofind", "varofind", "mu_ind",
+      "raw_mu", "raw_mu_ind"
+    ),
+    initialize = function(stan_snb_path,
+                          stan_snb_cond_path,
+                          stan_high2_path,
+                          nind,
+                          num_iter = 20000,
+                          opt_refresh = 0,
+                          vi_refresh = 2000,
+                          algorithm = "meanfield",
+                          eval_elbo = 100,
+                          output_samples = 2000,
+                          tol_rel_obj = 0.0001,
+                          adapt_iter = 1000,
+                          r = 50.0,
+                          mu = 0.0,
+                          varofmu = 16.0,
+                          min_varofmu = 2.0,
+                          varofcond = 4.0,
+                          min_varofcond = 1.0,
+                          varofind = 1.0,
+                          sd_init_muind = 0.01,
+                          sd_init_mucond = 0.01) {
+      self$stan_snb_path <- stan_snb_path
+      self$stan_snb_cond_path <- stan_snb_cond_path
+      self$stan_high2_path <- stan_high2_path
+      self$num_iter <- num_iter
+      self$opt_refresh <- opt_refresh
+      self$vi_refresh <- vi_refresh
+      self$algorithm <- algorithm
+      self$eval_elbo <- eval_elbo
+      self$output_samples <- output_samples
+      self$tol_rel_obj <- tol_rel_obj
+      self$adapt_iter <- adapt_iter
+      self$r <- r
+      self$mu <- mu
+      self$varofmu <- varofmu
+      self$min_varofmu <- min_varofmu
+      self$varofcond <- varofcond
+      self$min_varofcond <- min_varofcond
+      self$varofind <- varofind
+      self$sd_init_muind <- sd_init_muind
+      self$sd_init_mucond <- sd_init_mucond
+      ## name
+      self$nind <- nind
+      self$muindnm <- self$str_glue_vec("mu_ind", self$nind)
+      ## init stan model
+      self$snb <- self$init_stan_model(self$stan_snb_path)
+      self$snb_cond <- self$init_stan_model(self$stan_snb_cond_path)
+      self$high2 <- self$init_stan_model(self$stan_high2_path)
+    },
+    init_stan_model = function(model_path) {
+      if (file.exists(model_path)) {
+        return(invisible(cmdstanr::cmdstan_model(stan_file = model_path,
+                                compile = T, quiet = T)))
+      } else {
+        stop(paste(model_path, "not exist.", sep = " "))
+      }
+    },
+    does_fit_well = function(stanfit) {
+      if (stanfit$return_codes() == 0) {
+        return(TRUE)
+      } else {
+        return(FALSE)
+      }
+    },
+    str_glue_vec = function(nm = "MuInd", n = 10,
+                            ls = "[", rs = "]") {
+      invisible(vapply(seq_len(n), function(i) {
+        paste0(nm, ls, i, rs)
+      }, FUN.VALUE = "MuInd[1]"))
+    },
+    str_glue_mat_rowise = function(nm = "MuInd", nr, nc,
+                                   ls = "[", rs = "]") {
+      r <- rep("", nr * nc)
+      for (i in 1:nr) {
+        for (j in 1:nc) {
+          r[nc * (i-1) + j] <- paste0(nm, ls, i, ",",j, rs)
+        }
+      }
+      return(invisible(r))
+    },
+    check_y_are_all_zeros = function(y) {
+      if (sum(y) < 1) {
+        warning("All the y are zeros")
+        return(TRUE)
+      } else {
+        return(FALSE)
+      }
+    },
+    check_s = function(s) {
+      if (any(s == 0)) {
+        stop("s has zeros. Check the data!")
+      }
+    },
+    ## We might need a matrix version to init all at once
+    fallback_init_snb = function(y, s) {
+      if (self$check_y_are_all_zeros(y)) {
+        warning("Use the dfeault logmu: ", self$mu,
+                " and r: ", self$r)
+        return(invisibile(list(mu = self$mu, r = self$r)))
+      } else {
+        m <- mean(y)
+        mu <- log(m) - log(median(s))
+        v <- var(y)
+        r <- ifelse(v>m, m^2/(v-m), self$r)
+        return(invisibile(list(mu = mu, r = r)))
+      }
+    },
 
-init_stan_model <- function(model_path) {
-  ## load stan model
-  if (file.exists(model_path)) {
-    return(invisible(cmdstanr::cmdstan_model(
-      stan_file = model_path,
-      compile = T, quiet = T
-    )))
-  } else {
-    stop(paste(model_path, "not exist.", sep = " "))
-  }
-}
-
-does_fit_well <- function(stanfit) {
-  ## check if the model fit well
-  invisible(ifelse(stanfit$return_codes() == 0, TRUE, FALSE))
-}
-
-str_glue_vec <- function(nm = "MuInd", n = 10,
-                         ls = "[", rs = "]") {
-  ## get names of vector for cmdstanr
-  invisible(vapply(seq_len(n), function(i) {
-    paste0(nm, ls, i, rs)
-  }, FUN.VALUE = "MuInd[1]"))
-}
-
-str_glue_mat_rowise <- function(nm = "MuInd", nr, nc,
-                                ls = "[", rs = "]") {
-  ## get names of matrix for cmdstanr
-  ## row-wise major
-  r <- rep("", nr * nc)
-  for (i in 1:nr) {
-    for (j in 1:nc) {
-      r[nc * (i - 1) + j] <- paste0(nm, ls, i, ",", j, rs)
-    }
-  }
-  return(invisible(r))
-}
-
-check_y_are_all_zeros <- function(y) {
-  ## return TRUE if y are all zeros
-  if (sum(y) < 1) {
-    warning("All the y are zeros")
-    return(TRUE)
-  } else {
-    return(FALSE)
-  }
-}
-
-check_s <- function(s) {
-  ## make sure s has no zeros.
-  if (any(s == 0)) {
-    stop("s has zeros. Check the data!")
-  }
-}
-
-## * define R6 classes
-genewisenbfit <- R6::R6Class(classname = "genewisenbfit", public = list(
-  ## stan models for fitting
-  snb = NULL,
-  snbcond = NULL,
-  ## gamma alpha and beta for r as hyper prior in stan snb fit
-  gamma_alpha = NULL,
-  gamma_beta = NULL,
-  ## init parameters for snb
-  mu = NULL,
-  r = NULL,
-  big_r = NULL,
-  min_varofmu = NULL,
-  min_varofcond = NULL,
-  min_varofind = NULL,
-  min_tau2 = NULL,
-  ## parameters for optimization
-  seed = 1L,
-  opt_iter = 5000,
-  opt_refresh = 0,
-  initialize = function(stan_snb_path,
-                        stan_snb_cond_path,
-                        gamma_alpha = 0.05,
-                        gamma_beta = 0.05,
-                        mu = 0.0,
-                        r = 20,
-                        big_r = 500,
-                        min_varofmu = 4.0,
-                        min_varofcond = 0.25,
-                        min_varofind = 0.25,
-                        min_tau2 = 0.25) {
-    self$snb <- init_stan_model(stan_snb_path)
-    self$snbcond <- init_stan_model(stan_snb_cond_path)
-    self$gamma_alpha <- gamma_alpha
-    self$gamma_beta <- gamma_beta
-    self$mu <- mu
-    self$r <- r
-    self$big_r <- big_r
-    self$min_varofmu <- min_varofmu
-    self$min_varofcond <- min_varofcond
-    self$min_varofind <- min_varofind
-  },
-  init_snb = function(y, s) {
-    ## init params for scaled negative binomial:
-    ## mean and dispersion
-    ## dispersion is defined as the same as in R or stan.
-    ## No check if y are all zeros.
-    ## Note:
-    ## - From observation, mean can be estimate well,
-    ##   but if it's below 1, then r tends to be estimated too small.
-    mu <- init_snb_log_mean(y = y, s = s)
-    ## v equals to m + m^2/r
-    v <- var(y)
-    m <- mean(y)
-    ## dispersion
-    r <- ifelse(v > m, m^2 / (v - m), self$r)
-    return(invisibile(list(mu = mu, r = r)))
-  },
-  fit_gwsnb = function(y, s, cond, ind) {
-    ## fit mu, mucond, muind under scaled negative binomial dist
-    ## - mu: scaled log level and furthermore minus log(s)
-    ## - r: dispersion
-    nind <- max(ind)
-    ncond <- max(cond)
-    result <- list(
-      mu <- self$mu,
-      r = self$r,
-      mucond <- rep(0.0, ncond),
-      muind <- rep(0.0, nind)
-    )
-    ## state of optimization
-    s1 <- FALSE
-    if (check_y_are_all_zeros(y)) {
-      return(invisibile(result))
-    }
-    ## ** init and opt mu and r
-    init_mur <- self$init_snb(y, s)
-    capture.output(opt <- self$snb$optmize(
-      data = list(
-        n = length(y), s = s, y = y,
-        hpg = c(self$gamma_alpha, self$gamma_beta)
-      ),
-      seed = self$seed,
-      refresh = self$opt_refresh,
-      iter = self$opt_iter,
-      init = list(init_mur),
-      algorithm = "lbfgs"
-    ))
-    ## ** update mu and r
-    if (does_fit_well(opt)) {
+    fit_snb = function(y, s) {
+      ## mu in scaled log level and furthermore minus log(s)
+      self$check_s(s)
+      result <- list(mu = self$mu, r = self$r, success = FALSE)
+      if (self$check_y_are_all_zeros(y)) {
+        return(invisibile(result))
+      }
+      init_mur <- self$fallback_init_snb(y, s)
+      ## get the mle fit
+      capture.output(opt <- self$snb$optmize(
+        data = list(n = length(y), s = s, y = y),
+        seed = self$seed,
+        refresh = self$opt_refresh,
+        iter = self$opt_iter,
+        init = list(init_mur),
+        algorithm = "lbfgs"
+      ))
+      if (!self$dose_fit_well(opt)) {
+        warning("Fitting snb failed. Using init mu: ",
+          init_mur$mu, " init r: ", init_mur$r)
+        result$mu <- init_mur$mu
+        result$r <- init_mur$r
+        return(invisible(result))
+      }
       est_mur <- opt$mle()
+      if (est_mur$r > self$big_r) {
+        warning("r > ", self$big_r,
+                "Will use init mu: ",
+                init_mur$mu, " init r: ",
+                init_mur$r)
+        result$mu <- init_mur$mu
+        result$r <- init_mur$r
+        return(invisible(result))
+      }
       result$mu <- est_mur$mu
-      ## r might be big due to fitting issue.
-      result$r <- ifelse(est_mur$r < self$big_r, est_mur$r, self$r)
-      s1 <- ifelse(est_mur$r < self$big_r, TRUE, FALSE)
-    } else {
-      result$mu <- init_mur$mu
-      result$r <- init_mur$r
+      result$r <- est_mur$r
+      result$sucess <- TRUE
+      return(invisible(result))
+    },
+
+    fit_snb_cond = function(y, s, cond, r, mu) {
+      self$check_s(s)
+      result <- list(mucond = 0.0, success = FALSE)
+      if (self$check_y_are_all_zeros(y)) {
+        return(invisible(result))
+      }
+      if (self$check_y_are_all_zeros(y[cond==1]) &
+            self$check_y_are_all_zeros(y[cond==2])) {
+        warning("In one condition, y are all zeros.")
+        return(invisible(result))
+      }
+      lmu <- log(mean(y[cond==1])) - log(median(s[cond==1]))
+      rmu <- log(mean(y[cond==2])) - log(median(s[cond==2]))
+      init_mucond <- (lmu - rmu) / 2
+      capture.output(opt <- self$snb_cond$optimize(
+        data = list(n = length(y), s = s, y = y,
+                    cond = cond, r = r, mu = mu),
+        seed = self$seed,
+        refresh = self$opt_refresh,
+        iter = self$opt_iter,
+        init = list(list(mucond = init_mucond)),
+        algorithm = "lbfgs"
+      ))
+      if (!self$does_fit_well(opt)) {
+        warning("Mucond Fitting failed. Use init: ",
+                init_mucond)
+        result$mucond <- init_mucond
+        return(invisible(result))
+      }
+      t <- opt$mle()
+      result$mucond <- t["mucond"]
+      result$success <- TRUE
+      return(invisible(result))
+    },
+
+    fit_gwsnb_to_cond_level = function(y, s, cond, ind) {
+      ## self$check_s(s)
+      nind <- max(ind)
+      result <- list(
+        mu <- self$mu, r = self$r,
+        mu_cond <- rnorm(n=1, mean = 0, sd = self$sd_init_mucond),
+        mu_ind <- rnorm(n = nind, mean = 0, sd = self$sd_init_muind),
+        s1 <- FALSE, s2 <- FALSE
+      )
+      if (check_y_are_all_zeros(y)) {
+        return(invisible(result))
+      }
+      mur <- self$fit_snb(y=y, s=s)
+      result$mu <- mur$mu
+      result$r <- mur$r
+      result$s1 <- mur$success
+      if (!mur$success) {
+        return(invisible(result))
+      }
+      est_mucond <- self$fit_snb_cond(y = y, s = s,
+                                  cond = cond, r = reesult$r,
+                                  mu = result$mu)
+      result$mu_cond <- est_mucond$mucond
+      result$s2 <- est_mucond$success
+      return(invisible(result))
+    },
+
+    est_varofmu = function(mu) {
+      v <- var(mu) * (self$scale_sd_mu)^2
+      if (is.nan(v)) {
+        warning("varofmu is NaN. Set it as default.")
+        v <- self$varofmu
+      }
+      if (v < self$min_varofmu) {
+        warning("varofmu: ", v,
+                " < ", self$min_varofmu, " and use default.")
+        v <- self$min_varofmu
+      }
+      return(v)
+    },
+
+    est_varofcond = function(mucond) {
+      ## mucond: g by 1 vector
+      v <- max(abs(mucond)) * self$scale_sd_mucond
+      v <- v^2
+      if (v < self$min_varofcond) {
+        warning("varofcond: ", v, " < ", self$min_varofcond,
+                " and use the default.")
+        v <- self$min_varofcond
+      }
+      return(invisible(v))
+    },
+
+    fit_mg_snb = function(cnt, s, cond, ind) {
+      ## return ngene by (2+1+k) estimation
+      t_res <- vapply(
+        seq_len(nrow(cnt)),
+        function(i) {
+          r <- self$fit_gwsnb_to_cond_level(
+            y = cnt[i,], s = s, cond = cond,
+            ind = ind
+          )
+          return(invisible(c(r$mu, r$r, r$mu_cond, r$mu_ind)))
+        }, FUN.VALUE = rep(0.0, 2 + 1 + self$nind))
+      ## gene name
+      colnames(t_res) <- rownames(cnt)
+      ## value name
+      rownames(t_res) <- c(self$murnm, self$mucondnm, self$muindnm)
+      return(invisible(t(t_res)))
+    },
+
+    init_params <- function(est_mg_mat) {
+      mu <- est_mg_mat[, self$murnm[1]]
+      varofmu <- self$est_varofmu(mu)
+      centerofmu <- median(mu)
+      raw_mu <- (mu - centerofmu) / sqrt(varofmu)
+
+      r <- est_mg_mat[, self$murnm[2]]
+
+      mu_cond <- est_mg_mat[, self$mucondnm]
+      varofcond <- self$est_varofcond(mu_cond)
+      raw_mu_cond <- mu_cond / sqrt(varofcond)
+
+      mu_ind <- est_mg_mat[, self$muindnm]
+      ## use varofcond to estimate varofind
+      varofind <- rep(varofcond, self$nind)
+      raw_mu_ind <- mu_ind / sqrt(varofind)
+
     }
-    ## ** set mucond
-    result$mucond <- vapply(
-      1:ncond, function(i) {
-        ss <- s[cond == i]
-        yy <- y[cond == i]
-        if (check_y_are_all_zeros(yy)) {
-          return(0.0)
-        }
-        t <- init_snb_log_mean(y = yy, s = ss)
-        init_mucond <- mu - result$mu
-        ## when opt fit well and r is not big
-        if (s1) {
-          ## further estimate mucond
-          capture.output(mucondopt <- self$snb$optmize(
-            data = list(
-              n = length(yy), s = ss, y = yy,
-              r = result$r, mu = result$mu
-            ),
-            seed = self$seed,
-            refresh = self$opt_refresh,
-            iter = self$opt_iter,
-            init = list(result$mucond),
-            algorithm = "lbfgs"
-          ))
-        }
-        r <- ifelse(does_fit_well(mucondopt),
-          mucondopt$mle()$mucond, init_mucond
-        )
-        invisible(r)
-      }, FUN.VALUE = 0.0)
-    ## ** set muind
-    result$muind <- vapply(
-      1:nind, function(i) {
-        yy <- y[ind == i]
-        if (check_y_are_all_zeros(yy)) {
-          return(0.0)
-        }
-        t <- init_snb_log_mean(y = yy, s = s[ind == i])
-        return(invisible(t - result$mu - result$mucond[cond[ind == i][1]]))
-      }, FUN.VALUE = 0.0)
-    return(invisible(result))
-  },
-  est_varofmu = function(mu) {
-    ## mu: ngene by 1
-    ## return: mean, var, gamma_alpha, gamma_beta
-    m <- median(mu)
-    ngene <- length(mu)
-    v <- sum((mu-m)^2) / ngene
-    v <- max(v, self$min_varofmu)
-    ## varofmu prior follows a inv-gamma dist
-    ## est hy based on posterior
-    alpha <- 1.0 + ngene / 2
-    beta <- 1.0 + sum((mu - m)^2) / 2
-    return(invisible(c(m, v, alpha, beta)))
-  },
-  est_varofr = function(r) {
-    ## r: ngene by 1
-    ## r prior: log normal
-    ## return: log level of mean, var, gamma_alpah, gamma_beta
-    logr <- log(r)
-    invisible(self$est_varofmu(logr))
-  }, 
-  est_varofcond = function(mucond) {
-    ## mucond: ngene by ncond
-    ncond <- ncol(mucond)
-    ngene <- nrow(mucond)
-    ## each condiiton has its own variance.
-    ## which follows a inv-gamma prior
-    t_d <- vapply(
-      1:ncond, function(i) {
-        t <- max(abs(mucond[ , i]))
-        ## set a variance not that small
-        v <- max(t^2, self$min_varofcond)
-        ## assume the mean of mucond is around 0.0
-        ## then use posterior of inv-gamma to set the hyper priors
-        alpha <- 1.0 + ngene / 2
-        beta <- 1.0 + sum(mucond[, i]^2) / 2
-        invisible(c(v, alpha, beta))
-      }, FUN.VALUE = rep(1.0, 3))
-    return(invisible(t(t_d)))
-  },
-  est_varofind = function(muind) {
-    ## muind: ngene by nind
-    ## estimate:
-    ## - nind by 4: mean of muind, varofmuind, alpha, beta
-    ## - tau2, tau2_alpha, tau2_beta          
-    nind <- ncol(muind)
-    ngene <- nrow(muind)
-    t_d <- vapply(
-      1:nind, function(i) {
-        m <- median(muind[, i])
-        v <- max(sum((muind[, i] - m)^2) / ngene, self$min_varofind)
-        alpha <- 1.0 + ngene / 2
-        beta <- 1.0 + sum((muind[, i] - m)^2) / 2
-        invisible(c(m, v, alpha, beta))
-      }, FUN.VALUE = rep(1.0, 4)
-    )
-    ## shape: nind by 4
-    r <- t(t_d)
-    ## assume muinds follow a N(0.0, tau) (tau is sd)
-    tau2 <- max(max(abs(r[,1]))^2, self$min_tau2)
-    ## assume tau2 has a inv-gamma prior
-    ## use posterior to set up the hp.
-    tau2_alpha <- 1.0 + nind / 2
-    tau2_beta <- 1.0 + sum(muind[, 1]^2) / 2
-    return(invisible(
-      list(est_varofind = r,
-           est_tau2 = c(tau2, tau2_alpha, tau2_beta))))
-  },
-  ## this is the function mssc want to use
-  fit_mgsnb = function(cnt, s, cond, ind) {
-    ## cnt: ngene by ncell
-    ## s: ncell by 1; cond: ncell by 1; ind: ncell by 1
-    check(s)
-    ncond <- max(ncond)
-    nind <- max(nind)
-    ngene <- nrow(cnt)
-    t_init_mgsnb <- vapply(
-      1:ngene, function(i) {
-        r <- self$fit_gwsnb(y = cnt[i, ], s = s,
-                            cond = cond, ind = ind)
-        invisible(unlist(r))
-      }, FUN.VALUE = rep(0.0, 2 + ncond + nind))
-    ## shape: ngene by 2 + ncond + nind
-    init_mgsnb <- t(t_init_mgsnb)
-    init_varofmu <- self$est_varofmu(init_mgsnb[,1])
-    init_varofr <- self$est_varofr(init_mgsnb[, 2])
-    init_varofcond <- self$est_varofcond(init_mgsnb[, 3:(3+ncond)])
-    init_varofind <- self$est_varofind(
-      init_mgsnb[, (3+ncond+1):ncol(init_mgsnb) ])
-  })
+  )
 )
-
-
-
-High2 <- R6Class(classname = "High2", public = list(
-  ## num of inds
-  nind = NULL,
-  ncond = NULL,
-  ## stan model
-  high2 = NULL,
-  ## vi/opt training parameters
-  num_iter = NULL,
-  vi_refresh = NULL,
-  algorithm = NULL,
-  eval_elbo = NULL,
-  output_samples = NULL,
-  tol_rel_obj = NULL,
-  adapt_iter = NULL,
-  ## default hyper parameters for high2
-  r = NULL,
-  mu = NULL,
-  varofmu = NULL,
-  min_varofmu = NULL,
-  varofcond = NULL,
-  min_varofcond = NULL,
-  varofind = NULL,
-  sd_init_muind = NULL,
-  sd_init_mucond = NULL,
-  scale_sd_mu = 1.96,
-  scale_sd_mucond = 1.96,
-  ## high2 parameter names
-  murnm = c("mu", "r"),
-  mucondnm = "mucond",
-  muindnm = NULL,
-  all_params_nms = c(
-    "centerofmu", "varofmu", "mu", "centerofr",
-    "varofr", "r", "varofcond", "mucond",
-    "tau2", "centerofind", "varofind", "muind"
-  ),
-  initialize = function(stan_snb_path,
-                        stan_snb_cond_path,
-                        stan_high2_path,
-                        nind,
-                        ncond = 2,
-                        num_iter = 20000,
-                        vi_refresh = 2000,
-                        algorithm = "meanfield",
-                        eval_elbo = 100,
-                        output_samples = 2000,
-                        tol_rel_obj = 0.0001,
-                        adapt_iter = 1000,
-                        gamma_alpha = 0.01,
-                        gamma_beta = 0.01,
-                        r = 20,
-                        mu = 0.0,
-                        varofmu = 16.0,
-                        min_varofmu = 2.0,
-                        varofcond = 4.0,
-                        min_varofcond = 1.0,
-                        varofind = 1.0,
-                        sd_init_muind = 0.01,
-                        sd_init_mucond = 0.01) {
-    ## initiolize class members
-    self$genewisesbnb <- Genewisenb$new(
-      stan_snb_path = stan_snb_path,
-      stan_snb_cond_path = stan_snb_cond_path,
-      gamma_alpha = gamma_alpha,
-      gamma_beta = gamma_beta
-    )
-    self$stan_high2_path <- stan_high2_path
-    self$num_iter <- num_iter
-    self$vi_refresh <- vi_refresh
-    self$algorithm <- algorithm
-    self$eval_elbo <- eval_elbo
-    self$output_samples <- output_samples
-    self$tol_rel_obj <- tol_rel_obj
-    self$adapt_iter <- adapt_iter
-    self$r <- r
-    self$mu <- mu
-    self$varofmu <- varofmu
-    self$min_varofmu <- min_varofmu
-    self$varofcond <- varofcond
-    self$min_varofcond <- min_varofcond
-    self$varofind <- varofind
-    self$sd_init_muind <- sd_init_muind
-    self$sd_init_mucond <- sd_init_mucond
-    ## name
-    self$nind <- nind
-    self$ncond <- ncond
-    self$muindnm <- self$str_glue_vec("muind", self$nind)
-    ## init stan model
-    self$high2 <- self$init_stan_model(self$stan_high2_path)
-  },
-
-  fit_mg_snb = function(cnt, s, cond, ind) {
-    ## return ngene by (2+1+k) estimation
-    t_res <- vapply(
-      seq_len(nrow(cnt)),
-      function(i) {
-        r <- self$fit_gwsnb_to_cond_level(
-          y = cnt[i, ], s = s, cond = cond,
-          ind = ind
-        )
-        return(invisible(c(r$mu, r$r, r$mu_cond, r$mu_ind)))
-      },
-      FUN.VALUE = rep(0.0, 2 + 1 + self$nind)
-    )
-    ## gene name
-    colnames(t_res) <- rownames(cnt)
-    ## value name
-    rownames(t_res) <- c(self$murnm, self$mucondnm, self$muindnm)
-    return(invisible(t(t_res)))
-  },
-
-  init_params <- function(est_mg_mat) {
-    mu <- est_mg_mat[, self$murnm[1]]
-    varofmu <- self$est_varofmu(mu)
-    centerofmu <- median(mu)
-    raw_mu <- (mu - centerofmu) / sqrt(varofmu)
-
-    r <- est_mg_mat[, self$murnm[2]]
-
-    mu_cond <- est_mg_mat[, self$mucondnm]
-    varofcond <- self$est_varofcond(mu_cond)
-    raw_mu_cond <- mu_cond / sqrt(varofcond)
-
-    mu_ind <- est_mg_mat[, self$muindnm]
-    ## use varofcond to estimate varofind
-    varofind <- rep(varofcond, self$nind)
-    raw_mu_ind <- mu_ind / sqrt(varofind)
-  }
-))
 
 
 init_hbnb_params <- function(est_mg_mat,
@@ -881,3 +777,4 @@ get_auc_v2 <- function(rank_stats, diffg, ndiffg) {
     auc_bf = auc_bf
   )))
 }
+

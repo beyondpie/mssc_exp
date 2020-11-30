@@ -32,7 +32,7 @@ data {
   // hps
   vector<lower=0>[2] hp_varofmu;
   vector<lower=0>[2] hp_varofr;
-  matrix<lower=0>[ncond, 2] hp_varofmucond;
+  matrix<lower=0>[ncond, 2] hp_varofcond;
   vector<lower=0>[2] hp_tau2;
   matrix<lower=0>[nind, 2] hp_varofind;
 }
@@ -90,7 +90,7 @@ model {
   vector[ngene] nb_r = exp(r); // nb_r ~ lognormal(centerofr, sqrt(varofr))
 
   // matrix are column-wise store, so this is efficient
-  varofcond ~ inv_gamma(hp_varofmucond[, 1], hp_varofmucond[,2]);
+  varofcond ~ inv_gamma(hp_varofcond[, 1], hp_varofcond[,2]);
   to_vector(raw_mucond) ~ std_normal(); // implicit mucond ~ N(0.0, sqrt(varofcond))
 
   tau2 ~ inv_gamma(hp_tau2[1], hp_tau2[2]);
