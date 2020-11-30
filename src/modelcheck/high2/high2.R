@@ -96,6 +96,13 @@ check_s <- function(s) {
   }
 }
 
+rep_row <- function(x, n) {
+  matrix(rep(x, each = n), nrow = n)
+}
+rep_col <- function(x, n) {
+  matrix(rep(x, each = n), ncol = n, byrow = TRUE)
+}
+
 ## * define R6 classes
 genewisenbfit <- R6::R6Class(classname = "genewisenbfit", public = list(
   ## stan models for fitting
@@ -224,7 +231,9 @@ genewisenbfit <- R6::R6Class(classname = "genewisenbfit", public = list(
           mucondopt$mle()$mucond, init_mucond
         )
         invisible(r)
-      }, FUN.VALUE = 0.0)
+      },
+      FUN.VALUE = 0.0
+    )
     ## ** set muind
     result$muind <- vapply(
       1:nind, function(i) {
@@ -234,7 +243,9 @@ genewisenbfit <- R6::R6Class(classname = "genewisenbfit", public = list(
         }
         t <- init_snb_log_mean(y = yy, s = s[ind == i])
         return(invisible(t - result$mu - result$mucond[cond[ind == i][1]]))
-      }, FUN.VALUE = 0.0)
+      },
+      FUN.VALUE = 0.0
+    )
     return(invisible(result))
   },
   est_varofmu = function(mu) {
@@ -242,7 +253,7 @@ genewisenbfit <- R6::R6Class(classname = "genewisenbfit", public = list(
     ## return: mean, var, gamma_alpha, gamma_beta
     m <- median(mu)
     ngene <- length(mu)
-    v <- sum((mu-m)^2) / ngene
+    v <- sum((mu - m)^2) / ngene
     v <- max(v, self$min_varofmu)
     ## varofmu prior follows a inv-gamma dist
     ## est hy based on posterior
@@ -256,7 +267,7 @@ genewisenbfit <- R6::R6Class(classname = "genewisenbfit", public = list(
     ## return: log level of mean, var, gamma_alpah, gamma_beta
     logr <- log(r)
     invisible(self$est_varofmu(logr))
-  }, 
+  },
   est_varofcond = function(mucond) {
     ## mucond: ngene by ncond
     ncond <- ncol(mucond)
@@ -265,7 +276,7 @@ genewisenbfit <- R6::R6Class(classname = "genewisenbfit", public = list(
     ## which follows a inv-gamma prior
     t_d <- vapply(
       1:ncond, function(i) {
-        t <- max(abs(mucond[ , i]))
+        t <- max(abs(mucond[, i]))
         ## set a variance not that small
         v <- max(t^2, self$min_varofcond)
         ## assume the mean of mucond is around 0.0
@@ -273,14 +284,16 @@ genewisenbfit <- R6::R6Class(classname = "genewisenbfit", public = list(
         alpha <- 1.0 + ngene / 2
         beta <- 1.0 + sum(mucond[, i]^2) / 2
         invisible(c(v, alpha, beta))
-      }, FUN.VALUE = rep(1.0, 3))
+      },
+      FUN.VALUE = rep(1.0, 3)
+    )
     return(invisible(t(t_d)))
   },
   est_varofind = function(muind) {
     ## muind: ngene by nind
     ## estimate:
     ## - nind by 4: mean of muind, varofmuind, alpha, beta
-    ## - tau2, tau2_alpha, tau2_beta          
+    ## - tau2, tau2_alpha, tau2_beta
     nind <- ncol(muind)
     ngene <- nrow(muind)
     t_d <- vapply(
@@ -290,19 +303,23 @@ genewisenbfit <- R6::R6Class(classname = "genewisenbfit", public = list(
         alpha <- 1.0 + ngene / 2
         beta <- 1.0 + sum((muind[, i] - m)^2) / 2
         invisible(c(m, v, alpha, beta))
-      }, FUN.VALUE = rep(1.0, 4)
+      },
+      FUN.VALUE = rep(1.0, 4)
     )
     ## shape: nind by 4
     r <- t(t_d)
     ## assume muinds follow a N(0.0, tau) (tau is sd)
-    tau2 <- max(max(abs(r[,1]))^2, self$min_tau2)
+    tau2 <- max(max(abs(r[, 1]))^2, self$min_tau2)
     ## assume tau2 has a inv-gamma prior
     ## use posterior to set up the hp.
     tau2_alpha <- 1.0 + nind / 2
     tau2_beta <- 1.0 + sum(muind[, 1]^2) / 2
     return(invisible(
-      list(est_varofind = r,
-           est_tau2 = c(tau2, tau2_alpha, tau2_beta))))
+      list(
+        est_varofind = r,
+        est_tau2 = c(tau2, tau2_alpha, tau2_beta)
+      )
+    ))
   },
   ## this is the function mssc want to use
   fit_mgsnb = function(cnt, s, cond, ind) {
@@ -314,29 +331,41 @@ genewisenbfit <- R6::R6Class(classname = "genewisenbfit", public = list(
     ngene <- nrow(cnt)
     t_init_mgsnb <- vapply(
       1:ngene, function(i) {
-        r <- self$fit_gwsnb(y = cnt[i, ], s = s,
-                            cond = cond, ind = ind)
+        r <- self$fit_gwsnb(
+          y = cnt[i, ], s = s,
+          cond = cond, ind = ind
+        )
         invisible(unlist(r))
-      }, FUN.VALUE = rep(0.0, 2 + ncond + nind))
+      },
+      FUN.VALUE = rep(0.0, 2 + ncond + nind)
+    )
     ## shape: ngene by 2 + ncond + nind
     init_mgsnb <- t(t_init_mgsnb)
-    init_varofmu <- self$est_varofmu(init_mgsnb[,1])
+    init_varofmu <- self$est_varofmu(init_mgsnb[, 1])
     init_varofr <- self$est_varofr(init_mgsnb[, 2])
-    init_varofcond <- self$est_varofcond(init_mgsnb[, 3:(3+ncond)])
+    init_varofcond <- self$est_varofcond(init_mgsnb[, 3:(2 + ncond)])
     init_varofind <- self$est_varofind(
-      init_mgsnb[, (3+ncond+1):ncol(init_mgsnb) ])
-  })
-)
+      init_mgsnb[, (2 + ncond + 1):ncol(init_mgsnb)]
+    )
+    return(invisible(list(
+      mgsnb = init_mgsnb,
+      mu = init_varofmu,
+      r = init_varofr,
+      cond = init_varofcond,
+      ind = init_varofind
+    )))
+  }
+))
 
-
-
-High2 <- R6Class(classname = "High2", public = list(
+high2 <- R6Class(classname = "high2", public = list(
   ## num of inds
   nind = NULL,
   ncond = NULL,
+  ## gwsnb model
+  gwsnb = NULL,
   ## stan model
   high2 = NULL,
-  ## vi/opt training parameters
+  ## vi training parameters
   num_iter = NULL,
   vi_refresh = NULL,
   algorithm = NULL,
@@ -344,29 +373,31 @@ High2 <- R6Class(classname = "High2", public = list(
   output_samples = NULL,
   tol_rel_obj = NULL,
   adapt_iter = NULL,
-  ## default hyper parameters for high2
-  r = NULL,
-  mu = NULL,
-  varofmu = NULL,
-  min_varofmu = NULL,
-  varofcond = NULL,
-  min_varofcond = NULL,
-  varofind = NULL,
+  ## random init parameters
   sd_init_muind = NULL,
   sd_init_mucond = NULL,
-  scale_sd_mu = 1.96,
-  scale_sd_mucond = 1.96,
   ## high2 parameter names
   murnm = c("mu", "r"),
-  mucondnm = "mucond",
+  mucondnm = NULL,
   muindnm = NULL,
   all_params_nms = c(
     "centerofmu", "varofmu", "mu", "centerofr",
     "varofr", "r", "varofcond", "mucond",
     "tau2", "centerofind", "varofind", "muind"
   ),
-  initialize = function(stan_snb_path,
+  initialize = function( ## gwsnb parameters
+                        stan_snb_path,
                         stan_snb_cond_path,
+                        gamma_alpha = 0.05,
+                        gamma_beta = 0.05,
+                        r = 20,
+                        mu = 0.0,
+                        big_r = 500,
+                        min_varofmu = 2.0,
+                        min_varofcond = 0.25,
+                        min_varofind = 0.25,
+                        min_tau2 = 0.25,
+                        ## high2 related parameters
                         stan_high2_path,
                         nind,
                         ncond = 2,
@@ -377,25 +408,22 @@ High2 <- R6Class(classname = "High2", public = list(
                         output_samples = 2000,
                         tol_rel_obj = 0.0001,
                         adapt_iter = 1000,
-                        gamma_alpha = 0.01,
-                        gamma_beta = 0.01,
-                        r = 20,
-                        mu = 0.0,
-                        varofmu = 16.0,
-                        min_varofmu = 2.0,
-                        varofcond = 4.0,
-                        min_varofcond = 1.0,
-                        varofind = 1.0,
-                        sd_init_muind = 0.01,
-                        sd_init_mucond = 0.01) {
+                        sd_init_muind = 0.1, sd_init_mucond = 0.1) {
     ## initiolize class members
-    self$genewisesbnb <- Genewisenb$new(
+    self$gwsnb <- genewisenb$new(
       stan_snb_path = stan_snb_path,
       stan_snb_cond_path = stan_snb_cond_path,
+      mu = mu,
+      r = r,
+      big_r = big_r,
+      min_varofmu = min_varofmu,
+      min_varofcond = min_varofcond,
+      min_varofind = min_varofind,
+      min_tau2 = min_tau2,
       gamma_alpha = gamma_alpha,
       gamma_beta = gamma_beta
     )
-    self$stan_high2_path <- stan_high2_path
+    self$high2 <- init_stan_model(stan_high2_path)
     self$num_iter <- num_iter
     self$vi_refresh <- vi_refresh
     self$algorithm <- algorithm
@@ -403,238 +431,107 @@ High2 <- R6Class(classname = "High2", public = list(
     self$output_samples <- output_samples
     self$tol_rel_obj <- tol_rel_obj
     self$adapt_iter <- adapt_iter
-    self$r <- r
-    self$mu <- mu
-    self$varofmu <- varofmu
-    self$min_varofmu <- min_varofmu
-    self$varofcond <- varofcond
-    self$min_varofcond <- min_varofcond
-    self$varofind <- varofind
     self$sd_init_muind <- sd_init_muind
     self$sd_init_mucond <- sd_init_mucond
-    ## name
     self$nind <- nind
     self$ncond <- ncond
-    self$muindnm <- self$str_glue_vec("muind", self$nind)
-    ## init stan model
-    self$high2 <- self$init_stan_model(self$stan_high2_path)
+    self$mucondnm <- str_glue_vec("mucond", ncond)
+    self$muindnm <- str_glue_vec("muind", nind)
   },
 
-  fit_mg_snb = function(cnt, s, cond, ind) {
-    ## return ngene by (2+1+k) estimation
-    t_res <- vapply(
-      seq_len(nrow(cnt)),
-      function(i) {
-        r <- self$fit_gwsnb_to_cond_level(
-          y = cnt[i, ], s = s, cond = cond,
-          ind = ind
-        )
-        return(invisible(c(r$mu, r$r, r$mu_cond, r$mu_ind)))
-      },
-      FUN.VALUE = rep(0.0, 2 + 1 + self$nind)
+  init_params = function(cnt, s, cond, ind) {
+    init_mgsnb <- self$gwsnb$fit_mgsnb(
+      cnt = cnt, s = s,
+      cond = cond, ind = ind
     )
-    ## gene name
-    colnames(t_res) <- rownames(cnt)
-    ## value name
-    rownames(t_res) <- c(self$murnm, self$mucondnm, self$muindnm)
-    return(invisible(t(t_res)))
-  },
-
-  init_params <- function(est_mg_mat) {
-    mu <- est_mg_mat[, self$murnm[1]]
-    varofmu <- self$est_varofmu(mu)
-    centerofmu <- median(mu)
+    ## * set hyper params
+    hp <- list(
+      hp_varofmu = init_mgsnb$mu[3:4],
+      hp_varofr = init_mgsnb$r[3:4],
+      hp_varofcond = init_mgsnb$cond[, 2:3],
+      hp_varofind = init_mgsnb$ind$est_varofind[, 3:4],
+      hp_tau2 = init_mgsnb$ind$est_tau2[2:3]
+    )
+    ## * set params initiolization
+    centerofmu <- init_mgsnb$mu[1]
+    varofmu <- init_mgsnb$mu[2]
+    mu <- init_mgsnb$mgsnb[, 1]
     raw_mu <- (mu - centerofmu) / sqrt(varofmu)
 
-    r <- est_mg_mat[, self$murnm[2]]
+    r <- init_mgsnb$mgsnb[, 2]
+    ### log of r level
+    centerofr <- init_mgsnb$r[1]
+    varofr <- init_mgsnb$r[2]
+    raw_r <- (log(r) - centerofr) / sqrt(varofr)
 
-    mu_cond <- est_mg_mat[, self$mucondnm]
-    varofcond <- self$est_varofcond(mu_cond)
-    raw_mu_cond <- mu_cond / sqrt(varofcond)
+    ### ngene by ncond
+    mucond <- init_mgsnb$mgsnb[, 3:(2 + ncond)]
+    ### ncond by 1
+    varofcond <- init_mgsnb$cond[, 1]
+    raw_mucond <- mucond %*% diag(1 / sqrt(varofcond))
 
-    mu_ind <- est_mg_mat[, self$muindnm]
-    ## use varofcond to estimate varofind
-    varofind <- rep(varofcond, self$nind)
-    raw_mu_ind <- mu_ind / sqrt(varofind)
-  }
-))
-
-
-init_hbnb_params <- function(est_mg_mat,
-                             murnm,
-                             mucondnm,
-                             muindnm,
-                             scale = 1.96^2) {
-  ## generate the initial hbnb params
-  ## also set the hp params: mu0
-
-  mu <- est_mg_mat[, murnm[1]]
-  r <- est_mg_mat[, murnm[2]]
-  mu_cond <- est_mg_mat[, mucondnm]
-  ## all zeros
-  mu_ind <- est_mg_mat[, muindnm]
-
-  r1 <- est_mu(mu, scale)
-  mu0 <- r1[1]
-  varofmu <- r1[2]
-  raw_mu <- (mu - mu0) / sqrt(varofmu)
-
-  varofcond <- est_varofcond(mu_cond, scale)
-  raw_mu_cond <- mu_cond / sqrt(varofcond)
-
-  ## varofind: k by 1
-  varofind <- rep(varofind_default, ncol(mu_ind))
-  ## each row (a gene) divided by the correspond element from varofind
-  ## here: mu_ind are all zeros by default.
-  raw_mu_ind <- mu_ind / sqrt(varofind)
-
-  hp_params <- list(mu0 = r1[1])
-
-  init_params <- list(
-    hp_r = hpgamma_default,
-    nb_r = r,
-    varofmu = varofmu,
-    mu = mu,
-    raw_mu = raw_mu,
-    varofcond = varofcond,
-    mu_cond = mu_cond,
-    raw_mu_cond = raw_mu_cond,
-    hp_varofind = hpinvg_default,
-    varofind = varofind,
-    mu_ind = mu_ind,
-    raw_mu_ind = raw_mu_ind
-  )
-  return(invisible(
-    list(
-      hp = hp_params,
-      init = init_params
-    )
-  ))
-}
-
-get_hbnb_param_nms <- function(k, j, g) {
-  hbnb_param_nms <- list(
-    hp_r = str_glue_vec(nm = "hp_r", n = 2),
-    nb_r = str_glue_vec(nm = "nb_r", n = g),
-    varofmu = "varofmu",
-    raw_mu = str_glue_vec(nm = "raw_mu", n = g),
-    mu = str_glue_vec(nm = "mu", n = g),
-    varofcond = "varofcond",
-    raw_mu_cond = str_glue_mat(nm = "raw_mu_cond", nr = g, nc = j),
-    mu_cond = str_glue_mat(nm = "mu_cond", nr = g, nc = j),
-    raw_mu_ind = str_glue_mat(nm = "raw_mu_ind", nr = g, nc = k),
-    mu_ind = str_glue_mat(nm = "mu_ind", nr = g, nc = k),
-    hp_varofind = str_glue_vec(nm = "hp_varofind", n = 2),
-    ## varofind:  in total k
-    varofind = str_glue_vec(nm = "varofind", n = k)
-  )
-  return(invisible(hbnb_param_nms))
-}
-
-get_default_hi_params <- function(k, j, g) {
-  ## hi: hyper and initial
-  ## default hyper params
-  dhp <- list(
-    mu0 = rep(mu_default, g),
-    hp_varofmu = hpinvg_default,
-    hp_alpha_r = hpgamma_default,
-    hp_beta_r = hpgamma_default,
-    hp_alpha_varofind = hpgamma_default,
-    hp_beta_varofind = hpgamma_default,
-    hp_varofcond = hpinvg_default
-  )
-  ## default init params
-  dip <- list(
-    hp_r = hpgamma_default,
-    nb_r = rep(r_default, g),
-    varofmu = varofmu_default,
-    mu = rep(mu_default, g),
-    raw_mu = rep(0.0, g),
-    mu_cond = array(0.0, dim = c(g, j)),
-    raw_mu_cond = array(0.0, dim = c(g, j)),
-    varofcond = varofcond_default,
-    mu_ind = array(0.0, dim = c(g, k)),
-    raw_mu_ind = array(0.0, dim = c(g, k)),
-    ## change dim from g to k, since for each individual
-    ## all the genes share the same variance.
-    varofind = rep(varofind_default, k)
-  )
-  return(invisible(list(hp = dhp, ip = dip)))
-}
-
-set_hi_params <- function(k, j, g,
-                          cnt, s, cond, ind,
-                          scale = 1.96^2) {
-  murnm <- c("mu0", "r0")
-  mucondnm <- str_glue_vec("mu_cond", 2)
-  muindnm <- str_glue_vec("mu_ind", k)
-
-  dhip <- get_default_hi_params(k, j, g)
-  mat <- fit_mg_snb(
-    cnt = cnt, s = s, cond = cond, ind = ind,
-    snbm = snbm_for_mur,
-    snbm_for_mucond = snbm_for_mucond,
-    murnm = murnm, mucondnm = mucondnm,
-    muindnm = muindnm
-  )
-  r <- init_hbnb_params(mat,
-    murnm = murnm, mucondnm = mucondnm,
-    muindnm = muindnm, scale = scale
-  )
-
-  ## update the gene scale log mean expression estimation
-  dhip$hp$mu0 <- r$hp$mu0
-
-  for (n in nm_params) {
-    dhip$ip[[n]] <- r$init[[n]]
-  }
-  return(invisible(list(hp = dhip$hp, ip = dhip$ip)))
-}
-
-to_hbnb_data <- function(cnt, ind, cond, s, hp) {
-  ## given the basic data, we translate it into
-  ## what hbnb needs.
-
-  return(invisible(c(list(
-    n = ncol(cnt),
-    k = max(ind),
-    j = max(cond),
-    g = nrow(cnt),
-    s = s,
-    cond = cond,
-    ind = ind,
-    y = t(cnt)
-  ), hp)))
-}
-
-mu_transform_from_raw <- function(raw_mu, mu0, varofmu) {
-  return(invisible(raw_mu * sqrt(varofmu) + mu0))
-}
-
-mucond_transfrom_from_raw <- function(raw_mu_cond, varofcond) {
-  return(invisible(raw_mu_cond * sqrt(varofcond)))
-}
-
-muind_transform_from_raw <- function(raw_mu_ind, varofind) {
-  ## raw_mu_ind: g by k
-  ## varofind: k by 1
-  return(invisible(raw_mu_ind %*% diag(sqrt(varofind))))
-}
-
-vi_mu_transform_from_raw <- function(vi_raw_mu, mu0,
-                                     vi_varofmu, genenms = NULL) {
-  ## get mu: n by g
-
-  ## vi_raw_* are got by vi_fit$draw()
-
-  ## element-wise multiply, when second is column
-  ## it will column by column.
-  res <- vi_raw_mu * sqrt(as.numeric(vi_varofmu))
-  if (!is.null(genenms)) {
-    colnames(res) <- genenms
-  }
-  return(invisible(res))
-}
+    ### scalar
+    tau2 <- init_mgsnb$ind$est_tau2[1]
+    ### nind by 1
+    centerofind <- init_mgsnb$ind$est_varofind[, 1]
+    ### nind by 1
+    raw_centerofind <- centerofind / sqrt(tau2)
+    ### nind by 1
+    varofind <- init_mgsnb$ind$est_varofind[, 2]
+    ### ngene by nind
+    muind <- init_mgsnb$mgsnb[, (2 + ncond + 1):(2 + ncond + nind)]
+    raw_muind <- (muind - rep_row(centerofind, n = ngene)) %*%
+      diag(1 / sqrt(varofind))
+    return(invisible(
+      list(
+        hp = hp,
+        ip = list(
+          centerofmu = centerofmu,
+          varofmu = varofmu,
+          raw_mu = raw_mu,
+          centerr = centerofr,
+          varofr = varofr,
+          raw_r = raw_r,
+          varofcond = varofcond,
+          raw_mucond = raw_mucond,
+          tau2 = tau2,
+          raw_centerofind = raw_centerofind,
+          varofind = varofind,
+          raw_muind = raw_muind
+        )
+      )
+    ))
+  },
+  to_model_data = function(cnt, ind, cond, s, hp) {
+    ## given the basic data, we translate it into
+    ## what hbnb needs.
+    invisible(c(list(
+      ncell = ncol(cnt),
+      nind = max(ind),
+      ncond = max(cond),
+      ngene = nrow(cnt),
+      s = s, cond = cond,
+      ind = ind, y = t(cnt)
+    ), hp))
+  },
+  run <- function(data, list_wrap_ip = NULL) {
+    ## adapt_iter: 5 (default in cmdstan) * adapt_iter we set
+    invisible(
+      self$high2$variational(
+        data = data,
+        init = list_wrap_ip,
+        seed = self$seed,
+        refresh = self$vi_refresh,
+        iter = self$num_iter,
+        eval_elbo = self$eval_elbo,
+        adapt_engaged = self$adapt_engaged,
+        adapt_iter = self$adapt_iter,
+        algorithm = self$algorithm,
+        output_samples = self$output_samples,
+        tol_rel_obj = self$tol_rel_obj,
+        eta = self$eta))
+  }) ## end of public field
+) ## end of class high2
 
 split_matrix_col <- function(mat, second_dim, second_dim_nms = NULL) {
   ## split matrix col into a matrix row-major order
@@ -683,31 +580,6 @@ vi_muind_transform_from_raw <- function(vi_raw_mu_ind, vi_varofind, g, k,
   ## then each row: [k1, k2, ..., kk]
   r <- split_matrix_col(t, second_dim = g, second_dim_nms = genenms)
   return(r)
-}
-
-run_hbnb_vi <- function(data, ip,
-                        adapt_engaged = TRUE,
-                        adapt_iter = adapt_iter,
-                        eta = eta,
-                        algorithm = vi_algorithm,
-                        seed = 1L) {
-  ## adapt_iter: 5 (default in cmdstan) * adapt_iter we set
-  invisible(
-    hbnbm$variational(
-      data = data,
-      init = list(ip),
-      seed = seed,
-      refresh = vi_refresh,
-      iter = num_iter,
-      eval_elbo = eval_elbo,
-      adapt_engaged = adapt_engaged,
-      adapt_iter = adapt_iter,
-      algorithm = algorithm,
-      output_samples = output_samples,
-      tol_rel_obj = tol_rel_obj,
-      eta = eta
-    )
-  )
 }
 
 extract_vifit <- function(vifit,
@@ -828,36 +700,6 @@ extract_all_params_from_fit <- function(vifit, data) {
   })
   names(est_params) <- nm_params
   return(invisible(est_params))
-}
-
-get_auc <- function(rank_stats, diffg, ndiffg) {
-  true_class <- c(rep(TRUE, length(diffg)), rep(FALSE, length(ndiffg)))
-  z <- rank_stats$z[c(diffg, ndiffg)]
-  m <- rank_stats$m[c(diffg, ndiffg)]
-  p <- rank_stats$p[c(diffg, ndiffg)]
-  p10 <- rank_stats$p10[c(diffg, ndiffg)]
-  p05 <- rank_stats$p05[c(diffg, ndiffg)]
-  p025 <- rank_stats$p025[c(diffg, ndiffg)]
-  bf <- rank_stats$p[c(diffg, ndiffg)]
-
-
-  auc_z <- caTools::colAUC(z, true_class)
-  auc_m <- caTools::colAUC(m, true_class)
-  auc_p <- caTools::colAUC(p, true_class)
-  auc_p10 <- caTools::colAUC(p10, true_class)
-  auc_p05 <- caTools::colAUC(p05, true_class)
-  auc_p025 <- caTools::colAUC(p025, true_class)
-
-  auc_bf <- caTools::colAUC(bf, true_class)
-  return(invisible(list(
-    auc_z = auc_z,
-    auc_m = auc_m,
-    auc_p = auc_p,
-    auc_p10 = auc_p10,
-    auc_p05 = auc_p05,
-    auc_p025 = auc_p025,
-    auc_bf = auc_bf
-  )))
 }
 
 get_auc_v2 <- function(rank_stats, diffg, ndiffg) {
