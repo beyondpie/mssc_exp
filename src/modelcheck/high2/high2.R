@@ -99,9 +99,40 @@ check_s <- function(s) {
 rep_row <- function(x, n) {
   matrix(rep(x, each = n), nrow = n)
 }
+
 rep_col <- function(x, n) {
   matrix(rep(x, each = n), ncol = n, byrow = TRUE)
 }
+
+split_matrix_col <- function(mat, second_dim, second_dim_nms = NULL) {
+  ## split matrix col into a matrix row-major order
+  ## mat: nsample by (second_dim * third_dim)
+  ## return: nsample by second_dim by third_dim (i.e., a three-dim array)
+
+  t <- vapply(seq_len(nrow(mat)), function(i) {
+    ## byrow = TRUE, means we order the elements row by row.
+    ## so each time we use ncol element to fill a row.
+    matrix(mat[i, ], nrow = second_dim, byrow = TRUE)
+  }, FUN.VALUE = matrix(mat[1, ], nrow = second_dim, byrow = TRUE))
+  r <- aperm(t, c(3, 1, 2))
+  if (!is.null(second_dim_nms)) {
+    dimnames(r)[[2]] <- second_dim_nms
+  }
+  return(invisible(r))
+}
+
+get_auc <- function(ranking_statistic, c1, c2) {
+  ## ranking_statistic: a vector, ngene by 1
+  ## c1: index of gene for condition one
+  ## c2: index of gene for condition two
+  ## return: a vector of AUC value for different columns
+  t <- ifelse(is.matrix(ranking_statistic), ranking_statistic,
+              as.matrix(ranking_statistic, ncol = 1))
+  true_class <- c(rep(TRUE, length(c1)), rep(TRUE, length(c2)))
+  return(invisible(caTools::colAUC(t[c(c1, c2), ],
+                                   true_class)))
+}
+
 
 ## * define R6 classes
 genewisenbfit <- R6::R6Class(classname = "genewisenbfit", public = list(
@@ -365,6 +396,8 @@ high2 <- R6Class(classname = "high2", public = list(
   gwsnb = NULL,
   ## stan model
   high2 = NULL,
+  ### store the fitting result
+  high2fit = NULL,
   ## vi training parameters
   num_iter = NULL,
   vi_refresh = NULL,
@@ -385,7 +418,7 @@ high2 <- R6Class(classname = "high2", public = list(
     "varofr", "r", "varofcond", "mucond",
     "tau2", "centerofind", "varofind", "muind"
   ),
-  initialize = function( ## gwsnb parameters
+  initialize = function(## gwsnb parameters
                         stan_snb_path,
                         stan_snb_cond_path,
                         gamma_alpha = 0.05,
@@ -440,6 +473,7 @@ high2 <- R6Class(classname = "high2", public = list(
   },
 
   init_params = function(cnt, s, cond, ind) {
+    ## init paramters including hyper params.
     init_mgsnb <- self$gwsnb$fit_mgsnb(
       cnt = cnt, s = s,
       cond = cond, ind = ind
@@ -515,184 +549,139 @@ high2 <- R6Class(classname = "high2", public = list(
     ), hp))
   },
   run <- function(data, list_wrap_ip = NULL) {
+    ## set the result of high2 to high2fit
     ## adapt_iter: 5 (default in cmdstan) * adapt_iter we set
-    invisible(
-      self$high2$variational(
-        data = data,
-        init = list_wrap_ip,
-        seed = self$seed,
-        refresh = self$vi_refresh,
-        iter = self$num_iter,
-        eval_elbo = self$eval_elbo,
-        adapt_engaged = self$adapt_engaged,
-        adapt_iter = self$adapt_iter,
-        algorithm = self$algorithm,
-        output_samples = self$output_samples,
-        tol_rel_obj = self$tol_rel_obj,
-        eta = self$eta))
+    self$high2fit <- self$high2$variational(
+      data = data,
+      init = list_wrap_ip,
+      seed = self$seed,
+      refresh = self$vi_refresh,
+      iter = self$num_iter,
+      eval_elbo = self$eval_elbo,
+      adapt_engaged = self$adapt_engaged,
+      adapt_iter = self$adapt_iter,
+      algorithm = self$algorithm,
+      output_samples = self$output_samples,
+      tol_rel_obj = self$tol_rel_obj,
+      eta = self$eta)
+  },
+  extract_draws = function(param,
+                           ngene = NULL,
+                           genenms = NULL) {
+    ## extract draws from model given the param name
+    ## after getting the fit
+    ## this depends on cmdstanr method, but mofidy the names we need
+    if (is.null(self$high2fit)) {
+      warning("High2 has not been run.")
+      return(invisible(NA))
+    }
+    check_ngene <- function() {
+      if (is.null(ngene)) {
+        warning("num of gene is not know, plz set it.")
+        return(invisible(NA))
+      }
+    }
+    tryCatch({
+      if (param %in% c("centerofmu", "varofmu",
+                       "centerofr", "varofr", "tau2")) {
+        ## when param is scalar
+        return(invisible(self$high2fit$draws(param)))
+      }
+      if (param %in% c("mu", "r", "nb_r")) {
+        ## when param is vector len of ngene
+        check_ngene()
+        t <- self$high2fit$draws(str_glue_vec(param, ngene))
+        if (!is.null(genenms)) {
+          names(t) <- genenms
+        }
+        return(invisible(t))
+      }
+      if (param %in% c("varofcond")) {
+        ## when param is vector of len of ncond
+        return(invisible(self$high2fit$draws(str_glue_vec(param, self$ncond))))
+      }
+      if (param %in% c("varofind", "centerofind")) {
+        ## when param is vector of len of nind
+        return(invisible(self$high2fit$draws(str_glue_vec(param, self$nind))))
+      }
+      if (param %in% c("mucond")) {
+        ## when param is a matrix of ngene by ncond
+        check_ngene()
+        t <- self$high2fit$draws(str_glue_mat_rowise(param, ngene, self$ncond))
+        return(invisible(split_matrix_col(mat = t, second_dim = ngene,
+                                          second_dim_nms = genenms)))
+      }
+      if (param %in% c("muind")) {
+        ## when param is a matrix of ngene by nind
+        check_ngene()
+        t <- self$high2fit$draws(str_glue_mat_rowise(param, ngene, self$nind))
+        return(invisible(split_matrix_col(mat = t, second_dim = ngene,
+                                          second_dim_nms = genenms)))
+      }
+    }, error = function(e) {
+      warning(e)
+      return(invisible(NA))
+    })
+  },
+  get_ranking_statistics = function(mucond, two_hot_vec,
+                                    threshod = 1e-04) {
+    ## mucond: nsample by ngene by ncond
+    ## two_hot_vec: like (1, -1) or (0, 0, -1, 0, 1, 0)
+    ## - i.e., the two conditions we want compare
+    ## - one is positive, and the other one is negative
+    ## return:
+    ## - a matrix: ngene by num_of_statistics with colnames
+    if (sum(two_hot_vec) > 1) {
+      stop("set 1 and -1 for two conditions.")
+    }
+    if (length(two_hot_vec) != self$ncond) {
+      stop("length of two_hot_vec ",
+           length(two_hot_vec), " is not equals to ncond ",
+           self$ncond)
+    }
+    ## 3-d array cannot directly mutiply a vector in matrix-multiply way
+    ## so we use ours.
+    ## r: nsample by ngene
+    n <- dim(mucond)[1]
+    r <- t(vapply(1:n, function(i) {
+      mucondf[i, , ] %*% two_hot_vec
+    }, FUN.VALUE = rep(0.0, dim(mucond)[2])))
+    sd_col <- matrixStats::colSds(r)
+    ## one measure
+    abs_colmean <- abs(colMeans(r))
+    
+    p0 <- colSums(abs(r) > threshold) / n
+    ## one measure
+    bf <- abs(log(p0 + 1e-06) - log(1-p0 + 1e-06))
+
+    ## one measure
+    ## t statistics
+    group1 <- mucond[, , two_hot_vec == 1]
+    group2 <- mucond[, , two_hot_vec == -1]
+    ngene <- dim(mucond)[2]
+    tstat <- t(vapply(1:ngene), function(i) {
+      tryCatch({
+        s <- t.test(x = group1, y = group2,
+                    alternative = "two.sided",
+                    paired = TRUE,
+                    var.equal = FALSE)
+        return(invisible(s$statistic))
+      }, error = function(e) {
+        warning(e)
+        return(invisible(0.0))
+      })
+    }, FUN.VALUE = 0.0)
+    result <- cbind(abs_t = abs(tstat),
+                    bf = bf,
+                    abs_m = abs_colmean)
+    if (!is.null(dimnames(mucond)[2])) {
+      rownames(result) <- dimnames(mucond)[2]
+    }
+    
+    return(invisible(result))
   }) ## end of public field
 ) ## end of class high2
 
-split_matrix_col <- function(mat, second_dim, second_dim_nms = NULL) {
-  ## split matrix col into a matrix row-major order
-
-  t <- vapply(seq_len(nrow(mat)), function(i) {
-    ## byrow = TRUE, means we order the elements row by row.
-    ## so each time we use ncol element to fill a row.
-    matrix(mat[i, ], nrow = second_dim, byrow = TRUE)
-  }, FUN.VALUE = matrix(mat[1, ], nrow = second_dim, byrow = TRUE))
-  r <- aperm(t, c(3, 1, 2))
-  if (!is.null(second_dim_nms)) {
-    dimnames(r)[[2]] <- second_dim_nms
-  }
-  return(invisible(r))
-}
-
-vi_mucond_transform_from_raw <- function(vi_raw_mu_cond, vi_varofcond,
-                                         g, genenms = NULL) {
-  ## get mucond: n by g by j (num_of_cond, default is 2)
-
-  ## vi_raw_mu_cond shape: n by g*j
-  ## order of the names of vi_raw_mu_cond: by row
-
-  ## vi_varofcond shape: n by 1 if we use cmdstanr draw matrix
-  ## then let it be a vector length of n
-  t <- vi_raw_mu_cond * sqrt(as.numeric(vi_varofcond))
-  r <- split_matrix_col(t, second_dim = g, second_dim_nms = genenms)
-  return(invisible(r))
-}
-
-vi_muind_transform_from_raw <- function(vi_raw_mu_ind, vi_varofind, g, k,
-                                        genenms = NULL) {
-  ## vi_raw_mu_ind: n by g * k
-  ## each row: [k1, k2, ..., kk] of g1, then of g2, ...
-
-  ## vi_varofind: n by k
-  ## repeat_var_per_gene: n by g * k
-  ## each row in order:
-  ## [k1, k2, ..., kk], this order repeat g times.
-  ## [MAJOR] use "times" instead of "each" in rep function.
-  repeat_var_per_gene <- t(apply(vi_varofind, 1, rep, times = g))
-  ## element-wise multiplification
-  t <- vi_raw_mu_ind * sqrt(repeat_var_per_gene)
-
-  ## order the col in row-order
-  ## then each row: [k1, k2, ..., kk]
-  r <- split_matrix_col(t, second_dim = g, second_dim_nms = genenms)
-  return(r)
-}
-
-extract_vifit <- function(vifit,
-                          data,
-                          param) {
-  ## get the draw matrix for the param
-  ## if not exist, return NaN
-
-  if (!(param %in% nm_params)) {
-    message(stringr::str_glue("{param} is not recognized."))
-    return(NaN)
-  }
-  if (param %in% c("varofmu", "varofcond")) {
-    return(invisible(vifit$draws(param)))
-  }
-  if (param %in% c("hp_r", "hp_varofind")) {
-    return(invisible(vifit$draws(str_glue_vec(param, 2))))
-  }
-
-  gbc <- t(data$y)
-  if (!is.null(rownames(gbc))) {
-    genenms <- rownames(gbc)
-  } else {
-    genenms <- seq_len(data$g)
-  }
-
-  if (param == "nb_r") {
-    r <- vifit$draws(str_glue_vec(param, data$g))
-    colnames(r) <- genenms
-    return(invisible(r))
-  }
-
-  if (param == "varofind") {
-    r <- vifit$draws(str_glue_vec(param, data$k))
-    return(invisible(r))
-  }
-
-
-  if (param %in% c("raw_mu", "mu")) {
-    r <- vifit$draws(str_glue_vec("raw_mu", data$g))
-    if (param == "mu") {
-      varofmu <- vifit$draws("varofmu")
-      mu0 <- data$mu0
-      return(invisible(vi_mu_transform_from_raw(r, mu0, varofmu, genenms)))
-    }
-    colnames(r) <- genenms
-    return(invisible(r))
-  }
-
-  if (param %in% c("raw_mu_cond", "mu_cond")) {
-    t1 <- vifit$draws(str_glue_mat("raw_mu_cond", nr = data$g, nc = data$j))
-    if (param == "mu_cond") {
-      t2 <- vifit$draws("varofcond")
-      r <- vi_mucond_transform_from_raw(t1, t2, data$g, genenms)
-      return(invisible(r))
-    }
-    return(invisible(split_matrix_col(t1, data$g, genenms)))
-  }
-
-  if (param %in% c("raw_mu_ind", "mu_ind")) {
-    t1 <- vifit$draws(str_glue_mat("raw_mu_ind", nr = data$g, nc = data$k))
-    if (param == "mu_ind") {
-      t2 <- vifit$draws(str_glue_vec("varofind", data$k))
-      r <- vi_muind_transform_from_raw(t1, t2,
-        g = data$g, k = data$k,
-        genenms
-      )
-      return(invisible(r))
-    }
-    return(invisible(split_matrix_col(t1, data$g, genenms)))
-  }
-  warning(paste(param, " is missed."))
-  return(NaN)
-}
-
-get_rank_statistics <- function(mu_cond, c1 = 1, c2 = 2,
-                                std_cond = 1) {
-  ## mu_cond: n by ngene by ncond
-  ## c1, c2 correspond to different conditions
-
-  delta <- as.matrix(mu_cond[, , c1] - mu_cond[, , c2])
-  n <- nrow(delta)
-  if (!is.null(dimnames(mu_cond)[[2]])) {
-    colnames(delta) <- dimnames(mu_cond)[[2]]
-  }
-  sd_delta <- matrixStats::colSds(delta)
-  abs_mean_delta <- abs(colMeans(delta))
-  abs_delta <- abs(delta)
-
-  ## z_score (actually t_score)
-  z <- abs_mean_delta * sqrt(n) / sd_delta
-  m <- abs_mean_delta
-
-  ## probability larger than a given epision
-  ## sqrt of var_of_cond
-  p <- colSums(abs_delta >= std_cond) / n
-
-  p10 <- colSums(abs_delta >= (std_cond * 1.28)) / n
-  p05 <- colSums(abs_delta >= (std_cond * 1.645)) / n
-  p025 <- colSums(abs_delta >= (std_cond * 1.96)) / n
-
-  p0 <- colSums(abs_delta > 0.0) / n
-  bf <- abs(log(p0 + 1e-06) - log(1 - p0 + 1e-06))
-
-  return(invisible(list(
-    z = z, p = p, delta = delta,
-    p10 = p10,
-    p05 = p05,
-    p025 = p025,
-    bf = bf,
-    m = m
-  )))
-}
 
 extract_all_params_from_fit <- function(vifit, data) {
   est_params <- lapply(nm_params, function(nm) {
@@ -702,24 +691,3 @@ extract_all_params_from_fit <- function(vifit, data) {
   return(invisible(est_params))
 }
 
-get_auc_v2 <- function(rank_stats, diffg, ndiffg) {
-  ## simplify the auc calculations
-  true_class <- c(rep(TRUE, length(diffg)), rep(FALSE, length(ndiffg)))
-  z <- rank_stats$z[c(diffg, ndiffg)]
-  m <- rank_stats$m[c(diffg, ndiffg)]
-  p <- rank_stats$p[c(diffg, ndiffg)]
-  bf <- rank_stats$p[c(diffg, ndiffg)]
-
-
-  auc_z <- caTools::colAUC(z, true_class)
-  auc_m <- caTools::colAUC(m, true_class)
-  auc_p <- caTools::colAUC(p, true_class)
-
-  auc_bf <- caTools::colAUC(bf, true_class)
-  return(invisible(list(
-    auc_z = auc_z,
-    auc_m = auc_m,
-    auc_p = auc_p,
-    auc_bf = auc_bf
-  )))
-}

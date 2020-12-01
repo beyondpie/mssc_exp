@@ -70,6 +70,7 @@ parameters {
 transformed parameters {
   vector[ngene] mu = centerofmu + sqrt(varofmu) * raw_mu;
   vector[ngene] r = centerofr + sqrt(varofr) * raw_r;
+  vector[ngene] nb_r = exp(r); // nb_r ~ lognormal(centerofr, sqrt(varofr))
   // matrix product
   matrix[ngene, ncond] mucond = raw_mu_cond * diag_matrix(sqrt(varofcond));
   // vector product scalar
@@ -87,7 +88,6 @@ model {
   // centerofr ~ non informative
   varofr ~ inv_gamma(hp_varofr[1], hp_varofr[2]);
   raw_r ~ std_normal(); // implicit r ~ N(centerofr, sqrt(varofr))
-  vector[ngene] nb_r = exp(r); // nb_r ~ lognormal(centerofr, sqrt(varofr))
 
   // matrix are column-wise store, so this is efficient
   varofcond ~ inv_gamma(hp_varofcond[, 1], hp_varofcond[,2]);
