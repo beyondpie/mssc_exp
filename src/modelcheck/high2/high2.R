@@ -127,10 +127,13 @@ get_auc <- function(ranking_statistic, c1, c2) {
   ## c2: index of gene for condition two
   ## return: a vector of AUC value for different columns
   t <- ifelse(is.matrix(ranking_statistic), ranking_statistic,
-              as.matrix(ranking_statistic, ncol = 1))
+    as.matrix(ranking_statistic, ncol = 1)
+  )
   true_class <- c(rep(TRUE, length(c1)), rep(TRUE, length(c2)))
-  return(invisible(caTools::colAUC(t[c(c1, c2), ],
-                                   true_class)))
+  return(invisible(caTools::colAUC(
+    t[c(c1, c2), ],
+    true_class
+  )))
 }
 
 
@@ -388,306 +391,323 @@ genewisenbfit <- R6::R6Class(classname = "genewisenbfit", public = list(
   }
 ))
 
-high2 <- R6Class(classname = "high2", public = list(
-  ## num of inds
-  nind = NULL,
-  ncond = NULL,
-  ## gwsnb model
-  gwsnb = NULL,
-  ## stan model
-  high2 = NULL,
-  ### store the fitting result
-  high2fit = NULL,
-  ## vi training parameters
-  num_iter = NULL,
-  vi_refresh = NULL,
-  algorithm = NULL,
-  eval_elbo = NULL,
-  output_samples = NULL,
-  tol_rel_obj = NULL,
-  adapt_iter = NULL,
-  ## random init parameters
-  sd_init_muind = NULL,
-  sd_init_mucond = NULL,
-  ## high2 parameter names
-  murnm = c("mu", "r"),
-  mucondnm = NULL,
-  muindnm = NULL,
-  all_params_nms = c(
-    "centerofmu", "varofmu", "mu", "centerofr",
-    "varofr", "r", "varofcond", "mucond",
-    "tau2", "centerofind", "varofind", "muind"
-  ),
-  initialize = function(## gwsnb parameters
-                        stan_snb_path,
-                        stan_snb_cond_path,
-                        gamma_alpha = 0.05,
-                        gamma_beta = 0.05,
-                        r = 20,
-                        mu = 0.0,
-                        big_r = 500,
-                        min_varofmu = 2.0,
-                        min_varofcond = 0.25,
-                        min_varofind = 0.25,
-                        min_tau2 = 0.25,
-                        ## high2 related parameters
-                        stan_high2_path,
-                        nind,
-                        ncond = 2,
-                        num_iter = 20000,
-                        vi_refresh = 2000,
-                        algorithm = "meanfield",
-                        eval_elbo = 100,
-                        output_samples = 2000,
-                        tol_rel_obj = 0.0001,
-                        adapt_iter = 1000,
-                        sd_init_muind = 0.1, sd_init_mucond = 0.1) {
-    ## initiolize class members
-    self$gwsnb <- genewisenb$new(
-      stan_snb_path = stan_snb_path,
-      stan_snb_cond_path = stan_snb_cond_path,
-      mu = mu,
-      r = r,
-      big_r = big_r,
-      min_varofmu = min_varofmu,
-      min_varofcond = min_varofcond,
-      min_varofind = min_varofind,
-      min_tau2 = min_tau2,
-      gamma_alpha = gamma_alpha,
-      gamma_beta = gamma_beta
-    )
-    self$high2 <- init_stan_model(stan_high2_path)
-    self$num_iter <- num_iter
-    self$vi_refresh <- vi_refresh
-    self$algorithm <- algorithm
-    self$eval_elbo <- eval_elbo
-    self$output_samples <- output_samples
-    self$tol_rel_obj <- tol_rel_obj
-    self$adapt_iter <- adapt_iter
-    self$sd_init_muind <- sd_init_muind
-    self$sd_init_mucond <- sd_init_mucond
-    self$nind <- nind
-    self$ncond <- ncond
-    self$mucondnm <- str_glue_vec("mucond", ncond)
-    self$muindnm <- str_glue_vec("muind", nind)
-  },
-
-  init_params = function(cnt, s, cond, ind) {
-    ## init paramters including hyper params.
-    init_mgsnb <- self$gwsnb$fit_mgsnb(
-      cnt = cnt, s = s,
-      cond = cond, ind = ind
-    )
-    ## * set hyper params
-    hp <- list(
-      hp_varofmu = init_mgsnb$mu[3:4],
-      hp_varofr = init_mgsnb$r[3:4],
-      hp_varofcond = init_mgsnb$cond[, 2:3],
-      hp_varofind = init_mgsnb$ind$est_varofind[, 3:4],
-      hp_tau2 = init_mgsnb$ind$est_tau2[2:3]
-    )
-    ## * set params initiolization
-    centerofmu <- init_mgsnb$mu[1]
-    varofmu <- init_mgsnb$mu[2]
-    mu <- init_mgsnb$mgsnb[, 1]
-    raw_mu <- (mu - centerofmu) / sqrt(varofmu)
-
-    r <- init_mgsnb$mgsnb[, 2]
-    ### log of r level
-    centerofr <- init_mgsnb$r[1]
-    varofr <- init_mgsnb$r[2]
-    raw_r <- (log(r) - centerofr) / sqrt(varofr)
-
-    ### ngene by ncond
-    mucond <- init_mgsnb$mgsnb[, 3:(2 + ncond)]
-    ### ncond by 1
-    varofcond <- init_mgsnb$cond[, 1]
-    raw_mucond <- mucond %*% diag(1 / sqrt(varofcond))
-
-    ### scalar
-    tau2 <- init_mgsnb$ind$est_tau2[1]
-    ### nind by 1
-    centerofind <- init_mgsnb$ind$est_varofind[, 1]
-    ### nind by 1
-    raw_centerofind <- centerofind / sqrt(tau2)
-    ### nind by 1
-    varofind <- init_mgsnb$ind$est_varofind[, 2]
-    ### ngene by nind
-    muind <- init_mgsnb$mgsnb[, (2 + ncond + 1):(2 + ncond + nind)]
-    raw_muind <- (muind - rep_row(centerofind, n = ngene)) %*%
-      diag(1 / sqrt(varofind))
-    return(invisible(
-      list(
-        hp = hp,
-        ip = list(
-          centerofmu = centerofmu,
-          varofmu = varofmu,
-          raw_mu = raw_mu,
-          centerr = centerofr,
-          varofr = varofr,
-          raw_r = raw_r,
-          varofcond = varofcond,
-          raw_mucond = raw_mucond,
-          tau2 = tau2,
-          raw_centerofind = raw_centerofind,
-          varofind = varofind,
-          raw_muind = raw_muind
-        )
+high2 <- R6Class(
+  classname = "high2", public = list(
+    ## num of inds
+    nind = NULL,
+    ncond = NULL,
+    ## gwsnb model
+    gwsnb = NULL,
+    ## stan model
+    high2 = NULL,
+    ### store the fitting result
+    high2fit = NULL,
+    ## vi training parameters
+    num_iter = NULL,
+    vi_refresh = NULL,
+    algorithm = NULL,
+    eval_elbo = NULL,
+    output_samples = NULL,
+    tol_rel_obj = NULL,
+    adapt_iter = NULL,
+    ## random init parameters
+    sd_init_muind = NULL,
+    sd_init_mucond = NULL,
+    ## high2 parameter names
+    murnm = c("mu", "r"),
+    mucondnm = NULL,
+    muindnm = NULL,
+    all_params_nms = c(
+      "centerofmu", "varofmu", "mu", "centerofr",
+      "varofr", "r", "varofcond", "mucond",
+      "tau2", "centerofind", "varofind", "muind"
+    ),
+    initialize = function( ## gwsnb parameters
+                          stan_snb_path,
+                          stan_snb_cond_path,
+                          gamma_alpha = 0.05,
+                          gamma_beta = 0.05,
+                          r = 20,
+                          mu = 0.0,
+                          big_r = 500,
+                          min_varofmu = 2.0,
+                          min_varofcond = 0.25,
+                          min_varofind = 0.25,
+                          min_tau2 = 0.25,
+                          ## high2 related parameters
+                          stan_high2_path,
+                          nind,
+                          ncond = 2,
+                          num_iter = 20000,
+                          vi_refresh = 2000,
+                          algorithm = "meanfield",
+                          eval_elbo = 100,
+                          output_samples = 2000,
+                          tol_rel_obj = 0.0001,
+                          adapt_iter = 1000,
+                          sd_init_muind = 0.1, sd_init_mucond = 0.1) {
+      ## initiolize class members
+      self$gwsnb <- genewisenb$new(
+        stan_snb_path = stan_snb_path,
+        stan_snb_cond_path = stan_snb_cond_path,
+        mu = mu,
+        r = r,
+        big_r = big_r,
+        min_varofmu = min_varofmu,
+        min_varofcond = min_varofcond,
+        min_varofind = min_varofind,
+        min_tau2 = min_tau2,
+        gamma_alpha = gamma_alpha,
+        gamma_beta = gamma_beta
       )
-    ))
-  },
-  to_model_data = function(cnt, ind, cond, s, hp) {
-    ## given the basic data, we translate it into
-    ## what hbnb needs.
-    invisible(c(list(
-      ncell = ncol(cnt),
-      nind = max(ind),
-      ncond = max(cond),
-      ngene = nrow(cnt),
-      s = s, cond = cond,
-      ind = ind, y = t(cnt)
-    ), hp))
-  },
-  run <- function(data, list_wrap_ip = NULL) {
-    ## set the result of high2 to high2fit
-    ## adapt_iter: 5 (default in cmdstan) * adapt_iter we set
-    self$high2fit <- self$high2$variational(
-      data = data,
-      init = list_wrap_ip,
-      seed = self$seed,
-      refresh = self$vi_refresh,
-      iter = self$num_iter,
-      eval_elbo = self$eval_elbo,
-      adapt_engaged = self$adapt_engaged,
-      adapt_iter = self$adapt_iter,
-      algorithm = self$algorithm,
-      output_samples = self$output_samples,
-      tol_rel_obj = self$tol_rel_obj,
-      eta = self$eta)
-  },
-  extract_draws = function(param,
-                           ngene = NULL,
-                           genenms = NULL) {
-    ## extract draws from model given the param name
-    ## after getting the fit
-    ## this depends on cmdstanr method, but mofidy the names we need
-    if (is.null(self$high2fit)) {
-      warning("High2 has not been run.")
-      return(invisible(NA))
-    }
-    check_ngene <- function() {
-      if (is.null(ngene)) {
-        warning("num of gene is not know, plz set it.")
+      self$high2 <- init_stan_model(stan_high2_path)
+      self$num_iter <- num_iter
+      self$vi_refresh <- vi_refresh
+      self$algorithm <- algorithm
+      self$eval_elbo <- eval_elbo
+      self$output_samples <- output_samples
+      self$tol_rel_obj <- tol_rel_obj
+      self$adapt_iter <- adapt_iter
+      self$sd_init_muind <- sd_init_muind
+      self$sd_init_mucond <- sd_init_mucond
+      self$nind <- nind
+      self$ncond <- ncond
+      self$mucondnm <- str_glue_vec("mucond", ncond)
+      self$muindnm <- str_glue_vec("muind", nind)
+    },
+
+    init_params = function(cnt, s, cond, ind) {
+      ## init paramters including hyper params.
+      init_mgsnb <- self$gwsnb$fit_mgsnb(
+        cnt = cnt, s = s,
+        cond = cond, ind = ind
+      )
+      ## * set hyper params
+      hp <- list(
+        hp_varofmu = init_mgsnb$mu[3:4],
+        hp_varofr = init_mgsnb$r[3:4],
+        hp_varofcond = init_mgsnb$cond[, 2:3],
+        hp_varofind = init_mgsnb$ind$est_varofind[, 3:4],
+        hp_tau2 = init_mgsnb$ind$est_tau2[2:3]
+      )
+      ## * set params initiolization
+      centerofmu <- init_mgsnb$mu[1]
+      varofmu <- init_mgsnb$mu[2]
+      mu <- init_mgsnb$mgsnb[, 1]
+      raw_mu <- (mu - centerofmu) / sqrt(varofmu)
+
+      r <- init_mgsnb$mgsnb[, 2]
+      ### log of r level
+      centerofr <- init_mgsnb$r[1]
+      varofr <- init_mgsnb$r[2]
+      raw_r <- (log(r) - centerofr) / sqrt(varofr)
+
+      ### ngene by ncond
+      mucond <- init_mgsnb$mgsnb[, 3:(2 + ncond)]
+      ### ncond by 1
+      varofcond <- init_mgsnb$cond[, 1]
+      raw_mucond <- mucond %*% diag(1 / sqrt(varofcond))
+
+      ### scalar
+      tau2 <- init_mgsnb$ind$est_tau2[1]
+      ### nind by 1
+      centerofind <- init_mgsnb$ind$est_varofind[, 1]
+      ### nind by 1
+      raw_centerofind <- centerofind / sqrt(tau2)
+      ### nind by 1
+      varofind <- init_mgsnb$ind$est_varofind[, 2]
+      ### ngene by nind
+      muind <- init_mgsnb$mgsnb[, (2 + ncond + 1):(2 + ncond + nind)]
+      raw_muind <- (muind - rep_row(centerofind, n = ngene)) %*%
+        diag(1 / sqrt(varofind))
+      return(invisible(
+        list(
+          hp = hp,
+          ip = list(
+            centerofmu = centerofmu,
+            varofmu = varofmu,
+            raw_mu = raw_mu,
+            centerr = centerofr,
+            varofr = varofr,
+            raw_r = raw_r,
+            varofcond = varofcond,
+            raw_mucond = raw_mucond,
+            tau2 = tau2,
+            raw_centerofind = raw_centerofind,
+            varofind = varofind,
+            raw_muind = raw_muind
+          )
+        )
+      ))
+    },
+    to_model_data = function(cnt, ind, cond, s, hp) {
+      ## given the basic data, we translate it into
+      ## what hbnb needs.
+      invisible(c(list(
+        ncell = ncol(cnt),
+        nind = max(ind),
+        ncond = max(cond),
+        ngene = nrow(cnt),
+        s = s, cond = cond,
+        ind = ind, y = t(cnt)
+      ), hp))
+    },
+    run <- function(data, list_wrap_ip = NULL) {
+      ## set the result of high2 to high2fit
+      ## adapt_iter: 5 (default in cmdstan) * adapt_iter we set
+      self$high2fit <- self$high2$variational(
+        data = data,
+        init = list_wrap_ip,
+        seed = self$seed,
+        refresh = self$vi_refresh,
+        iter = self$num_iter,
+        eval_elbo = self$eval_elbo,
+        adapt_engaged = self$adapt_engaged,
+        adapt_iter = self$adapt_iter,
+        algorithm = self$algorithm,
+        output_samples = self$output_samples,
+        tol_rel_obj = self$tol_rel_obj,
+        eta = self$eta
+      )
+    },
+    extract_draws = function(param,
+                             ngene = NULL,
+                             genenms = NULL) {
+      ## extract draws from model given the param name
+      ## after getting the fit
+      ## this depends on cmdstanr method, but mofidy the names we need
+      if (is.null(self$high2fit)) {
+        warning("High2 has not been run.")
         return(invisible(NA))
       }
-    }
-    tryCatch({
-      if (param %in% c("centerofmu", "varofmu",
-                       "centerofr", "varofr", "tau2")) {
-        ## when param is scalar
-        return(invisible(self$high2fit$draws(param)))
-      }
-      if (param %in% c("mu", "r", "nb_r")) {
-        ## when param is vector len of ngene
-        check_ngene()
-        t <- self$high2fit$draws(str_glue_vec(param, ngene))
-        if (!is.null(genenms)) {
-          names(t) <- genenms
+      check_ngene <- function() {
+        if (is.null(ngene)) {
+          warning("num of gene is not know, plz set it.")
+          return(invisible(NA))
         }
-        return(invisible(t))
       }
-      if (param %in% c("varofcond")) {
-        ## when param is vector of len of ncond
-        return(invisible(self$high2fit$draws(str_glue_vec(param, self$ncond))))
-      }
-      if (param %in% c("varofind", "centerofind")) {
-        ## when param is vector of len of nind
-        return(invisible(self$high2fit$draws(str_glue_vec(param, self$nind))))
-      }
-      if (param %in% c("mucond")) {
-        ## when param is a matrix of ngene by ncond
-        check_ngene()
-        t <- self$high2fit$draws(str_glue_mat_rowise(param, ngene, self$ncond))
-        return(invisible(split_matrix_col(mat = t, second_dim = ngene,
-                                          second_dim_nms = genenms)))
-      }
-      if (param %in% c("muind")) {
-        ## when param is a matrix of ngene by nind
-        check_ngene()
-        t <- self$high2fit$draws(str_glue_mat_rowise(param, ngene, self$nind))
-        return(invisible(split_matrix_col(mat = t, second_dim = ngene,
-                                          second_dim_nms = genenms)))
-      }
-    }, error = function(e) {
-      warning(e)
-      return(invisible(NA))
-    })
-  },
-  get_ranking_statistics = function(mucond, two_hot_vec,
-                                    threshod = 1e-04) {
-    ## mucond: nsample by ngene by ncond
-    ## two_hot_vec: like (1, -1) or (0, 0, -1, 0, 1, 0)
-    ## - i.e., the two conditions we want compare
-    ## - one is positive, and the other one is negative
-    ## return:
-    ## - a matrix: ngene by num_of_statistics with colnames
-    if (sum(two_hot_vec) > 1) {
-      stop("set 1 and -1 for two conditions.")
-    }
-    if (length(two_hot_vec) != self$ncond) {
-      stop("length of two_hot_vec ",
-           length(two_hot_vec), " is not equals to ncond ",
-           self$ncond)
-    }
-    ## 3-d array cannot directly mutiply a vector in matrix-multiply way
-    ## so we use ours.
-    ## r: nsample by ngene
-    n <- dim(mucond)[1]
-    r <- t(vapply(1:n, function(i) {
-      mucondf[i, , ] %*% two_hot_vec
-    }, FUN.VALUE = rep(0.0, dim(mucond)[2])))
-    sd_col <- matrixStats::colSds(r)
-    ## one measure
-    abs_colmean <- abs(colMeans(r))
-    
-    p0 <- colSums(abs(r) > threshold) / n
-    ## one measure
-    bf <- abs(log(p0 + 1e-06) - log(1-p0 + 1e-06))
-
-    ## one measure
-    ## t statistics
-    group1 <- mucond[, , two_hot_vec == 1]
-    group2 <- mucond[, , two_hot_vec == -1]
-    ngene <- dim(mucond)[2]
-    tstat <- t(vapply(1:ngene), function(i) {
-      tryCatch({
-        s <- t.test(x = group1, y = group2,
-                    alternative = "two.sided",
-                    paired = TRUE,
-                    var.equal = FALSE)
-        return(invisible(s$statistic))
-      }, error = function(e) {
-        warning(e)
-        return(invisible(0.0))
+      tryCatch(
+        {
+          if (param %in% c(
+            "centerofmu", "varofmu",
+            "centerofr", "varofr", "tau2"
+          )) {
+            ## when param is scalar
+            return(invisible(self$high2fit$draws(param)))
+          }
+          if (param %in% c("mu", "r", "nb_r")) {
+            ## when param is vector len of ngene
+            check_ngene()
+            t <- self$high2fit$draws(str_glue_vec(param, ngene))
+            if (!is.null(genenms)) {
+              names(t) <- genenms
+            }
+            return(invisible(t))
+          }
+          if (param %in% c("varofcond")) {
+            ## when param is vector of len of ncond
+            return(invisible(self$high2fit$draws(str_glue_vec(param, self$ncond))))
+          }
+          if (param %in% c("varofind", "centerofind")) {
+            ## when param is vector of len of nind
+            return(invisible(self$high2fit$draws(str_glue_vec(param, self$nind))))
+          }
+          if (param %in% c("mucond")) {
+            ## when param is a matrix of ngene by ncond
+            check_ngene()
+            t <- self$high2fit$draws(str_glue_mat_rowise(param, ngene, self$ncond))
+            return(invisible(split_matrix_col(
+              mat = t, second_dim = ngene,
+              second_dim_nms = genenms
+            )))
+          }
+          if (param %in% c("muind")) {
+            ## when param is a matrix of ngene by nind
+            check_ngene()
+            t <- self$high2fit$draws(str_glue_mat_rowise(param, ngene, self$nind))
+            return(invisible(split_matrix_col(
+              mat = t, second_dim = ngene,
+              second_dim_nms = genenms
+            )))
+          }
+        },
+        error = function(e) {
+          warning(e)
+          return(invisible(NA))
+        }
+      )
+    },
+    extract_draws_all = function() {
+      est_params <- lapply(self$all_params_nms, function(nm) {
+        self$extract_draws(nm)
       })
-    }, FUN.VALUE = 0.0)
-    result <- cbind(abs_t = abs(tstat),
-                    bf = bf,
-                    abs_m = abs_colmean)
-    if (!is.null(dimnames(mucond)[2])) {
-      rownames(result) <- dimnames(mucond)[2]
+      names(est_params) <- self$all_params_nms
+      invisible(est_params)
+    },
+    get_ranking_statistics = function(mucond, two_hot_vec,
+                                      threshod = 1e-04) {
+      ## mucond: nsample by ngene by ncond
+      ## two_hot_vec: like (1, -1) or (0, 0, -1, 0, 1, 0)
+      ## - i.e., the two conditions we want compare
+      ## - one is positive, and the other one is negative
+      ## return:
+      ## - a matrix: ngene by num_of_statistics with colnames
+      if (sum(two_hot_vec) > 1) {
+        stop("set 1 and -1 for two conditions.")
+      }
+      if (length(two_hot_vec) != self$ncond) {
+        stop(
+          "length of two_hot_vec ",
+          length(two_hot_vec), " is not equals to ncond ",
+          self$ncond
+        )
+      }
+      ## 3-d array cannot directly mutiply a vector in matrix-multiply way
+      ## so we use ours.
+      ## r: nsample by ngene
+      n <- dim(mucond)[1]
+      r <- t(vapply(1:n, function(i) {
+        mucondf[i, , ] %*% two_hot_vec
+      }, FUN.VALUE = rep(0.0, dim(mucond)[2])))
+      sd_col <- matrixStats::colSds(r)
+      ## one measure
+      abs_colmean <- abs(colMeans(r))
+
+      p0 <- colSums(abs(r) > threshold) / n
+      ## one measure
+      bf <- abs(log(p0 + 1e-06) - log(1 - p0 + 1e-06))
+
+      ## one measure
+      ## t statistics
+      group1 <- mucond[, , two_hot_vec == 1]
+      group2 <- mucond[, , two_hot_vec == -1]
+      ngene <- dim(mucond)[2]
+      tstat <- t(vapply(1:ngene), function(i) {
+        tryCatch(
+          {
+            s <- t.test(
+              x = group1, y = group2,
+              alternative = "two.sided",
+              paired = TRUE,
+              var.equal = FALSE
+            )
+            return(invisible(s$statistic))
+          },
+          error = function(e) {
+            warning(e)
+            return(invisible(0.0))
+          }
+        )
+      }, FUN.VALUE = 0.0)
+      result <- cbind(
+        abs_t = abs(tstat),
+        bf = bf,
+        abs_m = abs_colmean
+      )
+      if (!is.null(dimnames(mucond)[2])) {
+        rownames(result) <- dimnames(mucond)[2]
+      }
+      return(invisible(result))
     }
-    
-    return(invisible(result))
-  }) ## end of public field
+  ) ## end of public field
 ) ## end of class high2
-
-
-extract_all_params_from_fit <- function(vifit, data) {
-  est_params <- lapply(nm_params, function(nm) {
-    extract_vifit(vifit, data, nm)
-  })
-  names(est_params) <- nm_params
-  return(invisible(est_params))
-}
-
