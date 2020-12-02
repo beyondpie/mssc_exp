@@ -15,16 +15,7 @@
 
 ## * load R env
 suppressPackageStartupMessages(library(tidyverse))
-library(MCMCpack)
 library(cmdstanr)
-library(grid)
-library(gtable)
-library(gridExtra)
-library(bayesplot)
-library(posterior)
-library(bbmle)
-library(sads)
-library(truncnorm)
 library(R6)
 
 ## warnings/errors traceback settings
@@ -138,7 +129,7 @@ get_auc <- function(ranking_statistic, c1, c2) {
 
 
 ## * define R6 classes
-genewisenbfit <- R6::R6Class(classname = "genewisenbfit", public = list(
+Genewisenbfit <- R6::R6Class(classname = "Genewisenbfit", public = list(
   ## stan models for fitting
   snb = NULL,
   snbcond = NULL,
@@ -193,7 +184,7 @@ genewisenbfit <- R6::R6Class(classname = "genewisenbfit", public = list(
     m <- mean(y)
     ## dispersion
     r <- ifelse(v > m, m^2 / (v - m), self$r)
-    return(invisibile(list(mu = mu, r = r)))
+    return(invisible(list(mu = mu, r = r)))
   },
   fit_gwsnb = function(y, s, cond, ind) {
     ## fit mu, mucond, muind under scaled negative binomial dist
@@ -202,19 +193,19 @@ genewisenbfit <- R6::R6Class(classname = "genewisenbfit", public = list(
     nind <- max(ind)
     ncond <- max(cond)
     result <- list(
-      mu <- self$mu,
+      mu = self$mu,
       r = self$r,
-      mucond <- rep(0.0, ncond),
-      muind <- rep(0.0, nind)
+      mucond = rep(0.0, ncond),
+      muind = rep(0.0, nind)
     )
     ## state of optimization
     s1 <- FALSE
     if (check_y_are_all_zeros(y)) {
-      return(invisibile(result))
+      return(invisible(result))
     }
     ## ** init and opt mu and r
     init_mur <- self$init_snb(y, s)
-    capture.output(opt <- self$snb$optmize(
+    capture.output(opt <- self$snb$optimize(
       data = list(
         n = length(y), s = s, y = y,
         hpg = c(self$gamma_alpha, self$gamma_beta)
@@ -228,10 +219,11 @@ genewisenbfit <- R6::R6Class(classname = "genewisenbfit", public = list(
     ## ** update mu and r
     if (does_fit_well(opt)) {
       est_mur <- opt$mle()
-      result$mu <- est_mur$mu
+      result$mu <- est_mur["mu"]
       ## r might be big due to fitting issue.
-      result$r <- ifelse(est_mur$r < self$big_r, est_mur$r, self$r)
-      s1 <- ifelse(est_mur$r < self$big_r, TRUE, FALSE)
+      est_r <- est_mur["r"]
+      result$r <- ifelse(est_r < self$big_r, est_r, self$r)
+      s1 <- ifelse(est_r < self$big_r, TRUE, FALSE)
     } else {
       result$mu <- init_mur$mu
       result$r <- init_mur$r
@@ -245,26 +237,31 @@ genewisenbfit <- R6::R6Class(classname = "genewisenbfit", public = list(
           return(0.0)
         }
         t <- init_snb_log_mean(y = yy, s = ss)
-        init_mucond <- mu - result$mu
-        ## when opt fit well and r is not big
-        if (s1) {
-          ## further estimate mucond
-          capture.output(mucondopt <- self$snb$optmize(
-            data = list(
-              n = length(yy), s = ss, y = yy,
-              r = result$r, mu = result$mu
-            ),
-            seed = self$seed,
-            refresh = self$opt_refresh,
-            iter = self$opt_iter,
-            init = list(result$mucond),
-            algorithm = "lbfgs"
-          ))
-        }
-        r <- ifelse(does_fit_well(mucondopt),
-          mucondopt$mle()$mucond, init_mucond
-        )
-        invisible(r)
+        init_mucond <- t - result$mu
+        ## Since fitting is hard when fix r, and limited data
+        ## we directly use the init_mucond
+        
+        ## ## when opt fit well and r is not big
+        ## if (s1) {
+        ##   ## further estimate mucond
+        ##   capture.output(mucondopt <- self$snbcond$optimize(
+        ##     data = list(
+        ##       n = length(yy), s = ss, y = yy,
+        ##       r = result$r, mu = result$mu
+        ##     ),
+        ##     seed = self$seed,
+        ##     refresh = self$opt_refresh,
+        ##     iter = self$opt_iter,
+        ##     init = list(list(result$mucond)),
+        ##     algorithm = "lbfgs"
+        ##   ))
+        ## }
+        ## r <- ifelse(does_fit_well(mucondopt),
+        ##   mucondopt$mle()["mucond"], init_mucond
+        ## )
+        ## invisible(r)
+        
+        invisible(init_mucond)
       },
       FUN.VALUE = 0.0
     )
@@ -359,9 +356,9 @@ genewisenbfit <- R6::R6Class(classname = "genewisenbfit", public = list(
   fit_mgsnb = function(cnt, s, cond, ind) {
     ## cnt: ngene by ncell
     ## s: ncell by 1; cond: ncell by 1; ind: ncell by 1
-    check(s)
-    ncond <- max(ncond)
-    nind <- max(nind)
+    check_s(s)
+    ncond <- max(cond)
+    nind <- max(ind)
     ngene <- nrow(cnt)
     t_init_mgsnb <- vapply(
       1:ngene, function(i) {
@@ -384,15 +381,15 @@ genewisenbfit <- R6::R6Class(classname = "genewisenbfit", public = list(
     return(invisible(list(
       mgsnb = init_mgsnb,
       mu = init_varofmu,
-      r = init_varofr,
+      logr = init_varofr,
       cond = init_varofcond,
       ind = init_varofind
     )))
-  }
-))
+  }) ## end of publich field
+) ## end of Genewisenbfit define
 
-high2 <- R6Class(
-  classname = "high2", public = list(
+High2 <- R6::R6Class(
+  classname = "High2", public = list(
     ## num of inds
     nind = NULL,
     ncond = NULL,
@@ -444,10 +441,10 @@ high2 <- R6Class(
                           eval_elbo = 100,
                           output_samples = 2000,
                           tol_rel_obj = 0.0001,
-                          adapt_iter = 1000,
+                          adapt_iter = 200,
                           sd_init_muind = 0.1, sd_init_mucond = 0.1) {
       ## initiolize class members
-      self$gwsnb <- genewisenb$new(
+      self$gwsnb <- Genewisenbfit$new(
         stan_snb_path = stan_snb_path,
         stan_snb_cond_path = stan_snb_cond_path,
         mu = mu,
@@ -485,7 +482,7 @@ high2 <- R6Class(
       ## * set hyper params
       hp <- list(
         hp_varofmu = init_mgsnb$mu[3:4],
-        hp_varofr = init_mgsnb$r[3:4],
+        hp_varofr = init_mgsnb$logr[3:4],
         hp_varofcond = init_mgsnb$cond[, 2:3],
         hp_varofind = init_mgsnb$ind$est_varofind[, 3:4],
         hp_tau2 = init_mgsnb$ind$est_tau2[2:3]
@@ -496,14 +493,15 @@ high2 <- R6Class(
       mu <- init_mgsnb$mgsnb[, 1]
       raw_mu <- (mu - centerofmu) / sqrt(varofmu)
 
+      ### r in negative binomial
       r <- init_mgsnb$mgsnb[, 2]
       ### log of r level
-      centerofr <- init_mgsnb$r[1]
-      varofr <- init_mgsnb$r[2]
+      centerofr <- init_mgsnb$logr[1]
+      varofr <- init_mgsnb$logr[2]
       raw_r <- (log(r) - centerofr) / sqrt(varofr)
 
       ### ngene by ncond
-      mucond <- init_mgsnb$mgsnb[, 3:(2 + ncond)]
+      mucond <- init_mgsnb$mgsnb[, 3:(2 + self$ncond)]
       ### ncond by 1
       varofcond <- init_mgsnb$cond[, 1]
       raw_mucond <- mucond %*% diag(1 / sqrt(varofcond))
@@ -517,7 +515,9 @@ high2 <- R6Class(
       ### nind by 1
       varofind <- init_mgsnb$ind$est_varofind[, 2]
       ### ngene by nind
-      muind <- init_mgsnb$mgsnb[, (2 + ncond + 1):(2 + ncond + nind)]
+      muind <- init_mgsnb$mgsnb[, (2 + self$ncond + 1):
+                                    (2 + self$ncond + self$nind)]
+      ngene <- nrow(cnt)
       raw_muind <- (muind - rep_row(centerofind, n = ngene)) %*%
         diag(1 / sqrt(varofind))
       return(invisible(
@@ -527,7 +527,7 @@ high2 <- R6Class(
             centerofmu = centerofmu,
             varofmu = varofmu,
             raw_mu = raw_mu,
-            centerr = centerofr,
+            centerofr = centerofr,
             varofr = varofr,
             raw_r = raw_r,
             varofcond = varofcond,
@@ -552,7 +552,7 @@ high2 <- R6Class(
         ind = ind, y = t(cnt)
       ), hp))
     },
-    run <- function(data, list_wrap_ip = NULL) {
+    run = function(data, list_wrap_ip = NULL) {
       ## set the result of high2 to high2fit
       ## adapt_iter: 5 (default in cmdstan) * adapt_iter we set
       self$high2fit <- self$high2$variational(
@@ -711,3 +711,40 @@ high2 <- R6Class(
     }
   ) ## end of public field
 ) ## end of class high2
+
+
+## * test
+pbmc <- readRDS(here::here(
+"src", "modelcheck",
+"snb_pool_ref_pbmc.rds"
+))
+nind <- max(pbmc$ind)
+ncond <- 2
+ngene <- nrow(pbmc$y2c)
+
+model <- High2$new(
+  stan_snb_path = here::here("src", "modelcheck", "high2",
+                             "stan", "snb.stan"),
+  stan_snb_cond_path = here::here("src", "modelcheck", "high2",
+                                  "stan", "snb_cond.stan"),
+  stan_high2_path = here::here("src", "modelcheck", "high2",
+                               "stan", "high2.stan"),
+  nind = nind
+)
+
+init_params <- model$init_params(cnt = pbmc$y2c[1:10, ],
+                                 s = pbmc$s,
+                                 cond = pbmc$cond,
+                                 ind = pbmc$ind)
+data <- model$to_model_data(cnt = pbmc$y2c[1:10,],
+                            s = pbmc$s,
+                            cond = pbmc$cond,
+                            ind = pbmc$ind,
+                            hp = init_params$hp)
+model$run(data = data, list_wrap_ip = list(init_params$ip))
+
+vi_sampler <- run_hbnb_vi(data = data, ip = hi_params$ip)
+est_params <- lapply(nm_params, function(nm) {
+extract_vifit(vi_sampler, data, nm)
+})
+names(est_params) <- nm_params

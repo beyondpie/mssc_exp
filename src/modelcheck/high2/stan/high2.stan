@@ -72,7 +72,7 @@ transformed parameters {
   vector[ngene] r = centerofr + sqrt(varofr) * raw_r;
   vector[ngene] nb_r = exp(r); // nb_r ~ lognormal(centerofr, sqrt(varofr))
   // matrix product
-  matrix[ngene, ncond] mucond = raw_mu_cond * diag_matrix(sqrt(varofcond));
+  matrix[ngene, ncond] mucond = raw_mucond * diag_matrix(sqrt(varofcond));
   // vector product scalar
   row_vector[nind] centerofind = raw_centerofind * sqrt(tau2);
   // matrix product matrix then + matrix
@@ -96,7 +96,7 @@ model {
   tau2 ~ inv_gamma(hp_tau2[1], hp_tau2[2]);
   raw_centerofind ~ std_normal(); // implicit centerofind ~ N(0.0, sqrt(tau2))
   varofind ~ inv_gamma(hp_varofind[,1], hp_varofind[, 2]);
-  raw_muind ~ std_normal(); // implicit muind ~ N(centerofind, sqrt(varofind))
+  to_vector(raw_muind) ~ std_normal(); // implicit muind ~ N(centerofind, sqrt(varofind))
 
   matrix[ngene, ncell] lambda = logs + rep_matrix(mu, ncell) +
     mucond[, cond] + muind[, ind];
