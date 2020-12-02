@@ -398,7 +398,7 @@ main <- function(ratio_ind2cond = 0.5,
   ## * calc auc
 
   nms_auc <- c(
-    "t", "bf", "m","pseudo")
+    "t", "bf", "m", "t_rsis", "bf_rsis", "m_rsis", "pseudo")
 
   result <- array(
     data = NA, dim = c(
@@ -503,7 +503,19 @@ main <- function(ratio_ind2cond = 0.5,
       )
 
       aucs <- high$get_auc(rankings, c1 = diffg, c2 = nondiffg)
-      rpt_slice[, j] <- c(aucs, pseudo_auc$auc)
+
+      psis <- mssc$psis()
+      print(psis$psis$diagnostics$pareto_k)
+      rsis_rankings <- mssc$get_rsis_ranking_statistics(
+        ngene = nrow(y2c),
+        two_hot_vec = c(1,-1),
+        genenms = NULL,
+        normweights = psis$normweights
+      )
+
+      aucs_rsis <- high$get_auc(rsis_rankings, c1 = diffg, c2 = nondiffg)
+      rpt_slice[, j] <- c(aucs, aucs_rsis, pseudo_auc$auc)
+      
       ## show result
       print(rpt_slice)
       ## save symsim-related object
