@@ -120,7 +120,7 @@ get_auc <- function(ranking_statistic, c1, c2) {
   ## c2: index of gene for condition two
   ## return: a vector of AUC value for different columns
   if (is.matrix(ranking_statistic)) {
-    t  <-  ranking_statistic
+    t <- ranking_statistic
   } else {
     t <- as.matrix(ranking_statistic, ncol = 1)
   }
@@ -676,8 +676,7 @@ High2 <- R6::R6Class(
       names(est_params) <- self$all_params_nms
       invisible(est_params)
     },
-    get_ranking_statistics = function(mucond, two_hot_vec,
-                                      threshold = 1e-04) {
+    get_ranking_statistics = function(mucond, two_hot_vec) {
       ## mucond: nsample by ngene by ncond
       ## two_hot_vec: like (1, -1) or (0, 0, -1, 0, 1, 0)
       ## - i.e., the two conditions we want compare
@@ -701,12 +700,12 @@ High2 <- R6::R6Class(
       r <- t(vapply(1:n, function(i) {
         mucond[i, , ] %*% two_hot_vec
       }, FUN.VALUE = rep(0.0, dim(mucond)[2])))
-      sd_col <- matrixStats::colSds(r)
+
       ## one measure
       abs_colmean <- abs(colMeans(r))
 
-      p0 <- colSums(abs(r) > threshold) / n
       ## one measure
+      p0 <- colSums(abs(r) > 0.0) / n
       bf <- abs(log(p0 + 1e-06) - log(1 - p0 + 1e-06))
 
       ## one measure
@@ -718,7 +717,7 @@ High2 <- R6::R6Class(
         tryCatch(
           {
             s <- t.test(
-              x = group1, y = group2,
+              x = group1[i,], y = group2[i,],
               alternative = "two.sided",
               paired = TRUE,
               var.equal = FALSE
@@ -744,8 +743,7 @@ High2 <- R6::R6Class(
     },
 
     get_rsis_ranking_statistics = function(ngene, two_hot_vec,
-                                           normweights, genenms = NULL,
-                                           threshold = 1e-04) {
+                                           normweights, genenms = NULL) {
       ## only for mucond
       t <- self$high2fit$draws(
         str_glue_mat_rowise("mucond", ngene, self$ncond)
@@ -761,8 +759,7 @@ High2 <- R6::R6Class(
       )
 
       invisible(self$get_ranking_statistics(
-        mucond = mucond_rsis, two_hot_vec = two_hot_vec,
-        threshold = threshold
+        mucond = mucond_rsis, two_hot_vec = two_hot_vec
       ))
     }
   ) ## end of public field

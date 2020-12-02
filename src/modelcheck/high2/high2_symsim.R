@@ -566,7 +566,7 @@ option_list <- list(
   make_option(c("--eta"),
               action = "store",
               type = "double",
-              default = 0.0001),
+              default = 0.1),
   make_option(c("--adapt_engaged"),
               action = "store",
               type = "integer",
