@@ -411,13 +411,12 @@ High2 <- R6::R6Class(
     output_samples = NULL,
     tol_rel_obj = NULL,
     adapt_iter = NULL,
+    adapt_engaged = NULL,
+    eta = NULL,
     ## random init parameters
     sd_init_muind = NULL,
     sd_init_mucond = NULL,
     ## high2 parameter names
-    murnm = c("mu", "r"),
-    mucondnm = NULL,
-    muindnm = NULL,
     all_params_nms = c(
       "centerofmu", "varofmu", "mu", "centerofr",
       "varofr", "r", "varofcond", "mucond",
@@ -446,6 +445,8 @@ High2 <- R6::R6Class(
                           output_samples = 2000,
                           tol_rel_obj = 0.0001,
                           adapt_iter = 200,
+                          adapt_engaged = TRUE,
+                          eta = 0.1,
                           sd_init_muind = 0.1, sd_init_mucond = 0.1) {
       ## initiolize class members
       self$gwsnb <- Genewisenbfit$new(
@@ -469,12 +470,12 @@ High2 <- R6::R6Class(
       self$output_samples <- output_samples
       self$tol_rel_obj <- tol_rel_obj
       self$adapt_iter <- adapt_iter
+      self$adapt_engaged <- adapt_engaged
+      self$eta <- eta
       self$sd_init_muind <- sd_init_muind
       self$sd_init_mucond <- sd_init_mucond
       self$nind <- nind
       self$ncond <- ncond
-      self$mucondnm <- str_glue_vec("mucond", ncond)
-      self$muindnm <- str_glue_vec("muind", nind)
     },
 
     init_params = function(cnt, s, cond, ind) {
@@ -790,8 +791,8 @@ test <- function() {
       "stan", "high2.stan"
     ),
     nind = nind,
-    tol_rel_obj = 0.1,
-    adapt_iter = 10
+    tol_rel_obj = 0.0001,
+    adapt_iter = 200
   )
 
   init_params <- model$init_params(
@@ -836,3 +837,5 @@ test <- function() {
 
   str(rsis_rankings)
 }
+
+## test()
