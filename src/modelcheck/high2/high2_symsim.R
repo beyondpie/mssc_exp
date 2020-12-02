@@ -377,7 +377,7 @@ main <- function(ratio_ind2cond = 0.5,
   nind <- 5
   nindeff <- 2
   ## ncond <- 2
-  ncells <- c(40, 80, 100, 120, 160)
+  ncells <- c(20, 40, 80, 160, 320)
   ## ncells <- c(10, 20)
   ## symsim related
   nevf <- 10
@@ -429,7 +429,7 @@ main <- function(ratio_ind2cond = 0.5,
           "stan", "high2.stan"
         ),
         nind = nind * 2,
-        tol_rel_obj = 0.00005,
+        tol_rel_obj = 0.00001,
         adapt_iter = adapt_iter,
         adapt_engaged = ifelse(adapt_engaged > 0, TRUE, FALSE),
         algorithm = algorithm,

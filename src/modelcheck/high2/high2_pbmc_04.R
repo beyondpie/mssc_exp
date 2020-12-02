@@ -35,7 +35,7 @@ mypseudo <- modules::import("pseudobulk")
 mypbmc <- modules::import("pbmc")
 ## * config
 cell_type <- "Naive CD4+ T"
-num_top_gene <- 200
+num_top_gene <- 300
 
 myggtitle <- theme(
   plot.title = element_text(
@@ -215,7 +215,7 @@ mssc <- high$High2$new(
   nind = nind,
   tol_rel_obj = 0.00005,
   adapt_iter = 400,
-  adapt_engaged = 0,
+  adapt_engaged = 1,
   algorithm = "meanfield",
   eta = 0.1
 )
@@ -252,7 +252,7 @@ rsis_rankings <- mssc$get_rsis_ranking_statistics(
   genenms = rownames(cnt),
   normweights = psis$normweights
 )
-hbnbp_ranked_scores <- get_hbnb_ranked_scores(rsis_rankings[,3])
+hbnbp_ranked_scores <- get_hbnb_ranked_scores(rsis_rankings[,3], from = num_top_gene)
 
 ## get the plots
 p <- get_comp_figure(pseudo_scores = pseudo_ranked_scores,
