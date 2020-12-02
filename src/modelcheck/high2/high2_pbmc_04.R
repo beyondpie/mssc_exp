@@ -83,6 +83,7 @@ select_data_rankby_pseudobulk <- function(num_top_gene = 10,
   sumcnt <- colSums(subscdata$cnt)
   inds <- subscdata$inds
   resp <- subscdata$resp
+
   cnt <- subscdata$cnt[top_ranked_index, ]
 
   ## consistent with stan
@@ -124,19 +125,19 @@ get_hbnb_ranked_scores <- function(rank_stat, from = num_top_gene) {
 }
 
 get_comp_figure <- function(pseudo_scores,
-                            hbnbz_scores,
-                            hbnbp_scores,
+                            mssc,
+                            mssc_rsis,
                             ingroupnum = 50, genenum = 150,
                             printnm = T, hjust = 1, vjust = 1,
                             text_angle = 45, text_size = 4,
                             alphaLines = 0.3) {
   pseu_genes <- names(pseudo_scores)[seq_len(genenum)]
-  msscp_genes <- names(hbnbp_scores)[seq_len(genenum)]
+  msscp_genes <- names(mssc)[seq_len(genenum)]
 
   rank_comp <- data.frame(
     pseudo = pseudo_scores[pseu_genes],
-    mssc_z = hbnbz_scores[pseu_genes],
-    mssc_p = hbnbp_scores[pseu_genes],
+    mssc_orig = mssc[pseu_genes],
+    mssc_with_rsis = mssc_rsis[pseu_genes],
     group = c(rep("Top_pseudo", ingroupnum),
       rep("Middle_pseudo", genenum - 2 * ingroupnum),
       rep("Last_pseudo", ingroupnum)),
@@ -229,14 +230,15 @@ data <- mssc$to_model_data(cnt = cnt,
                            ind = ind,
                            hp = init_all_params$hp)
 mssc$run(data = data, list_wrap_ip = list(init_all_params$ip))
+
 mucond <- mssc$extract_draws(
-  param = "mucond", ngene = nrow(y2c),
-  genenms = NULL)
+  param = "mucond", ngene = nrow(cnt),
+  genenms = rownames(cnt))
+
 rankings <- mssc$get_ranking_statistics(
   mucond = mucond,
   two_hot_vec = c(1, -1)
 )
-
 ## rank the genes by hbnb statistics
 ### ranked by abs(mean(diff))
 hbnbz_ranked_scores <- get_hbnb_ranked_scores(rankings[, 3], from = num_top_gene)
@@ -245,12 +247,12 @@ hbnbz_ranked_scores <- get_hbnb_ranked_scores(rankings[, 3], from = num_top_gene
 psis <- mssc$psis()
 print(psis$psis$diagnostics$pareto_k)
 rsis_rankings <- mssc$get_rsis_ranking_statistics(
-  ngene = nrow(y2c),
+  ngene = nrow(cnt),
   two_hot_vec = c(1,-1),
-  genenms = rownames(y2c),
+  genenms = rownames(cnt),
   normweights = psis$normweights
 )
-hbnbp_ranked_scores <- get_hbnb_ranked_scores(rsis_rankings$[,3])
+hbnbp_ranked_scores <- get_hbnb_ranked_scores(rsis_rankings[,3])
 
 ## get the plots
 p <- get_comp_figure(pseudo_scores = pseudo_ranked_scores,

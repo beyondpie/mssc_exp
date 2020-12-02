@@ -719,7 +719,7 @@ High2 <- R6::R6Class(
             s <- t.test(
               x = group1[i,], y = group2[i,],
               alternative = "two.sided",
-              paired = TRUE,
+              paired = FALSE,
               var.equal = FALSE
             )
             return(invisible(s$statistic))
