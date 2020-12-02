@@ -119,10 +119,12 @@ get_auc <- function(ranking_statistic, c1, c2) {
   ## c1: index of gene for condition one
   ## c2: index of gene for condition two
   ## return: a vector of AUC value for different columns
-  t <- ifelse(is.matrix(ranking_statistic), ranking_statistic,
-    as.matrix(ranking_statistic, ncol = 1)
-  )
-  true_class <- c(rep(TRUE, length(c1)), rep(TRUE, length(c2)))
+  if (is.matrix(ranking_statistic)) {
+    t  <-  ranking_statistic
+  } else {
+    t <- as.matrix(ranking_statistic, ncol = 1)
+  }
+  true_class <- c(rep(TRUE, length(c1)), rep(FALSE, length(c2)))
   return(invisible(caTools::colAUC(
     t[c(c1, c2), ],
     true_class
@@ -774,9 +776,6 @@ test <- function() {
     "snb_pool_ref_pbmc.rds"
   ))
   nind <- max(pbmc$ind)
-  ncond <- 2
-  ngene <- nrow(pbmc$y2c)
-
   model <- High2$new(
     stan_snb_path = here::here(
       "src", "modelcheck", "high2",

@@ -551,12 +551,12 @@ option_list <- list(
   make_option(c("--ngene"),
     action = "store",
     type = "integer",
-    default = 200
+    default = 50
   ),
   make_option(c("--rpt"),
     action = "store",
     type = "integer",
-    default = 5
+    default = 3
     ),
   ## for high method's parameter
   make_option(c("--algorithm"),
@@ -566,7 +566,7 @@ option_list <- list(
   make_option(c("--eta"),
               action = "store",
               type = "double",
-              default = 0.1),
+              default = 0.0001),
   make_option(c("--adapt_engaged"),
               action = "store",
               type = "integer",
@@ -574,7 +574,7 @@ option_list <- list(
   make_option(c("--adapt_iter"),
               action = "store",
               type = "integer",
-              default = 200)
+              default = 500)
 )
 
 args <- option_list %>%
@@ -595,3 +595,5 @@ main(
   eta = args$eta,
   algorithm = args$algorithm
 )
+
+
