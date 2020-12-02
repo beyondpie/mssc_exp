@@ -16,6 +16,8 @@
 ## * load R env
 suppressPackageStartupMessages(library(tidyverse))
 library(cmdstanr)
+library(loo)
+library(posterior)
 library(R6)
 
 ## warnings/errors traceback settings
@@ -129,263 +131,265 @@ get_auc <- function(ranking_statistic, c1, c2) {
 
 
 ## * define R6 classes
-Genewisenbfit <- R6::R6Class(classname = "Genewisenbfit", public = list(
-  ## stan models for fitting
-  snb = NULL,
-  snbcond = NULL,
-  ## gamma alpha and beta for r as hyper prior in stan snb fit
-  gamma_alpha = NULL,
-  gamma_beta = NULL,
-  ## init parameters for snb
-  mu = NULL,
-  r = NULL,
-  big_r = NULL,
-  min_varofmu = NULL,
-  min_varofcond = NULL,
-  min_varofind = NULL,
-  min_tau2 = NULL,
-  ## parameters for optimization
-  seed = 1L,
-  opt_iter = 5000,
-  opt_refresh = 0,
-  initialize = function(stan_snb_path,
-                        stan_snb_cond_path,
-                        gamma_alpha = 0.05,
-                        gamma_beta = 0.05,
-                        mu = 0.0,
-                        r = 20,
-                        big_r = 500,
-                        min_varofmu = 4.0,
-                        min_varofcond = 0.25,
-                        min_varofind = 0.25,
-                        min_tau2 = 0.25) {
-    self$snb <- init_stan_model(stan_snb_path)
-    self$snbcond <- init_stan_model(stan_snb_cond_path)
-    self$gamma_alpha <- gamma_alpha
-    self$gamma_beta <- gamma_beta
-    self$mu <- mu
-    self$r <- r
-    self$big_r <- big_r
-    self$min_varofmu <- min_varofmu
-    self$min_varofcond <- min_varofcond
-    self$min_varofind <- min_varofind
-  },
-  init_snb = function(y, s) {
-    ## init params for scaled negative binomial:
-    ## mean and dispersion
-    ## dispersion is defined as the same as in R or stan.
-    ## No check if y are all zeros.
-    ## Note:
-    ## - From observation, mean can be estimate well,
-    ##   but if it's below 1, then r tends to be estimated too small.
-    mu <- init_snb_log_mean(y = y, s = s)
-    ## v equals to m + m^2/r
-    v <- var(y)
-    m <- mean(y)
-    ## dispersion
-    r <- ifelse(v > m, m^2 / (v - m), self$r)
-    return(invisible(list(mu = mu, r = r)))
-  },
-  fit_gwsnb = function(y, s, cond, ind) {
-    ## fit mu, mucond, muind under scaled negative binomial dist
-    ## - mu: scaled log level and furthermore minus log(s)
-    ## - r: dispersion
-    nind <- max(ind)
-    ncond <- max(cond)
-    result <- list(
-      mu = self$mu,
-      r = self$r,
-      mucond = rep(0.0, ncond),
-      muind = rep(0.0, nind)
-    )
-    ## state of optimization
-    s1 <- FALSE
-    if (check_y_are_all_zeros(y)) {
-      return(invisible(result))
-    }
-    ## ** init and opt mu and r
-    init_mur <- self$init_snb(y, s)
-    capture.output(opt <- self$snb$optimize(
-      data = list(
-        n = length(y), s = s, y = y,
-        hpg = c(self$gamma_alpha, self$gamma_beta)
-      ),
-      seed = self$seed,
-      refresh = self$opt_refresh,
-      iter = self$opt_iter,
-      init = list(init_mur),
-      algorithm = "lbfgs"
-    ))
-    ## ** update mu and r
-    if (does_fit_well(opt)) {
-      est_mur <- opt$mle()
-      result$mu <- est_mur["mu"]
-      ## r might be big due to fitting issue.
-      est_r <- est_mur["r"]
-      result$r <- ifelse(est_r < self$big_r, est_r, self$r)
-      s1 <- ifelse(est_r < self$big_r, TRUE, FALSE)
-    } else {
-      result$mu <- init_mur$mu
-      result$r <- init_mur$r
-    }
-    ## ** set mucond
-    result$mucond <- vapply(
-      1:ncond, function(i) {
-        ss <- s[cond == i]
-        yy <- y[cond == i]
-        if (check_y_are_all_zeros(yy)) {
-          return(0.0)
-        }
-        t <- init_snb_log_mean(y = yy, s = ss)
-        init_mucond <- t - result$mu
-        ## Since fitting is hard when fix r, and limited data
-        ## we directly use the init_mucond
-        
-        ## ## when opt fit well and r is not big
-        ## if (s1) {
-        ##   ## further estimate mucond
-        ##   capture.output(mucondopt <- self$snbcond$optimize(
-        ##     data = list(
-        ##       n = length(yy), s = ss, y = yy,
-        ##       r = result$r, mu = result$mu
-        ##     ),
-        ##     seed = self$seed,
-        ##     refresh = self$opt_refresh,
-        ##     iter = self$opt_iter,
-        ##     init = list(list(result$mucond)),
-        ##     algorithm = "lbfgs"
-        ##   ))
-        ## }
-        ## r <- ifelse(does_fit_well(mucondopt),
-        ##   mucondopt$mle()["mucond"], init_mucond
-        ## )
-        ## invisible(r)
-        
-        invisible(init_mucond)
-      },
-      FUN.VALUE = 0.0
-    )
-    ## ** set muind
-    result$muind <- vapply(
-      1:nind, function(i) {
-        yy <- y[ind == i]
-        if (check_y_are_all_zeros(yy)) {
-          return(0.0)
-        }
-        t <- init_snb_log_mean(y = yy, s = s[ind == i])
-        return(invisible(t - result$mu - result$mucond[cond[ind == i][1]]))
-      },
-      FUN.VALUE = 0.0
-    )
-    return(invisible(result))
-  },
-  est_varofmu = function(mu) {
-    ## mu: ngene by 1
-    ## return: mean, var, gamma_alpha, gamma_beta
-    m <- median(mu)
-    ngene <- length(mu)
-    v <- sum((mu - m)^2) / ngene
-    v <- max(v, self$min_varofmu)
-    ## varofmu prior follows a inv-gamma dist
-    ## est hy based on posterior
-    alpha <- 1.0 + ngene / 2
-    beta <- 1.0 + sum((mu - m)^2) / 2
-    return(invisible(c(m, v, alpha, beta)))
-  },
-  est_varofr = function(r) {
-    ## r: ngene by 1
-    ## r prior: log normal
-    ## return: log level of mean, var, gamma_alpah, gamma_beta
-    logr <- log(r)
-    invisible(self$est_varofmu(logr))
-  },
-  est_varofcond = function(mucond) {
-    ## mucond: ngene by ncond
-    ncond <- ncol(mucond)
-    ngene <- nrow(mucond)
-    ## each condiiton has its own variance.
-    ## which follows a inv-gamma prior
-    t_d <- vapply(
-      1:ncond, function(i) {
-        t <- max(abs(mucond[, i]))
-        ## set a variance not that small
-        v <- max(t^2, self$min_varofcond)
-        ## assume the mean of mucond is around 0.0
-        ## then use posterior of inv-gamma to set the hyper priors
-        alpha <- 1.0 + ngene / 2
-        beta <- 1.0 + sum(mucond[, i]^2) / 2
-        invisible(c(v, alpha, beta))
-      },
-      FUN.VALUE = rep(1.0, 3)
-    )
-    return(invisible(t(t_d)))
-  },
-  est_varofind = function(muind) {
-    ## muind: ngene by nind
-    ## estimate:
-    ## - nind by 4: mean of muind, varofmuind, alpha, beta
-    ## - tau2, tau2_alpha, tau2_beta
-    nind <- ncol(muind)
-    ngene <- nrow(muind)
-    t_d <- vapply(
-      1:nind, function(i) {
-        m <- median(muind[, i])
-        v <- max(sum((muind[, i] - m)^2) / ngene, self$min_varofind)
-        alpha <- 1.0 + ngene / 2
-        beta <- 1.0 + sum((muind[, i] - m)^2) / 2
-        invisible(c(m, v, alpha, beta))
-      },
-      FUN.VALUE = rep(1.0, 4)
-    )
-    ## shape: nind by 4
-    r <- t(t_d)
-    ## assume muinds follow a N(0.0, tau) (tau is sd)
-    tau2 <- max(max(abs(r[, 1]))^2, self$min_tau2)
-    ## assume tau2 has a inv-gamma prior
-    ## use posterior to set up the hp.
-    tau2_alpha <- 1.0 + nind / 2
-    tau2_beta <- 1.0 + sum(muind[, 1]^2) / 2
-    return(invisible(
-      list(
-        est_varofind = r,
-        est_tau2 = c(tau2, tau2_alpha, tau2_beta)
+Genewisenbfit <- R6::R6Class(
+  classname = "Genewisenbfit", public = list(
+    ## stan models for fitting
+    snb = NULL,
+    snbcond = NULL,
+    ## gamma alpha and beta for r as hyper prior in stan snb fit
+    gamma_alpha = NULL,
+    gamma_beta = NULL,
+    ## init parameters for snb
+    mu = NULL,
+    r = NULL,
+    big_r = NULL,
+    min_varofmu = NULL,
+    min_varofcond = NULL,
+    min_varofind = NULL,
+    min_tau2 = NULL,
+    ## parameters for optimization
+    seed = 1L,
+    opt_iter = 5000,
+    opt_refresh = 0,
+    initialize = function(stan_snb_path,
+                          stan_snb_cond_path,
+                          gamma_alpha = 0.05,
+                          gamma_beta = 0.05,
+                          mu = 0.0,
+                          r = 20,
+                          big_r = 500,
+                          min_varofmu = 4.0,
+                          min_varofcond = 0.25,
+                          min_varofind = 0.25,
+                          min_tau2 = 0.25) {
+      self$snb <- init_stan_model(stan_snb_path)
+      self$snbcond <- init_stan_model(stan_snb_cond_path)
+      self$gamma_alpha <- gamma_alpha
+      self$gamma_beta <- gamma_beta
+      self$mu <- mu
+      self$r <- r
+      self$big_r <- big_r
+      self$min_varofmu <- min_varofmu
+      self$min_varofcond <- min_varofcond
+      self$min_varofind <- min_varofind
+    },
+    init_snb = function(y, s) {
+      ## init params for scaled negative binomial:
+      ## mean and dispersion
+      ## dispersion is defined as the same as in R or stan.
+      ## No check if y are all zeros.
+      ## Note:
+      ## - From observation, mean can be estimate well,
+      ##   but if it's below 1, then r tends to be estimated too small.
+      mu <- init_snb_log_mean(y = y, s = s)
+      ## v equals to m + m^2/r
+      v <- var(y)
+      m <- mean(y)
+      ## dispersion
+      r <- ifelse(v > m, m^2 / (v - m), self$r)
+      return(invisible(list(mu = mu, r = r)))
+    },
+    fit_gwsnb = function(y, s, cond, ind) {
+      ## fit mu, mucond, muind under scaled negative binomial dist
+      ## - mu: scaled log level and furthermore minus log(s)
+      ## - r: dispersion
+      nind <- max(ind)
+      ncond <- max(cond)
+      result <- list(
+        mu = self$mu,
+        r = self$r,
+        mucond = rep(0.0, ncond),
+        muind = rep(0.0, nind)
       )
-    ))
-  },
-  ## this is the function mssc want to use
-  fit_mgsnb = function(cnt, s, cond, ind) {
-    ## cnt: ngene by ncell
-    ## s: ncell by 1; cond: ncell by 1; ind: ncell by 1
-    check_s(s)
-    ncond <- max(cond)
-    nind <- max(ind)
-    ngene <- nrow(cnt)
-    t_init_mgsnb <- vapply(
-      1:ngene, function(i) {
-        r <- self$fit_gwsnb(
-          y = cnt[i, ], s = s,
-          cond = cond, ind = ind
+      ## state of optimization
+      s1 <- FALSE
+      if (check_y_are_all_zeros(y)) {
+        return(invisible(result))
+      }
+      ## ** init and opt mu and r
+      init_mur <- self$init_snb(y, s)
+      capture.output(opt <- self$snb$optimize(
+        data = list(
+          n = length(y), s = s, y = y,
+          hpg = c(self$gamma_alpha, self$gamma_beta)
+        ),
+        seed = self$seed,
+        refresh = self$opt_refresh,
+        iter = self$opt_iter,
+        init = list(init_mur),
+        algorithm = "lbfgs"
+      ))
+      ## ** update mu and r
+      if (does_fit_well(opt)) {
+        est_mur <- opt$mle()
+        result$mu <- est_mur["mu"]
+        ## r might be big due to fitting issue.
+        est_r <- est_mur["r"]
+        result$r <- ifelse(est_r < self$big_r, est_r, self$r)
+        s1 <- ifelse(est_r < self$big_r, TRUE, FALSE)
+      } else {
+        result$mu <- init_mur$mu
+        result$r <- init_mur$r
+      }
+      ## ** set mucond
+      result$mucond <- vapply(
+        1:ncond, function(i) {
+          ss <- s[cond == i]
+          yy <- y[cond == i]
+          if (check_y_are_all_zeros(yy)) {
+            return(0.0)
+          }
+          t <- init_snb_log_mean(y = yy, s = ss)
+          init_mucond <- t - result$mu
+          ## Since fitting is hard when fix r, and limited data
+          ## we directly use the init_mucond
+
+          ## ## when opt fit well and r is not big
+          ## if (s1) {
+          ##   ## further estimate mucond
+          ##   capture.output(mucondopt <- self$snbcond$optimize(
+          ##     data = list(
+          ##       n = length(yy), s = ss, y = yy,
+          ##       r = result$r, mu = result$mu
+          ##     ),
+          ##     seed = self$seed,
+          ##     refresh = self$opt_refresh,
+          ##     iter = self$opt_iter,
+          ##     init = list(list(result$mucond)),
+          ##     algorithm = "lbfgs"
+          ##   ))
+          ## }
+          ## r <- ifelse(does_fit_well(mucondopt),
+          ##   mucondopt$mle()["mucond"], init_mucond
+          ## )
+          ## invisible(r)
+
+          invisible(init_mucond)
+        },
+        FUN.VALUE = 0.0
+      )
+      ## ** set muind
+      result$muind <- vapply(
+        1:nind, function(i) {
+          yy <- y[ind == i]
+          if (check_y_are_all_zeros(yy)) {
+            return(0.0)
+          }
+          t <- init_snb_log_mean(y = yy, s = s[ind == i])
+          return(invisible(t - result$mu - result$mucond[cond[ind == i][1]]))
+        },
+        FUN.VALUE = 0.0
+      )
+      return(invisible(result))
+    },
+    est_varofmu = function(mu) {
+      ## mu: ngene by 1
+      ## return: mean, var, gamma_alpha, gamma_beta
+      m <- median(mu)
+      ngene <- length(mu)
+      v <- sum((mu - m)^2) / ngene
+      v <- max(v, self$min_varofmu)
+      ## varofmu prior follows a inv-gamma dist
+      ## est hy based on posterior
+      alpha <- 1.0 + ngene / 2
+      beta <- 1.0 + sum((mu - m)^2) / 2
+      return(invisible(c(m, v, alpha, beta)))
+    },
+    est_varofr = function(r) {
+      ## r: ngene by 1
+      ## r prior: log normal
+      ## return: log level of mean, var, gamma_alpah, gamma_beta
+      logr <- log(r)
+      invisible(self$est_varofmu(logr))
+    },
+    est_varofcond = function(mucond) {
+      ## mucond: ngene by ncond
+      ncond <- ncol(mucond)
+      ngene <- nrow(mucond)
+      ## each condiiton has its own variance.
+      ## which follows a inv-gamma prior
+      t_d <- vapply(
+        1:ncond, function(i) {
+          t <- max(abs(mucond[, i]))
+          ## set a variance not that small
+          v <- max(t^2, self$min_varofcond)
+          ## assume the mean of mucond is around 0.0
+          ## then use posterior of inv-gamma to set the hyper priors
+          alpha <- 1.0 + ngene / 2
+          beta <- 1.0 + sum(mucond[, i]^2) / 2
+          invisible(c(v, alpha, beta))
+        },
+        FUN.VALUE = rep(1.0, 3)
+      )
+      return(invisible(t(t_d)))
+    },
+    est_varofind = function(muind) {
+      ## muind: ngene by nind
+      ## estimate:
+      ## - nind by 4: mean of muind, varofmuind, alpha, beta
+      ## - tau2, tau2_alpha, tau2_beta
+      nind <- ncol(muind)
+      ngene <- nrow(muind)
+      t_d <- vapply(
+        1:nind, function(i) {
+          m <- median(muind[, i])
+          v <- max(sum((muind[, i] - m)^2) / ngene, self$min_varofind)
+          alpha <- 1.0 + ngene / 2
+          beta <- 1.0 + sum((muind[, i] - m)^2) / 2
+          invisible(c(m, v, alpha, beta))
+        },
+        FUN.VALUE = rep(1.0, 4)
+      )
+      ## shape: nind by 4
+      r <- t(t_d)
+      ## assume muinds follow a N(0.0, tau) (tau is sd)
+      tau2 <- max(max(abs(r[, 1]))^2, self$min_tau2)
+      ## assume tau2 has a inv-gamma prior
+      ## use posterior to set up the hp.
+      tau2_alpha <- 1.0 + nind / 2
+      tau2_beta <- 1.0 + sum(muind[, 1]^2) / 2
+      return(invisible(
+        list(
+          est_varofind = r,
+          est_tau2 = c(tau2, tau2_alpha, tau2_beta)
         )
-        invisible(unlist(r))
-      },
-      FUN.VALUE = rep(0.0, 2 + ncond + nind)
-    )
-    ## shape: ngene by 2 + ncond + nind
-    init_mgsnb <- t(t_init_mgsnb)
-    init_varofmu <- self$est_varofmu(init_mgsnb[, 1])
-    init_varofr <- self$est_varofr(init_mgsnb[, 2])
-    init_varofcond <- self$est_varofcond(init_mgsnb[, 3:(2 + ncond)])
-    init_varofind <- self$est_varofind(
-      init_mgsnb[, (2 + ncond + 1):ncol(init_mgsnb)]
-    )
-    return(invisible(list(
-      mgsnb = init_mgsnb,
-      mu = init_varofmu,
-      logr = init_varofr,
-      cond = init_varofcond,
-      ind = init_varofind
-    )))
-  }) ## end of publich field
+      ))
+    },
+    ## this is the function mssc want to use
+    fit_mgsnb = function(cnt, s, cond, ind) {
+      ## cnt: ngene by ncell
+      ## s: ncell by 1; cond: ncell by 1; ind: ncell by 1
+      check_s(s)
+      ncond <- max(cond)
+      nind <- max(ind)
+      ngene <- nrow(cnt)
+      t_init_mgsnb <- vapply(
+        1:ngene, function(i) {
+          r <- self$fit_gwsnb(
+            y = cnt[i, ], s = s,
+            cond = cond, ind = ind
+          )
+          invisible(unlist(r))
+        },
+        FUN.VALUE = rep(0.0, 2 + ncond + nind)
+      )
+      ## shape: ngene by 2 + ncond + nind
+      init_mgsnb <- t(t_init_mgsnb)
+      init_varofmu <- self$est_varofmu(init_mgsnb[, 1])
+      init_varofr <- self$est_varofr(init_mgsnb[, 2])
+      init_varofcond <- self$est_varofcond(init_mgsnb[, 3:(2 + ncond)])
+      init_varofind <- self$est_varofind(
+        init_mgsnb[, (2 + ncond + 1):ncol(init_mgsnb)]
+      )
+      return(invisible(list(
+        mgsnb = init_mgsnb,
+        mu = init_varofmu,
+        logr = init_varofr,
+        cond = init_varofcond,
+        ind = init_varofind
+      )))
+    }
+  ) ## end of publich field
 ) ## end of Genewisenbfit define
 
 High2 <- R6::R6Class(
@@ -516,7 +520,7 @@ High2 <- R6::R6Class(
       varofind <- init_mgsnb$ind$est_varofind[, 2]
       ### ngene by nind
       muind <- init_mgsnb$mgsnb[, (2 + self$ncond + 1):
-                                    (2 + self$ncond + self$nind)]
+      (2 + self$ncond + self$nind)]
       ngene <- nrow(cnt)
       raw_muind <- (muind - rep_row(centerofind, n = ngene)) %*%
         diag(1 / sqrt(varofind))
@@ -570,6 +574,19 @@ High2 <- R6::R6Class(
         eta = self$eta
       )
     },
+    psis = function() {
+      log_ratios <- self$high2fit$lp() -
+        self$high2fit$lp_approx()
+      r <- loo::psis(
+        log_ratios = log_ratios,
+        r_eff = NA
+      )
+      normweights <- weights(r, log = FALSE, normalize = TRUE)
+      invisible(list(
+        psis = r,
+        normweights = normweights
+      ))
+    },
     extract_draws = function(param,
                              ngene = NULL,
                              genenms = NULL) {
@@ -606,16 +623,22 @@ High2 <- R6::R6Class(
           }
           if (param %in% c("varofcond")) {
             ## when param is vector of len of ncond
-            return(invisible(self$high2fit$draws(str_glue_vec(param, self$ncond))))
+            return(invisible(
+              self$high2fit$draws(str_glue_vec(param, self$ncond))
+            ))
           }
           if (param %in% c("varofind", "centerofind")) {
             ## when param is vector of len of nind
-            return(invisible(self$high2fit$draws(str_glue_vec(param, self$nind))))
+            return(invisible(
+              self$high2fit$draws(str_glue_vec(param, self$nind))
+            ))
           }
           if (param %in% c("mucond")) {
             ## when param is a matrix of ngene by ncond
             check_ngene()
-            t <- self$high2fit$draws(str_glue_mat_rowise(param, ngene, self$ncond))
+            t <- self$high2fit$draws(
+              str_glue_mat_rowise(param, ngene, self$ncond)
+            )
             return(invisible(split_matrix_col(
               mat = t, second_dim = ngene,
               second_dim_nms = genenms
@@ -624,7 +647,9 @@ High2 <- R6::R6Class(
           if (param %in% c("muind")) {
             ## when param is a matrix of ngene by nind
             check_ngene()
-            t <- self$high2fit$draws(str_glue_mat_rowise(param, ngene, self$nind))
+            t <- self$high2fit$draws(
+              str_glue_mat_rowise(param, ngene, self$nind)
+            )
             return(invisible(split_matrix_col(
               mat = t, second_dim = ngene,
               second_dim_nms = genenms
@@ -637,15 +662,19 @@ High2 <- R6::R6Class(
         }
       )
     },
-    extract_draws_all = function() {
+    extract_draws_all = function(ngene = NULL,
+                                 genenms = NULL) {
       est_params <- lapply(self$all_params_nms, function(nm) {
-        self$extract_draws(nm)
+        self$extract_draws(nm,
+          ngene = ngene,
+          genenms = genenms
+        )
       })
       names(est_params) <- self$all_params_nms
       invisible(est_params)
     },
     get_ranking_statistics = function(mucond, two_hot_vec,
-                                      threshod = 1e-04) {
+                                      threshold = 1e-04) {
       ## mucond: nsample by ngene by ncond
       ## two_hot_vec: like (1, -1) or (0, 0, -1, 0, 1, 0)
       ## - i.e., the two conditions we want compare
@@ -667,7 +696,7 @@ High2 <- R6::R6Class(
       ## r: nsample by ngene
       n <- dim(mucond)[1]
       r <- t(vapply(1:n, function(i) {
-        mucondf[i, , ] %*% two_hot_vec
+        mucond[i, , ] %*% two_hot_vec
       }, FUN.VALUE = rep(0.0, dim(mucond)[2])))
       sd_col <- matrixStats::colSds(r)
       ## one measure
@@ -682,7 +711,7 @@ High2 <- R6::R6Class(
       group1 <- mucond[, , two_hot_vec == 1]
       group2 <- mucond[, , two_hot_vec == -1]
       ngene <- dim(mucond)[2]
-      tstat <- t(vapply(1:ngene), function(i) {
+      tstat <- vapply(1:ngene, function(i) {
         tryCatch(
           {
             s <- t.test(
@@ -699,52 +728,111 @@ High2 <- R6::R6Class(
           }
         )
       }, FUN.VALUE = 0.0)
+
       result <- cbind(
         abs_t = abs(tstat),
         bf = bf,
         abs_m = abs_colmean
       )
-      if (!is.null(dimnames(mucond)[2])) {
-        rownames(result) <- dimnames(mucond)[2]
+      if (!is.null(dimnames(mucond)[[2]])) {
+        rownames(result) <- dimnames(mucond)[[2]]
       }
       return(invisible(result))
+    },
+
+    get_rsis_ranking_statistics = function(ngene, two_hot_vec,
+                                           normweights, genenms = NULL,
+                                           threshold = 1e-04) {
+      ## only for mucond
+      t <- self$high2fit$draws(
+        str_glue_mat_rowise("mucond", ngene, self$ncond)
+      )
+      t_rsis <- posterior::resample_draws(
+        x = t, weights = normweights,
+        method = "stratified"
+      )
+
+      mucond_rsis <- split_matrix_col(
+        mat = t_rsis, second_dim = ngene,
+        second_dim_nms = genenms
+      )
+
+      invisible(self$get_ranking_statistics(
+        mucond = mucond_rsis, two_hot_vec = two_hot_vec,
+        threshold = threshold
+      ))
     }
   ) ## end of public field
 ) ## end of class high2
 
 
 ## * test
-pbmc <- readRDS(here::here(
-"src", "modelcheck",
-"snb_pool_ref_pbmc.rds"
-))
-nind <- max(pbmc$ind)
-ncond <- 2
-ngene <- nrow(pbmc$y2c)
+test <- function() {
+  pbmc <- readRDS(here::here(
+    "src", "modelcheck",
+    "snb_pool_ref_pbmc.rds"
+  ))
+  nind <- max(pbmc$ind)
+  ncond <- 2
+  ngene <- nrow(pbmc$y2c)
 
-model <- High2$new(
-  stan_snb_path = here::here("src", "modelcheck", "high2",
-                             "stan", "snb.stan"),
-  stan_snb_cond_path = here::here("src", "modelcheck", "high2",
-                                  "stan", "snb_cond.stan"),
-  stan_high2_path = here::here("src", "modelcheck", "high2",
-                               "stan", "high2.stan"),
-  nind = nind
-)
+  model <- High2$new(
+    stan_snb_path = here::here(
+      "src", "modelcheck", "high2",
+      "stan", "snb.stan"
+    ),
+    stan_snb_cond_path = here::here(
+      "src", "modelcheck", "high2",
+      "stan", "snb_cond.stan"
+    ),
+    stan_high2_path = here::here(
+      "src", "modelcheck", "high2",
+      "stan", "high2.stan"
+    ),
+    nind = nind,
+    tol_rel_obj = 0.1,
+    adapt_iter = 10
+  )
 
-init_params <- model$init_params(cnt = pbmc$y2c[1:10, ],
-                                 s = pbmc$s,
-                                 cond = pbmc$cond,
-                                 ind = pbmc$ind)
-data <- model$to_model_data(cnt = pbmc$y2c[1:10,],
-                            s = pbmc$s,
-                            cond = pbmc$cond,
-                            ind = pbmc$ind,
-                            hp = init_params$hp)
-model$run(data = data, list_wrap_ip = list(init_params$ip))
+  init_params <- model$init_params(
+    cnt = pbmc$y2c[1:10, ],
+    s = pbmc$s,
+    cond = pbmc$cond,
+    ind = pbmc$ind
+  )
+  data <- model$to_model_data(
+    cnt = pbmc$y2c[1:10, ],
+    s = pbmc$s,
+    cond = pbmc$cond,
+    ind = pbmc$ind,
+    hp = init_params$hp
+  )
+  model$run(data = data, list_wrap_ip = list(init_params$ip))
 
-vi_sampler <- run_hbnb_vi(data = data, ip = hi_params$ip)
-est_params <- lapply(nm_params, function(nm) {
-extract_vifit(vi_sampler, data, nm)
-})
-names(est_params) <- nm_params
+  est_params <- model$extract_draws_all(
+    ngene = 10,
+    genenms = rownames(pbmc$y2c[1:10, ])
+  )
+  str(est_params)
+
+  mucond <- model$extract_draws(
+    param = "mucond", ngene = 10,
+    genenms = rownames(pbmc$y2c[1:10, ])
+  )
+  rankings <- model$get_ranking_statistics(
+    mucond = mucond,
+    two_hot_vec = c(1, -1)
+  )
+  str(rankings)
+  psis <- model$psis()
+  print(psis$psis)
+
+  rsis_rankings <- model$get_rsis_ranking_statistics(
+    ngene = 10,
+    two_hot_vec = c(1, -1),
+    genenms = rownames(pbmc$y2c[1:10, ]),
+    normweights = psis$normweights
+  )
+
+  str(rsis_rankings)
+}

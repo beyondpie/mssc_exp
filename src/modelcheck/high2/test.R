@@ -76,7 +76,7 @@ log_ratios <- vi1$lp() - vi1$lp_approx()
 mypsis <- loo::psis(log_ratios = log_ratios,
                     r_eff = NA)
 mypsis$diagnostic
-lw <- weights(mypsis, log=FALSE, normalize = TRUE)
+lw <- weights(mypsis, log = FALSE, normalize = TRUE)
 
 aa <- posterior::resample_draws(x = a, weights = lw,
                                 method = "stratified")
