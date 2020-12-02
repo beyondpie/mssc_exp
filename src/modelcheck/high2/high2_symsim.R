@@ -429,7 +429,7 @@ main <- function(ratio_ind2cond = 0.5,
           "stan", "high2.stan"
         ),
         nind = nind * 2,
-        tol_rel_obj = 0.0001,
+        tol_rel_obj = 0.00005,
         adapt_iter = adapt_iter,
         adapt_engaged = ifelse(adapt_engaged > 0, TRUE, FALSE),
         algorithm = algorithm,
