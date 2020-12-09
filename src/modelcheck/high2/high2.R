@@ -566,10 +566,10 @@ High2 <- R6::R6Class(
       }
       log_ratios <- self$high2fit$lp() -
         self$high2fit$lp_approx()
-      r <- loo::psis(
+      capture.output(r <- loo::psis(
         log_ratios = log_ratios,
         r_eff = NA
-      )
+      ))
       normweights <- weights(r, log = takelog, normalize = donormalize)
       invisible(list(
         psis = r,
@@ -755,8 +755,48 @@ High2 <- R6::R6Class(
     },
     get_psis_ranking_statistics = function(mucond, two_hot_vec,
                                            normweights) {
-      ## mucond, two_hot_vec: ref get_ranking_statistics
-      ## normweights:
+      ## mucond, two_hot_vec: ref get_ranking_statistics.
+      ## normweights: getting from psis function, are normalized weights.
+      if (sum(two_hot_vec) > 1) {
+        stop("Set 1 and -1 for two conditions.")
+      }
+      if (length(two_hot_vec) != self$ncond) {
+        stop(
+          "Length of two_hot_vec ",
+          length(two_hot_vec), " is not equals to ncond ",
+          self$ncond
+        )
+      }
+      len_of_nw <- length(normweights)
+      nsample <- dim(mucond)[1]
+      if (len_of_nw != nsample) {
+        stop("Length of normweights",
+             len_of_nm, " != nsample ",
+             nsample)
+      }
+      ngene <- dim(mucond)[2]
+      ## r: nsample by ngene
+      r <- t(vapply(1:nsample, function(i) {
+        mucond[i, , ] %*% two_hot_vec
+      }, FUN.VALUE = rep(0.0, 2)))
+      ## weighted the samples
+      wr <- diag(normweights) %*% r
+
+      ## one measurement
+      ## normalized weights, so we directly use sum
+      ## to get the weighted sample mean.
+      abs_expected_d <- abs(colSums(wr))
+
+      ## one measurement
+      ir <- (r > 0.0)
+      p0 <- colSums(diag(normweights) %*% ir)
+      bf <- abs(log(p0 + 1e-06) - log(1 - p0 + 1e-06))
+      ## summary
+      result <- cbind(bf = bf, abs_m = abs_expected_d)
+      if (!is.null(dimnames(mucond)[[2]])) {
+        rownames(result) <- dimnames(mucond)[[2]]
+      }
+      return(invisible(result))
     }
   ) ## end of public field
 ) ## end of class high2
