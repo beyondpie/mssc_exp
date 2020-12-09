@@ -278,10 +278,10 @@ simu_symsim_with_indeffect <- function(myseed = 1,
   ind <- ind2cond$ind
   cond_of_ind <- ind2cond$cond_of_ind
 
-  
+
 
   voi <- est_variation_of_ind(symsim_umi,
-    ind, symsim_degenes, mssc_model = mssc_model, 
+    ind, symsim_degenes, mssc_model = mssc_model,
     ratio_ind2cond = ratio_ind2cond
   )
 
@@ -377,7 +377,7 @@ main <- function(ratio_ind2cond = 0.5,
   nind <- 5
   nindeff <- 2
   ## ncond <- 2
-  ncells <- c(20, 40, 80, 160, 320)
+  ncells <- c(160, 200, 300)
   ## ncells <- c(10, 20)
   ## symsim related
   nevf <- 10
@@ -429,13 +429,13 @@ main <- function(ratio_ind2cond = 0.5,
           "stan", "high2.stan"
         ),
         nind = nind * 2,
-        tol_rel_obj = 0.00001,
+        tol_rel_obj = 1e-06,
         adapt_iter = adapt_iter,
         adapt_engaged = ifelse(adapt_engaged > 0, TRUE, FALSE),
         algorithm = algorithm,
         eta = eta
       )
-      
+
       symsim_umi <- simu_symsim_with_indeffect(
         myseed = i,
         save_data_path = save_data_path,
@@ -515,7 +515,7 @@ main <- function(ratio_ind2cond = 0.5,
 
       aucs_rsis <- high$get_auc(rsis_rankings, c1 = diffg, c2 = nondiffg)
       rpt_slice[, j] <- c(aucs, aucs_rsis, pseudo_auc$auc)
-      
+
       ## show result
       print(rpt_slice)
       ## save symsim-related object
@@ -607,5 +607,3 @@ main(
   eta = args$eta,
   algorithm = args$algorithm
 )
-
-

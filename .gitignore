@@ -98,3 +98,4 @@ vignettes/*.pdf
 /src/dirty_stan/mssc_hbnb_fix_vmu_vcond
 /src/dirty_stan/mssc_hbnb_indeff_across_gene
 /src/dirty_stan/mssc_hbnb_mat
+*.*~

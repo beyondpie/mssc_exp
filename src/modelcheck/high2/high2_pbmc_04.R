@@ -34,8 +34,9 @@ myfit <- modules::import("myfitdistr")
 mypseudo <- modules::import("pseudobulk")
 mypbmc <- modules::import("pbmc")
 ## * config
-cell_type <- "Naive CD4+ T"
-num_top_gene <- 300
+## cell_type <- "Naive CD4+ T"
+cell_type <- "CD8A T"
+num_top_gene <- 100
 
 myggtitle <- theme(
   plot.title = element_text(
@@ -213,9 +214,9 @@ mssc <- high$High2$new(
     "stan", "high2.stan"
   ),
   nind = nind,
-  tol_rel_obj = 0.00005,
+  tol_rel_obj = 1e-06,
   adapt_iter = 400,
-  adapt_engaged = 1,
+  adapt_engaged = 0,
   algorithm = "meanfield",
   eta = 0.1
 )
@@ -258,7 +259,7 @@ hbnbp_ranked_scores <- get_hbnb_ranked_scores(rsis_rankings[,3], from = num_top_
 p <- get_comp_figure(pseudo_scores = pseudo_ranked_scores,
                          mssc = hbnbz_ranked_scores,
                          mssc_rsis = hbnbp_ranked_scores,
-                         genenum = 200, vjust = 1, text_angle = 0,
+                         genenum = num_top_gene, vjust = 1, text_angle = 0,
                          text_size= 1.6, hjust = 1)
 pdf(str_glue("pbmc_naivecd4t_top_{num_top_gene}.pdf"),
     width = 10,
