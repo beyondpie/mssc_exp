@@ -245,27 +245,6 @@ Genewisenbfit <- R6::R6Class(
           init_mucond <- t - result$mu
           ## Since fitting is hard when fix r, and limited data
           ## we directly use the init_mucond
-
-          ## ## when opt fit well and r is not big
-          ## if (s1) {
-          ##   ## further estimate mucond
-          ##   capture.output(mucondopt <- self$snbcond$optimize(
-          ##     data = list(
-          ##       n = length(yy), s = ss, y = yy,
-          ##       r = result$r, mu = result$mu
-          ##     ),
-          ##     seed = self$seed,
-          ##     refresh = self$opt_refresh,
-          ##     iter = self$opt_iter,
-          ##     init = list(list(result$mucond)),
-          ##     algorithm = "lbfgs"
-          ##   ))
-          ## }
-          ## r <- ifelse(does_fit_well(mucondopt),
-          ##   mucondopt$mle()["mucond"], init_mucond
-          ## )
-          ## invisible(r)
-
           invisible(init_mucond)
         },
         FUN.VALUE = 0.0
@@ -578,20 +557,26 @@ High2 <- R6::R6Class(
       )
     },
 
-    psis = function() {
+    psis = function(takelog = FALSE, donormalize = TRUE) {
+      ## Get the Pareto Smoothed Importance Sampling (PSIS) weights.
+      ## Weights are normalized and NOT in scale level by default.
+      if (is.null(self$high2fit)) {
+        warning("High2 has not been run.")
+        return(invisible(NA))
+      }
       log_ratios <- self$high2fit$lp() -
         self$high2fit$lp_approx()
       r <- loo::psis(
         log_ratios = log_ratios,
         r_eff = NA
       )
-      normweights <- weights(r, log = FALSE, normalize = TRUE)
+      normweights <- weights(r, log = takelog, normalize = donormalize)
       invisible(list(
         psis = r,
         normweights = normweights
       ))
     },
-    
+
     extract_draws = function(param,
                              ngene = NULL,
                              genenms = NULL) {
@@ -608,8 +593,7 @@ High2 <- R6::R6Class(
           return(invisible(NA))
         }
       }
-      tryCatch(
-        {
+      tryCatch({
           if (param %in% c(
             "centerofmu", "varofmu",
             "centerofr", "varofr", "tau2"
@@ -745,24 +729,34 @@ High2 <- R6::R6Class(
     },
 
     get_rsis_ranking_statistics = function(ngene, two_hot_vec,
-                                           normweights, genenms = NULL) {
+                                           normweights, genenms = NULL,
+                                           method = "simple_no_replace",
+                                           ndraws = 1000) {
+      ## method could be "simple_no_replace" or "stratified"
+      ## suggest and default: "simple_no_replace"
       ## only for mucond
       t <- self$high2fit$draws(
         str_glue_mat_rowise("mucond", ngene, self$ncond)
       )
       t_rsis <- posterior::resample_draws(
         x = t, weights = normweights,
-        method = "stratified"
+        method = method
       )
 
       mucond_rsis <- split_matrix_col(
         mat = t_rsis, second_dim = ngene,
-        second_dim_nms = genenms
+        second_dim_nms = genenms,
+        ndraws = ndraws
       )
 
       invisible(self$get_ranking_statistics(
         mucond = mucond_rsis, two_hot_vec = two_hot_vec
       ))
+    },
+    get_psis_ranking_statistics = function(mucond, two_hot_vec,
+                                           normweights) {
+      ## mucond, two_hot_vec: ref get_ranking_statistics
+      ## normweights:
     }
   ) ## end of public field
 ) ## end of class high2
