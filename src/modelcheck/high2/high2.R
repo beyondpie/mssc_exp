@@ -577,6 +577,7 @@ High2 <- R6::R6Class(
         eta = self$eta
       )
     },
+
     psis = function() {
       log_ratios <- self$high2fit$lp() -
         self$high2fit$lp_approx()
@@ -590,6 +591,7 @@ High2 <- R6::R6Class(
         normweights = normweights
       ))
     },
+    
     extract_draws = function(param,
                              ngene = NULL,
                              genenms = NULL) {
@@ -705,7 +707,8 @@ High2 <- R6::R6Class(
       abs_colmean <- abs(colMeans(r))
 
       ## one measure
-      p0 <- colSums(abs(r) > 0.0) / n
+      ## p0 is the prob that case 1 is largner than case -1
+      p0 <- colSums(r > 0.0) / n
       bf <- abs(log(p0 + 1e-06) - log(1 - p0 + 1e-06))
 
       ## one measure
@@ -714,20 +717,19 @@ High2 <- R6::R6Class(
       group2 <- mucond[, , two_hot_vec == -1]
       ngene <- dim(mucond)[2]
       tstat <- vapply(1:ngene, function(i) {
-        tryCatch(
-          {
-            s <- t.test(
-              x = group1[i,], y = group2[i,],
-              alternative = "two.sided",
-              paired = FALSE,
-              var.equal = FALSE
-            )
-            return(invisible(s$statistic))
-          },
-          error = function(e) {
-            warning(e)
-            return(invisible(0.0))
-          }
+        tryCatch({
+          s <- t.test(
+            x = group1[, i], y = group2[, i],
+            alternative = "two.sided",
+            paired = TRUE,
+            var.equal = FALSE
+          )
+          return(invisible(s$statistic))
+        },
+        error = function(e) {
+          warning(e)
+          return(invisible(0.0))
+        }
         )
       }, FUN.VALUE = 0.0)
 

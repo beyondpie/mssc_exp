@@ -740,6 +740,7 @@ get_rank_statistics <- function(mu_cond, c1 = 1, c2 = 2,
   p05 <- colSums(abs_delta >= (std_cond * 1.645)) / n
   p025 <- colSums(abs_delta >= (std_cond * 1.96)) / n
 
+  ## FIXME: p0 should be wrong, use delta not abs_delta
   p0 <- colSums(abs_delta > 0.0) / n
   bf <- abs(log(p0 + 1e-06) - log(1 - p0 + 1e-06))
 
