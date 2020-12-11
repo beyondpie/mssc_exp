@@ -869,5 +869,4 @@ test <- function() {
 
   str(rsis_rankings)
 }
-
 ## test()
