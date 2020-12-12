@@ -99,3 +99,4 @@ vignettes/*.pdf
 /src/dirty_stan/mssc_hbnb_indeff_across_gene
 /src/dirty_stan/mssc_hbnb_mat
 *.*~
+/src/mssc_2-1/stan/mssc
