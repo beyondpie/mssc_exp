@@ -1,20 +1,29 @@
-## mssc 2-1 model
+## high2 model
 
-## This inherits from high2
-## But model the gene-specific variances of conditions,
-## which is actually used in the first-version of mssc.
+## param names in model
+## 1) names defined in  stan script (by us)
+## 2) names returned by stan sampler/opt
+##    (stan adds [i,j] or [i] for matrix/vec)
 
+## hbnb row-major order considers the situation:
+## [g1,1] [g1,2], ..., [g1,second_dim], [g2,1], ...
+## - this is hbnb param nms order
+## - cmdstan will named the varibles column-major order
+##   like: [g1,1], [g2,1], [g3, 1], ..., [g1, 2], [g2, 2], ...
+## As long as we use variable names to extract the parameters,
+## it's fine.
 
-## * load depenences
-library(posterior)
+## * load R env
+suppressPackageStartupMessages(library(tidyverse))
 library(cmdstanr)
 library(loo)
+library(posterior)
 library(R6)
 
-## * settings
+## warnings/errors traceback settings
 options(error = traceback)
 options(warn = 1)
-options(mc.cores = 2)
+options(mc.cores = 3)
 
 ## * common functions
 init_snb_log_mean <- function(y, s) {
@@ -81,7 +90,7 @@ check_s <- function(s) {
 }
 
 rep_row <- function(x, n) {
-  matrix(rep(x, each = n), nrow = n, byrow = FALSE)
+  matrix(rep(x, each = n), nrow = n)
 }
 
 rep_col <- function(x, n) {
@@ -122,11 +131,13 @@ get_auc <- function(ranking_statistic, c1, c2) {
   )))
 }
 
-## * Genewisenbfit: initialize the parameters
+
+## * define R6 classes
 Genewisenbfit <- R6::R6Class(
   classname = "Genewisenbfit", public = list(
     ## stan models for fitting
     snb = NULL,
+    snbcond = NULL,
     ## gamma alpha and beta for r as hyper prior in stan snb fit
     gamma_alpha = NULL,
     gamma_beta = NULL,
@@ -143,6 +154,7 @@ Genewisenbfit <- R6::R6Class(
     opt_iter = 5000,
     opt_refresh = 0,
     initialize = function(stan_snb_path,
+                          stan_snb_cond_path,
                           gamma_alpha = 0.05,
                           gamma_beta = 0.05,
                           mu = 0.0,
@@ -153,6 +165,7 @@ Genewisenbfit <- R6::R6Class(
                           min_varofind = 0.25,
                           min_tau2 = 0.25) {
       self$snb <- init_stan_model(stan_snb_path)
+      self$snbcond <- init_stan_model(stan_snb_cond_path)
       self$gamma_alpha <- gamma_alpha
       self$gamma_beta <- gamma_beta
       self$mu <- mu
@@ -162,7 +175,6 @@ Genewisenbfit <- R6::R6Class(
       self$min_varofcond <- min_varofcond
       self$min_varofind <- min_varofind
     },
-
     init_snb = function(y, s) {
       ## init params for scaled negative binomial:
       ## mean and dispersion
@@ -179,7 +191,6 @@ Genewisenbfit <- R6::R6Class(
       r <- ifelse(v > m, m^2 / (v - m), self$r)
       return(invisible(list(mu = mu, r = r)))
     },
-
     fit_gwsnb = function(y, s, cond, ind) {
       ## fit mu, mucond, muind under scaled negative binomial dist
       ## - mu: scaled log level and furthermore minus log(s)
@@ -268,33 +279,31 @@ Genewisenbfit <- R6::R6Class(
     est_varofr = function(r) {
       ## r: ngene by 1
       ## r prior: log normal
-      ## return: log level of mean, var, gamma_alpha, gamma_beta
+      ## return: log level of mean, var, gamma_alpah, gamma_beta
       logr <- log(r)
       invisible(self$est_varofmu(logr))
     },
-
-    ## DIFFERENT with high2
     est_varofcond = function(mucond) {
       ## mucond: ngene by ncond
       ncond <- ncol(mucond)
       ngene <- nrow(mucond)
-
-      ## each gene has its own variance
-      ## for different conditions
-      varofcond <- vapply(seq_len(ngene), function(i) {
-        ## mucond follows a zero mean
-        t <- max(abs(mucond[i, ]))
-        v <- max(t^2, self$min_varofcond)
-      }, FUN.VALUE = 1.0)
-      ## varofcond follows inv-gamma(alpha, beta)
-      ## est alpha and beta
-      ## instead of estimating them from mean and variance of varofcond
-      ## here we use the conjugate posterior settings.
-      alpha <- 1.0 + ncond / 2
-      beta <- 1.0 + quantile(rowSums((mucond - 0.0)^2) / 2, probs = 0.975)
-      return(invisible(list(v = varofcond, hp = c(alpha, beta))))
+      ## each condiiton has its own variance.
+      ## which follows a inv-gamma prior
+      t_d <- vapply(
+        1:ncond, function(i) {
+          t <- max(abs(mucond[, i]))
+          ## set a variance not that small
+          v <- max(t^2, self$min_varofcond)
+          ## assume the mean of mucond is around 0.0
+          ## then use posterior of inv-gamma to set the hyper priors
+          alpha <- 1.0 + ngene / 2
+          beta <- 1.0 + sum(mucond[, i]^2) / 2
+          invisible(c(v, alpha, beta))
+        },
+        FUN.VALUE = rep(1.0, 3)
+      )
+      return(invisible(t(t_d)))
     },
-
     est_varofind = function(muind) {
       ## muind: ngene by nind
       ## estimate:
@@ -349,7 +358,6 @@ Genewisenbfit <- R6::R6Class(
       init_mgsnb <- t(t_init_mgsnb)
       init_varofmu <- self$est_varofmu(init_mgsnb[, 1])
       init_varofr <- self$est_varofr(init_mgsnb[, 2])
-      ## a list of two elements
       init_varofcond <- self$est_varofcond(init_mgsnb[, 3:(2 + ncond)])
       init_varofind <- self$est_varofind(
         init_mgsnb[, (2 + ncond + 1):ncol(init_mgsnb)]
@@ -382,24 +390,22 @@ High2 <- R6::R6Class(
     algorithm = NULL,
     eval_elbo = NULL,
     output_samples = NULL,
-    ## DIFFERENT with high2
-    ## used for replacemence sampling
-    ndraws = NULL,
     tol_rel_obj = NULL,
     adapt_iter = NULL,
     adapt_engaged = NULL,
     eta = NULL,
-    ## parameter names
-    ## DIFFERENT with high2
-    ## add another variable hp_varofcond
+    ## random init parameters
+    sd_init_muind = NULL,
+    sd_init_mucond = NULL,
+    ## high2 parameter names
     all_params_nms = c(
       "centerofmu", "varofmu", "mu", "centerofr",
       "varofr", "r", "varofcond", "mucond",
-      "tau2", "centerofind", "varofind", "muind",
-      "hp_varofcond"
+      "tau2", "centerofind", "varofind", "muind"
     ),
     initialize = function(## gwsnb parameters
                           stan_snb_path,
+                          stan_snb_cond_path,
                           gamma_alpha = 0.05,
                           gamma_beta = 0.05,
                           r = 20,
@@ -421,10 +427,12 @@ High2 <- R6::R6Class(
                           tol_rel_obj = 0.0001,
                           adapt_iter = 200,
                           adapt_engaged = TRUE,
-                          eta = 0.1) {
+                          eta = 0.1,
+                          sd_init_muind = 0.1, sd_init_mucond = 0.1) {
       ## initiolize class members
       self$gwsnb <- Genewisenbfit$new(
         stan_snb_path = stan_snb_path,
+        stan_snb_cond_path = stan_snb_cond_path,
         mu = mu,
         r = r,
         big_r = big_r,
@@ -441,16 +449,16 @@ High2 <- R6::R6Class(
       self$algorithm <- algorithm
       self$eval_elbo <- eval_elbo
       self$output_samples <- output_samples
-      self$ndraws  <- floor(0.75 * self$output_samples)
       self$tol_rel_obj <- tol_rel_obj
       self$adapt_iter <- adapt_iter
       self$adapt_engaged <- adapt_engaged
       self$eta <- eta
+      self$sd_init_muind <- sd_init_muind
+      self$sd_init_mucond <- sd_init_mucond
       self$nind <- nind
       self$ncond <- ncond
     },
 
-    ## DIFFERENT with high2
     init_params = function(cnt, s, cond, ind) {
       ## init paramters including hyper params.
       init_mgsnb <- self$gwsnb$fit_mgsnb(
@@ -461,8 +469,7 @@ High2 <- R6::R6Class(
       hp <- list(
         hp_varofmu = init_mgsnb$mu[3:4],
         hp_varofr = init_mgsnb$logr[3:4],
-        ## DIFFERENT with high2
-        ## hp_varofcond = init_mgsnb$cond[, 2:3],
+        hp_varofcond = init_mgsnb$cond[, 2:3],
         hp_varofind = init_mgsnb$ind$est_varofind[, 3:4],
         hp_tau2 = init_mgsnb$ind$est_tau2[2:3]
       )
@@ -481,11 +488,9 @@ High2 <- R6::R6Class(
 
       ### ngene by ncond
       mucond <- init_mgsnb$mgsnb[, 3:(2 + self$ncond)]
-
-      ## DIFFERENT with high2
-      hp_varofcond <- init_mgsnb$cond$hp
-      varofcond <- init_mgsnb$cond$v
-      raw_mucond <- diag(1 / sqrt(varofcond)) %*% mucond
+      ### ncond by 1
+      varofcond <- init_mgsnb$cond[, 1]
+      raw_mucond <- mucond %*% diag(1 / sqrt(varofcond))
 
       ### scalar
       tau2 <- init_mgsnb$ind$est_tau2[1]
@@ -512,7 +517,6 @@ High2 <- R6::R6Class(
             varofr = varofr,
             raw_r = raw_r,
             varofcond = varofcond,
-            hp_varofcond = hp_varofcond,
             raw_mucond = raw_mucond,
             tau2 = tau2,
             raw_centerofind = raw_centerofind,
@@ -562,12 +566,10 @@ High2 <- R6::R6Class(
       }
       log_ratios <- self$high2fit$lp() -
         self$high2fit$lp_approx()
-
-      ## suppressWarnings for psis
-      capture.output(suppressWarnings(r <- loo::psis(
+      capture.output(r <- loo::psis(
         log_ratios = log_ratios,
         r_eff = NA
-      )))
+      ))
       normweights <- weights(r, log = takelog, normalize = donormalize)
       invisible(list(
         psis = r,
@@ -608,26 +610,18 @@ High2 <- R6::R6Class(
             }
             return(invisible(t))
           }
-
-          ## DIFFERENT with high2
-          if (param %in% c("hp_varofcond")) {
-            return(invisible(self$high2fit$draws(str_glue_vec(param, 2))))
-          }
           if (param %in% c("varofcond")) {
             ## when param is vector of len of ncond
             return(invisible(
-              ## DIFFERENT with high2
-              self$high2fit$draws(str_glue_vec(param, ngene))
+              self$high2fit$draws(str_glue_vec(param, self$ncond))
             ))
           }
-
           if (param %in% c("varofind", "centerofind")) {
             ## when param is vector of len of nind
             return(invisible(
               self$high2fit$draws(str_glue_vec(param, self$nind))
             ))
           }
-
           if (param %in% c("mucond")) {
             ## when param is a matrix of ngene by ncond
             check_ngene()
@@ -736,7 +730,8 @@ High2 <- R6::R6Class(
 
     get_rsis_ranking_statistics = function(ngene, two_hot_vec,
                                            normweights, genenms = NULL,
-                                           method = "simple_no_replace"){
+                                           method = "simple_no_replace",
+                                           ndraws = 1000) {
       ## method could be "simple_no_replace" or "stratified"
       ## suggest and default: "simple_no_replace"
       ## only for mucond
@@ -745,12 +740,13 @@ High2 <- R6::R6Class(
       )
       t_rsis <- posterior::resample_draws(
         x = t, weights = normweights,
-        method = method, ndraws = self$ndraws
+        method = method
       )
 
       mucond_rsis <- split_matrix_col(
         mat = t_rsis, second_dim = ngene,
-        second_dim_nms = genenms
+        second_dim_nms = genenms,
+        ndraws = ndraws
       )
 
       invisible(self$get_ranking_statistics(
@@ -806,6 +802,7 @@ High2 <- R6::R6Class(
 ) ## end of class high2
 
 
+## * test
 test <- function() {
   pbmc <- readRDS(here::here(
     "src", "modelcheck",
@@ -814,10 +811,16 @@ test <- function() {
   nind <- max(pbmc$ind)
   model <- High2$new(
     stan_snb_path = here::here(
-      "src", "mssc_2-1", "stan", "snb.stan"
+      "src", "modelcheck", "high2",
+      "stan", "snb.stan"
+    ),
+    stan_snb_cond_path = here::here(
+      "src", "modelcheck", "high2",
+      "stan", "snb_cond.stan"
     ),
     stan_high2_path = here::here(
-      "src", "mssc_2-1", "stan", "mssc.stan"
+      "src", "modelcheck", "high2",
+      "stan", "high2.stan"
     ),
     nind = nind,
     tol_rel_obj = 0.0001,
@@ -866,4 +869,4 @@ test <- function() {
 
   str(rsis_rankings)
 }
-test()
+## test()

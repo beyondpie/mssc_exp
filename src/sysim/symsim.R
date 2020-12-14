@@ -4,38 +4,32 @@
 ## generate a series of cells
 
 ## * set R environment
-import::from(here, here)
+suppressPackageStartupMessages(library(SymSim))
 suppressPackageStartupMessages(library(tidyverse))
-library(MCMCpack)
+## library(MCMCpack)
 library(cmdstanr)
+library(bayesplot)
+library(posterior)
 library(grid)
 library(gtable)
 library(gridExtra)
-library(bayesplot)
-library(posterior)
-library(bbmle)
-library(sads)
-library(truncnorm)
+suppressPackageStartupMessages(library(ggpubr))
 
 ## warnings/errors traceback settings
 options(error = traceback)
-options(warn = 1)
+options(warn = -1)
 options(mc.cores = 3)
 
-suppressPackageStartupMessages(library(SymSim))
-suppressPackageStartupMessages(library(ggpubr))
-library(truncnorm)
+## load model
+mssc_path <- here::here("src", "mssc")
+mssc_20 <- modules::import(file.path(mssc_path, "mssc_2-0", "mssc.R"))
+mssc_21 <- modules::import(file.path(mssc_path, "mssc_2-1", "mssc.R"))
 
-high <- modules::import("high2")
-
+## load help functions
 options("import.path" = here::here("rutils"))
-myt <- modules::import("transform")
-myfit <- modules::import("myfitdistr")
 mypseudo <- modules::import("pseudobulk")
-mypbmc <- modules::import("pbmc")
 mysymsim <- modules::import("mysymsim")
 
-options(warn = -1)
 ## * utils
 plotviolin <- function(cnt, ind, genes) {
   n <- length(genes)
@@ -68,6 +62,9 @@ plotviolin <- function(cnt, ind, genes) {
 plot_genes_after_batcheffect <- function(symsim_umi,
                                          nde = 40, nnde = 40,
                                          pnrow = 5) {
+  ## show batch effect using violin plot for different genes.
+  ## nde: num of differential genes to show
+  ## nnde: num of non-differential genes to show
   diffg <- symsim_umi$diffg
   pviolin_symsimdeg <- plotviolin(symsim_umi$obs, symsim_umi$ind, diffg)
   n <- ifelse(nde > length(diffg), length(diffg), nde)
@@ -76,11 +73,9 @@ plot_genes_after_batcheffect <- function(symsim_umi,
     nrow = pnrow,
     ncol = ceiling(nde / pnrow)
   )
+
   nondiffg <- symsim_umi$nondiffg
-  pviolin_symsim_sndeg <- plotviolin(
-    symsim_umi$obs,
-    symsim_umi$ind, nondiffg
-  )
+  pviolin_symsim_sndeg <- plotviolin(symsim_umi$obs, symsim_umi$ind, nondiffg)
   m <- ifelse(nnde > length(nondiffg), length(nondiffg), nnde)
   sampled_pvsnd <- ggarrange(
     plotlist = pviolin_symsim_sndeg[sample(length(nondiffg), m, replace = F)],
@@ -97,32 +92,53 @@ plot_genes_after_batcheffect <- function(symsim_umi,
 
 assign_ind_for_two_cond <- function(cond, nind = 5,
                                     ncell = 100) {
-  ## nind is for each ond
+  ## cond:
+  ## - only two conditions are considered here
+  ## - a vector of 1 and 2 with length: ncell * nind * 2
+  ## nind:
+  ## - is for each condition
+  ## - so total number of individual is nind * 2.
   ## ncell is for each individual
+
   ## return the vector of ind and the condition for each ind
-  ind <- rep(0, ncell * nind * 2)
+
+  num_total_ind <- nind * 2
+  ind <- rep(0, ncell * num_total_ind)
   ind[cond == 1] <- rep(seq_len(nind), each = ncell)
-  ind[cond == 2] <- rep((nind + 1):(nind * 2), each = ncell)
+  ind[cond == 2] <- rep((nind + 1): num_total_ind, each = ncell)
   cond_of_ind <- c(rep(1, nind), rep(2, nind))
   return(invisible(list(ind = ind, cond_of_ind = cond_of_ind)))
 }
 
 est_variation_of_ind <- function(symsim_obs, ind,
-                                 symsim_degenes,
+                                 dg,
                                  mssc_model,
                                  ratio_ind2cond = 0.2) {
-  ## given the simulated obs data from symsim,
-  ## we estimate the variation of ind for hbnb model.
-  y2c <- symsim_obs$counts[symsim_degenes, ]
+  ## Given the simulated obs data from symsim,
+  ## we estimate the individual effect size based on
+  ## mssc model.
+
+  ## Here we only use the gene-wise estimate results,
+  ## and use the initial values of mucond. So all the variants of
+  ## mssc model could be used here since they share the same
+  ## gene-wise module.
+
+  y2c <- symsim_obs$counts[dg, ]
   s <- colSums(y2c)
   cond <- symsim_obs$cell_meta$pop
   ## only use degenes to esimtate the variations
-  init_params <- mssc_model$init_params(cnt = y2c,
-                                        s = s,
-                                        cond = cond,
-                                        ind = ind)
-  varofcond <- min(init_params$ip$varofcond)
-  variation_of_ind <- ratio_ind2cond * sqrt(varofcond)
+  init_params <- mssc_model$gwsnb$fit_mgsnb(
+    cnt = cnt, s = s, cond = cond, ind = ind)
+
+  ## init_mucond: ngene by ncond
+  ## only two conditions
+  init_mucond <- init_params$mgsnb[, 3:4]
+  ngene <- nrow(init_mucond)
+  est_mucond_sizes <- vapply(seq_len(ngene), function(i) {
+    ## two conditions
+    invisible(max(abs(init_mucond[i, 1] - init_mucond[i, 2])))
+  })
+  variation_of_ind <- ratio_ind2cond * quantile(est_mucond_sizes, probs = 0.975)
   return(invisible(list(hip = init_params, voi = variation_of_ind)))
 }
 
@@ -133,9 +149,10 @@ simu_ind_effect <- function(diffg, nondiffg,
                             cond_of_ind,
                             variation_of_ind = 0.0001,
                             nindeff = 2,
-                            scale_in_diffg = 0.1,
-                            scale_in_nondiffg = 1.0) {
+                            scale_in_diffg = 0.5,
+                            scale_in_nondiffg = 0.5) {
   ## simulate individual effect per gene per individual
+
   ## diffg: index of differentially expressed genes
   ## nondiffg: index of non-differentially expressed genes
   ## low_exp_cond: index of cond for diffg,
@@ -143,37 +160,28 @@ simu_ind_effect <- function(diffg, nondiffg,
   ## nondiffg_cond: index of cond for nondiffg,
   ##   could be selected randomly.
   ## nind: num of ind for one condition
+  ## cond_of_ind: vector, show individual condition information.
+  ## variation_of_ind:
+  ## - individual effect size, a scalar
   ## nindeff: num of ind, who shows individual effects
   ##   in one condition. set it as [nind/2] - 1
-  ## cond_of_ind: vector, show individual condition information.
-
-  ## return two matrix:
-  ##   diffg_indeff: diffg by ind
-  ##   nondiffg_indeff: nondiffg by ind
 
   get_indeff <- function(cond, scale_level) {
+    ## add individual effect for the genes in cond
+    ## return: matrix, length(cond) * (nind * 2)
     t_result <- vapply(cond, function(i) {
       tmp <- rep(0.0, nind * 2)
       inds <- which(cond_of_ind == i)
       ind_added_eff <- sample(inds, size = nindeff, replace = FALSE)
-      ## tmp[ind_added_eff] <- truncnorm::rtruncnorm(nindeff,
-      ##   a = 0.0,
-      ##   b = 1.0,
-      ##   mean = 0.0,
-      ##   sd = variation_of_ind
-      ##   )
       tmp[ind_added_eff] <- variation_of_ind * scale_level
       return(invisible(tmp))
     }, FUN.VALUE = rep(0.0, nind * 2))
-
     return(invisible(t(t_result)))
   }
   ## For nondiffg
   indeff_nondiffg <- get_indeff(nondiffg_cond, scale_in_nondiffg)
   ## For diffg
   indeff_diffg <- get_indeff(low_exp_cond, scale_in_diffg)
-  ## g2i <- outer(on_gene, on_ind, FUN = "+")
-  ## g2i <- g2i * sample(c(-1, 1), ngene * nind, replace = T)
   return(invisible(list(
     nondgeff = indeff_nondiffg,
     dgeff = indeff_diffg,
@@ -184,44 +192,41 @@ simu_ind_effect <- function(diffg, nondiffg,
 
 add_individual_effect <- function(y2c, ind,
                                   g2indeff,
-                                  add_on_diffg = TRUE) {
-  ## y2c: ngene by ncell
-  ## ind: index of individual for each cell
-  result <- y2c
-  diffg <- g2indeff$dg
-  nondiffg <- g2indeff$nondg
-  ## add_indeff <- function(genes, g2ind) {
-  ##   for (i in seq_len(length(genes))) {
-  ##     g <- genes[i]
-  ##     t <- y2c[g, ]
-  ##     if (add_on_diffg) {
-  ##       t[t==0] <- 1
-  ##     }
-  ##     result[g, ] <- t * exp(g2ind[i, ind])
-  ##   }
-  ## }
+                                  group_shift = TRUE) {
+  ## add individual effect
+  ## - group_shift is TRUE
+  ##   all the counts in that individual will be added
+  ##   even for zero couts
+  ## - group_shift is FALSE
+  ##   only non-zero counts will be added
 
-  ## add_indeff(diffg, g2indeff$dgeff, add_on_diffg)
-  ## add_indeff(nondiffg, g2indeff$nondgeff, add_on_diffg)
-  if (add_on_diffg) {
-    for (i in seq_len(length(diffg))) {
-      g <- diffg[i]
-      t <- y2c[g, ]
-      ## t[t == 0] <- 1
-      result[g, ] <- t * exp(g2indeff$dgeff[i, ind])
-    }
-  }
+  ## ind: vector, ncell by 1, the individual index for each cell
 
-  for (i in seq_len(length(nondiffg))) {
-    g <- nondiffg[i]
+  ## return:
+  ## - count matrix: ngene by ncell (modified by individual effects)
+
+  r <- y2c
+
+  ## add indeff for differential genes
+  invisible(lapply(seq_along(g2indeff$dg), function(i) {
+    g <- g2indeff$dg[i]
     t <- y2c[g, ]
-    ## so that when the observed count is zero,
-    ## we will increase the counts.
-    ## t[t == 0] <- 1
-    result[g, ] <- t * exp(g2indeff$nondgeff[i, ind])
-  }
+    if (group_shift) {
+      t[t == 0] <- 1
+    }
+    r[g, ] <- t * exp(g2indeff$dgeff[i, ind])
+  }))
 
-  return(invisible(round(result)))
+  ## add indeff for non-differential genes
+  invisible(lapply(seq_along(g2indeff$nondg), function(i) {
+    g <- g2indeff$nondg[i]
+    t <- y2c[g, ]
+    if (group_shift) {
+      t[t == 0] <- 1
+    }
+    r[g, ] <- t * exp(g2indeff$nondgeff[i, ind])
+  }))
+  return(invisible(round(r)))
 }
 
 simu_symsim_with_indeffect <- function(myseed = 1,
@@ -235,10 +240,11 @@ simu_symsim_with_indeffect <- function(myseed = 1,
                                        sigma = 0.2,
                                        ratio_ind2cond = 1.0,
                                        nindeff = 2,
-                                       add_on_diffg = TRUE,
+                                       group_shift = TRUE,
                                        scale_in_diffg = 1.0,
                                        scale_in_nondiffg = 1.0,
-                                       mssc_model) {
+                                       mssc_model,
+                                       save_data = TRUE) {
   ## ncell: num of cell per individual
   ## nind: num of ind per condition, here we only consider two conditions.
   ## simulate the true
@@ -278,8 +284,6 @@ simu_symsim_with_indeffect <- function(myseed = 1,
   ind <- ind2cond$ind
   cond_of_ind <- ind2cond$cond_of_ind
 
-
-
   voi <- est_variation_of_ind(symsim_umi,
     ind, symsim_degenes, mssc_model = mssc_model,
     ratio_ind2cond = ratio_ind2cond
@@ -303,21 +307,24 @@ simu_symsim_with_indeffect <- function(myseed = 1,
   symsim_umi$obs <- add_individual_effect(
     symsim_umi$counts, ind,
     g2indeff,
-    add_on_diffg = add_on_diffg
+    add_on_diffg = group_shift
   )
+
   symsim_umi$ind <- ind
   symsim_umi$cond <- cond
   symsim_umi$voi <- voi
   symsim_umi$diffg <- symsim_degenes
   symsim_umi$nondiffg <- symsim_ndegs
   symsim_umi$dea <- symsim_dea
-  saveRDS(
-    object = symsim_umi,
-    file = file.path(
-      save_data_path,
-      stringr::str_glue("{ngene}gene_{nind*2}ind_{ncell}cell_{myseed}.rds")
-    )
-  )
+
+  if (save_data) {
+    saveRDS(
+      object = symsim_umi,
+      file = file.path(
+        save_data_path,
+        stringr::str_glue("{ngene}gene_{nind*2}ind_{ncell}cell_{myseed}.rds")
+      )
+    )}
   return(invisible(symsim_umi))
 }
 
