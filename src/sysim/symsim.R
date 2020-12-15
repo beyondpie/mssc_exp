@@ -86,14 +86,14 @@ plot_genes_after_batcheffect <- function(symsim_umi,
     nrow = pnrow,
     ncol = ceiling(nnde / pnrow)
   )
-  
+
   if (save_figure) {
     ggsave(file.path(save_path, "symsim_violinplot_dg.pdf"),
-           plot = sampled_pvd, width = width, height =  height)
+      plot = sampled_pvd, width = width, height =  height)
     ggsave(file.path(save_path, "symsim_violinplot_nondg.pdf"),
-           plot = sampled_pvsnd, width = width, height = height)
+      plot = sampled_pvsnd, width = width, height = height)
   }
-  
+
   invisible(list(
     pvln_alldegs = pviolin_symsimdeg,
     pvln_allndegs = pviolin_symsim_sndeg,
@@ -397,6 +397,60 @@ set_result_array <- function(rpt = 5, ncells = c(20, 40, 80),
     dimnames = list(nms, ncells, seq_len(rpt))))
 }
 
+run_mssc <- function(model, symsim, save_result = TRUE,
+                     save_path = NULL) {
+  ## mssc analysis
+  ## side effect
+  ## - model state will be updated
+  ## - save the results into rds file (save_path).
+  ## return
+  ## - ranking statistics
+
+  ## data from symsim
+  y2c <- round(symsim$obs)
+  ind <- symsim$ind
+  cond <- symsim$cond
+  sumcnt <- colSums(y2c)
+  s <- sumcnt / median(sumcnt)
+
+  ## model inference
+  init_params <- model$init_params(
+    cnt = y2c, s = s, cond = cond, ind = ind)
+  data <- mssc$to_model_data(cnt = y2c,
+    s = s, cond = cond, ind = ind, hp = init_params$hp)
+  model$run(data = data, list_wrap_ip = list(init_params$ip))
+
+  ## get results
+  ## Mannually get the samples for all the params
+  ## the model, in principle, will only save the results
+  ## in a temporary file since it uses cmdstan.
+  est_params <- model$extract_draws_all(
+    ngene = nrow(y2c), genenms = seq_len(nrow(y2c)))
+
+  ## mucond: nsample by ngene
+  mucond <- mssc$extract_draws(
+    param = "mucond", ngene = nrow(y2c), genenms = seq_len(nrow(y2c)))
+  ## three rankings in order: t, bf, m
+  ## ngene by 3
+  raw_rankings <- mssc$get_ranking_statistics(
+    mucond = mucond, two_hot_vec = c(1, -1))
+  ## use PSIS (importance sampling) to further correct the bias
+  psis <- model$psis()
+  ## two rankings in order: bf, m
+  ## ngene by 2
+  psis_rankings <- mssc$get_psis_ranking_statistics(
+    mucond = mucond, two_hot_vec = c(1, -1), normweights = psis$normweights)
+
+  if (save_result) {
+    saveRDS(object = list(est_params = est_params, raw_rankings = raw_rankings,
+      psis_rankings = psis_rankings, model = model),
+    file = save_path)
+  }
+
+  return(invisible(
+    list(raw_rankings = raw_rankings, psis_rankings = psis_rankings)))
+}
+
 main <- function(nind = 5,
                  nindeff = 2,
                  use_group_shift = FALSE,
@@ -457,9 +511,9 @@ main <- function(nind = 5,
       diffg <- symsim_umi$diffg
       nondiffg <- symsim_umi$nondiffg
       message(stringr::str_glue("ncell: {ncell}",
-                                "diffg: {length(diffg)}",
-                                "nondiffg: {length(nondiffg)}",
-                                .sep = "\n"))
+        "diffg: {length(diffg)}",
+        "nondiffg: {length(nondiffg)}",
+        .sep = "\n"))
       ## draw violin plot
       vln <- plot_genes_after_batcheffect(symsim_umi,
         nde = length(diffg),
@@ -475,62 +529,35 @@ main <- function(nind = 5,
         symsim_umi$obs, symsim_umi$ind, factor(symsim_umi$cond))
       pseudo_auc <- mypseudo$calc_auc(pseudo_deseq2_res, diffg, nondiffg)
 
-      ## mssc analysis
-      y2c <- round(symsim_umi$obs)
-      ind <- symsim_umi$ind
-      cond <- symsim_umi$cond
-      sumcnt <- colSums(y2c)
-      s <- sumcnt / median(sumcnt)
-
-      ## mssc_20
-
-      init_all_params <- mssc$init_params(
-        cnt = y2c,
-        s = s,
-        cond = cond,
-        ind = ind)
-
-      data <- mssc$to_model_data(cnt = y2c,
-        s = s,
-        cond = cond,
-        ind = ind,
-        hp = init_all_params$hp)
-      mssc$run(data = data, list_wrap_ip = list(init_all_params$ip))
-
-      mucond <- mssc$extract_draws(
-        param = "mucond", ngene = nrow(y2c),
-        genenms = NULL)
-      rankings <- mssc$get_ranking_statistics(
-        mucond = mucond,
-        two_hot_vec = c(1, -1)
-      )
-
-      aucs <- mssc$get_auc(rankings, c1 = diffg, c2 = nondiffg)
-
-      psis <- mssc$psis()
-      print(psis$psis$diagnostics$pareto_k)
-      rsis_rankings <- mssc$get_rsis_ranking_statistics(
-        ngene = nrow(y2c),
-        two_hot_vec = c(1, -1),
-        genenms = NULL,
-        normweights = psis$normweights
-      )
-
-      aucs_rsis <- high$get_auc(rsis_rankings, c1 = diffg, c2 = nondiffg)
-      r_i[, j] <- c(aucs, aucs_rsis, pseudo_auc$auc)
-
-      ## show result
+      ## mssc model
+      ## mssc20
+      r_mssc20 <- run_mssc(
+        model = mssc_20, symsim = symsim_umi, save_result = FALSE)
+      raw_auc_mssc20 <- mssc$get_auc(r_mssc20$raw_rankings,
+        c1 = diffg, c2 = nondiffg)
+      psis_auc_mssc20 <- mssc$get_auc(r_mssc20$psis_rankings,
+        c1 = diffg, c2 = nondiffg)
+      ## mssc21
+      r_mssc21 <- run_mssc(
+        model = mssc_20, symsim = symsim_umi, save_result = FALSE)
+      raw_auc_mssc21 <- mssc$get_auc(r_mssc21$raw_rankings,
+        c1 = diffg, c2 = nondiffg)
+      psis_auc_mssc21 <- mssc$get_auc(r_mssc21$psis_rankings,
+        c1 = diffg, c2 = nondiffg)
+      ## merge results
+      r_i[, j] <- c(raw_auc_mssc20, psis_auc_mssc20,
+        raw_auc_mssc21, psis_auc_mssc21,
+        pseudo_auc$auc)
       print(r_i)
     } ## end of ncells
-
-    result[, , i] <- r_i
-    print(result)
-    saveRDS(object = result,
-      file = file.path(symsim_save_path,
-        stringr::str_glue(
-          "{ngene}gene_{nind*2}ind",
-          "_{ratio_ind2cond}_{scale_in_diffg}",
-          "_{scale_in_nondiffg}.rds")))
+    r[, , i] <- r_i
+    print(r)
+    expnm <- ifelse(use_group_shift, "groupshift", "nonzeroshift")
+    fnm <- stringr::str_glue(
+      "{ngene}gene", "{nind*2}ind", "{nindeff}indeff", "{expnm}",
+      "{ratio_ind2cond}",
+      "{scale_in_diffg}", "{scale_in_nondiffg}.rds", .sep = "_")
+    saveRDS(object = r, file = file.path(symsim_save_path, "results", fnm))
   } ## end of repeat
 } ## end of main
 

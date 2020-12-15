@@ -736,6 +736,7 @@ High2 <- R6::R6Class(
       return(invisible(result))
     },
 
+    ## deprecated
     get_rsis_ranking_statistics = function(ngene, two_hot_vec,
                                            normweights, genenms = NULL,
                                            method = "simple_no_replace"){
@@ -759,6 +760,7 @@ High2 <- R6::R6Class(
         mucond = mucond_rsis, two_hot_vec = two_hot_vec
       ))
     },
+    
     get_psis_ranking_statistics = function(mucond, two_hot_vec,
                                            normweights) {
       ## mucond, two_hot_vec: ref get_ranking_statistics.
