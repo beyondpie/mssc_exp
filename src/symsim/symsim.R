@@ -601,10 +601,16 @@ args <- option_list %>%
   parse_args()
 
 main(
+  nind = args$nind,
+  nindeff = args$nindeff,
+  use_group_shift = ifelse(args$groupshift > 0, T, F),
   ratio_ind2cond = args$ratio_ind2cond,
   scale_in_diffg = args$scale_in_diffg,
   scale_in_nondiffg = args$scale_in_nondiffg,
   ngene = args$ngene,
   rpt = args$rpt,
-
+  ncells = c(20, 40),
+  save_figure = T,
+  width = 20,
+  height = 10
 )

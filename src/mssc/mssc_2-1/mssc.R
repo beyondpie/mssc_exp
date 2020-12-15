@@ -760,7 +760,7 @@ High2 <- R6::R6Class(
         mucond = mucond_rsis, two_hot_vec = two_hot_vec
       ))
     },
-    
+
     get_psis_ranking_statistics = function(mucond, two_hot_vec,
                                            normweights) {
       ## mucond, two_hot_vec: ref get_ranking_statistics.
