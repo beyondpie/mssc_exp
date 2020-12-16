@@ -6,10 +6,12 @@
 
 
 ## * load depenences
-library(posterior)
-library(cmdstanr)
-library(loo)
-library(R6)
+suppressWarnings(suppressMessages({
+  library(posterior)
+  library(cmdstanr)
+  library(loo)
+  library(R6)
+}))
 
 ## * settings
 options(error = traceback)
@@ -786,7 +788,7 @@ High2 <- R6::R6Class(
       ## r: nsample by ngene
       r <- t(vapply(1:nsample, function(i) {
         mucond[i, , ] %*% two_hot_vec
-      }, FUN.VALUE = rep(0.0, 2)))
+      }, FUN.VALUE = rep(0.0, ngene)))
       ## weighted the samples
       wr <- diag(normweights) %*% r
 
@@ -870,4 +872,3 @@ test <- function() {
 
   str(rsis_rankings)
 }
-test()

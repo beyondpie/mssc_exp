@@ -14,11 +14,13 @@
 ## it's fine.
 
 ## * load R env
-suppressPackageStartupMessages(library(tidyverse))
-library(cmdstanr)
-library(loo)
-library(posterior)
-library(R6)
+suppressWarnings(suppressMessages({
+  library(tidyverse)
+  library(cmdstanr)
+  library(loo)
+  library(posterior)
+  library(R6)
+}))
 
 ## warnings/errors traceback settings
 options(error = traceback)
@@ -137,7 +139,6 @@ Genewisenbfit <- R6::R6Class(
   classname = "Genewisenbfit", public = list(
     ## stan models for fitting
     snb = NULL,
-    snbcond = NULL,
     ## gamma alpha and beta for r as hyper prior in stan snb fit
     gamma_alpha = NULL,
     gamma_beta = NULL,
@@ -154,7 +155,6 @@ Genewisenbfit <- R6::R6Class(
     opt_iter = 5000,
     opt_refresh = 0,
     initialize = function(stan_snb_path,
-                          stan_snb_cond_path,
                           gamma_alpha = 0.05,
                           gamma_beta = 0.05,
                           mu = 0.0,
@@ -165,7 +165,6 @@ Genewisenbfit <- R6::R6Class(
                           min_varofind = 0.25,
                           min_tau2 = 0.25) {
       self$snb <- init_stan_model(stan_snb_path)
-      self$snbcond <- init_stan_model(stan_snb_cond_path)
       self$gamma_alpha <- gamma_alpha
       self$gamma_beta <- gamma_beta
       self$mu <- mu
@@ -405,7 +404,6 @@ High2 <- R6::R6Class(
     ),
     initialize = function(## gwsnb parameters
                           stan_snb_path,
-                          stan_snb_cond_path,
                           gamma_alpha = 0.05,
                           gamma_beta = 0.05,
                           r = 20,
@@ -432,7 +430,6 @@ High2 <- R6::R6Class(
       ## initiolize class members
       self$gwsnb <- Genewisenbfit$new(
         stan_snb_path = stan_snb_path,
-        stan_snb_cond_path = stan_snb_cond_path,
         mu = mu,
         r = r,
         big_r = big_r,
@@ -778,7 +775,7 @@ High2 <- R6::R6Class(
       ## r: nsample by ngene
       r <- t(vapply(1:nsample, function(i) {
         mucond[i, , ] %*% two_hot_vec
-      }, FUN.VALUE = rep(0.0, 2)))
+      }, FUN.VALUE = rep(0.0, ngene)))
       ## weighted the samples
       wr <- diag(normweights) %*% r
 

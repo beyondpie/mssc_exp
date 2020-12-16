@@ -4,16 +4,17 @@
 ## generate a series of cells
 
 ## * set R environment
-suppressPackageStartupMessages(library(SymSim))
-suppressPackageStartupMessages(library(tidyverse))
-## library(MCMCpack)
-library(cmdstanr)
-library(bayesplot)
-library(posterior)
-library(grid)
-library(gtable)
-library(gridExtra)
-suppressPackageStartupMessages(library(ggpubr))
+suppressWarnings(suppressMessages({
+  library(SymSim)
+  library(tidyverse)
+  library(cmdstanr)
+  library(bayesplot)
+  library(posterior)
+  library(grid)
+  library(gtable)
+  library(gridExtra)
+  library(ggpubr)
+}))
 
 ## warnings/errors traceback settings
 options(error = traceback)
@@ -21,7 +22,8 @@ options(warn = -1)
 options(mc.cores = 3)
 
 ## load help functions
-options("import.path" = here::here("rutils"))
+options("import.path" = list(here::here("rutils"),
+                             here::here("src", "mssc")))
 mypseudo <- modules::import("pseudobulk")
 mysymsim <- modules::import("mysymsim")
 
@@ -62,6 +64,7 @@ plot_genes_after_batcheffect <- function(symsim_umi,
                                          pnrow = 5,
                                          save_path = NULL,
                                          save_figure = TRUE,
+                                         fnm_prefix = "symsim_violin",
                                          width = 20, height = 10) {
   ## show batch effect using violin plot for different genes.
   ## nde: num of differential genes to show
@@ -88,9 +91,11 @@ plot_genes_after_batcheffect <- function(symsim_umi,
   )
 
   if (save_figure) {
-    ggsave(file.path(save_path, "symsim_violinplot_dg.pdf"),
+    ggsave(file.path(save_path,
+                     stringr::str_glue(fnm_prefix, "dg.pdf", .sep = "_")),
       plot = sampled_pvd, width = width, height =  height)
-    ggsave(file.path(save_path, "symsim_violinplot_nondg.pdf"),
+    ggsave(file.path(save_path,
+                     stringr::str_glue(fnm_prefix, "nondg.pdf")),
       plot = sampled_pvsnd, width = width, height = height)
   }
 
@@ -140,7 +145,7 @@ est_variation_of_ind <- function(symsim_obs, ind,
   cond <- symsim_obs$cell_meta$pop
   ## only use degenes to esimtate the variations
   init_params <- mssc_model$gwsnb$fit_mgsnb(
-    cnt = cnt, s = s, cond = cond, ind = ind)
+    cnt = y2c, s = s, cond = cond, ind = ind)
 
   ## init_mucond: ngene by ncond
   ## only two conditions
@@ -149,7 +154,7 @@ est_variation_of_ind <- function(symsim_obs, ind,
   est_mucond_sizes <- vapply(seq_len(ngene), function(i) {
     ## two conditions
     invisible(max(abs(init_mucond[i, 1] - init_mucond[i, 2])))
-  })
+  }, FUN.VALUE = 0.0)
   variation_of_ind <- ratio_ind2cond * quantile(est_mucond_sizes, probs = 0.975)
   return(invisible(list(hip = init_params, voi = variation_of_ind)))
 }
@@ -218,26 +223,27 @@ add_individual_effect <- function(y2c, ind,
   ## - count matrix: ngene by ncell (modified by individual effects)
 
   r <- y2c
-
   ## add indeff for differential genes
-  invisible(lapply(seq_along(g2indeff$dg), function(i) {
+  for (i in seq_along(g2indeff$dg)) {
     g <- g2indeff$dg[i]
     t <- y2c[g, ]
-    if (group_shift) {
-      t[t == 0] <- 1
+    tmp <- which(t == 0)
+    if (group_shift & (length(tmp) > 0)) {
+      t[tmp] <- 1
     }
     r[g, ] <- t * exp(g2indeff$dgeff[i, ind])
-  }))
+  }
 
   ## add indeff for non-differential genes
-  invisible(lapply(seq_along(g2indeff$nondg), function(i) {
+  for (i in seq_along(g2indeff$nondg)) {
     g <- g2indeff$nondg[i]
     t <- y2c[g, ]
-    if (group_shift) {
-      t[t == 0] <- 1
+    tmp <- which(t == 0)
+    if (group_shift & (length(tmp) > 0)) {
+      t[tmp] <- 1
     }
     r[g, ] <- t * exp(g2indeff$nondgeff[i, ind])
-  }))
+  }
   return(invisible(round(r)))
 }
 
@@ -248,7 +254,7 @@ simu_symsim_with_indeffect <- function(myseed = 1,
                                        ngene = 50,
                                        ratio_ind2cond = 1.0,
                                        nindeff = 2,
-                                       group_shift = TRUE,
+                                       use_group_shift = TRUE,
                                        scale_in_diffg = 1.0,
                                        scale_in_nondiffg = 1.0,
                                        mssc_model,
@@ -314,9 +320,9 @@ simu_symsim_with_indeffect <- function(myseed = 1,
 
   ## add individual effect to the observed counts directly
   symsim_umi$obs <- add_individual_effect(
-    symsim_umi$counts, ind,
-    g2indeff,
-    add_on_diffg = group_shift
+    y2c = symsim_umi$counts, ind = ind,
+    g2indeff = g2indeff,
+    group_shift = use_group_shift
   )
 
   symsim_umi$ind <- ind
@@ -327,13 +333,8 @@ simu_symsim_with_indeffect <- function(myseed = 1,
   symsim_umi$dea <- symsim_dea
 
   if (save_data) {
-    saveRDS(
-      object = symsim_umi,
-      file = file.path(
-        save_data_path,
-        stringr::str_glue("{ngene}gene_{nind*2}ind_{ncell}cell_{myseed}.rds")
-      )
-    )}
+    saveRDS(object = symsim_umi, file = save_data_path)
+  }
   return(invisible(symsim_umi))
 }
 
@@ -364,24 +365,29 @@ get_symsim_by_sampling <- function(symsim_umi,
   return(invisible(r))
 }
 
-load_mssc <- function(nind = 10, mssc_version = "mssc_2-0") {
+load_mssc <- function(nind = 10, mssc_version = "mssc_2-0",
+                      tol_rel_obj = 1e-05,
+                      num_iter = 30000, output_samples = 2000) {
   ## nind: total number individuals
+  ## tol_rel_obj, num_iter, output_samples are used
+  ## to tune the model
   ## return:
   ## - a mssc model
-  mssc_path <- here::here("src", "mssc", mssc_version)
-  mssc_20 <- modules::import(file.path(mssc_path, "mssc.R"))
-  invisible(mssc_20$High2$new(
+  mssc_path <- here::here("src", "mssc")
+  model <- modules::import_(mssc_version)
+  invisible(model$High2$new(
     stan_snb_path = file.path(mssc_path, "stan", "snb.stan"),
-    stan_high2_path = file.path(mssc_path, "stan", "mssc.stan"),
+    stan_high2_path = file.path(mssc_path, "stan",
+                                paste0(mssc_version, ".stan")),
     nind = nind,
     ## or 1e-06
-    tol_rel_obj = 1e-05,
+    tol_rel_obj = tol_rel_obj,
     algorithm = "meanfield",
     adapt_engaged = FALSE,
     eta = 0.1,
     ## or iter more steps
-    num_iter = 30000,
-    output_samples = 2000
+    num_iter = num_iter,
+    output_samples = output_samples
   ))
 }
 
@@ -416,7 +422,7 @@ run_mssc <- function(model, symsim, save_result = TRUE,
   ## model inference
   init_params <- model$init_params(
     cnt = y2c, s = s, cond = cond, ind = ind)
-  data <- mssc$to_model_data(cnt = y2c,
+  data <- model$to_model_data(cnt = y2c,
     s = s, cond = cond, ind = ind, hp = init_params$hp)
   model$run(data = data, list_wrap_ip = list(init_params$ip))
 
@@ -428,17 +434,17 @@ run_mssc <- function(model, symsim, save_result = TRUE,
     ngene = nrow(y2c), genenms = seq_len(nrow(y2c)))
 
   ## mucond: nsample by ngene
-  mucond <- mssc$extract_draws(
+  mucond <- model$extract_draws(
     param = "mucond", ngene = nrow(y2c), genenms = seq_len(nrow(y2c)))
   ## three rankings in order: t, bf, m
   ## ngene by 3
-  raw_rankings <- mssc$get_ranking_statistics(
+  raw_rankings <- model$get_ranking_statistics(
     mucond = mucond, two_hot_vec = c(1, -1))
   ## use PSIS (importance sampling) to further correct the bias
   psis <- model$psis()
   ## two rankings in order: bf, m
   ## ngene by 2
-  psis_rankings <- mssc$get_psis_ranking_statistics(
+  psis_rankings <- model$get_psis_ranking_statistics(
     mucond = mucond, two_hot_vec = c(1, -1), normweights = psis$normweights)
 
   if (save_result) {
@@ -479,11 +485,18 @@ main <- function(nind = 5,
   ##   - two versions of mssc and the pseudobulk are considered.
 
   ## load mssc model
-  mssc_20 <- load_mssc(nind = nind * 2, mssc_version = "mssc_2-0")
-  mssc_21 <- load_mssc(nind = nind * 2, mssc_version = "mssc_2-1")
+  ## for test firstly
+  mssc_20 <- load_mssc(nind = nind * 2, mssc_version = "mssc_2-0",
+                       num_iter = 20, output_samples = 1000)
+  mssc_21 <- load_mssc(nind = nind * 2, mssc_version = "mssc_2-1",
+                       num_iter = 20, output_samples = 1000)
 
   ## path to save symsim simulation data
   symsim_save_path <- here::here("src", "symsim")
+  ## experiment name for the usages of saving files
+  expnm <- ifelse(use_group_shift, "groupshift", "nonzeroshift")
+  ## seed for symsim
+  seed_symsim <- 1L
 
   ## declare the result
   r <- set_result_array(rpt = rpt, ncells = ncells,
@@ -495,11 +508,16 @@ main <- function(nind = 5,
     for (j in seq_len(length(ncells))) {
       ncell <- ncells[j]
       ## simulate symsim dataset
+      symsim_data_fnm <- stringr::str_glue(
+        "{ngene}gene", "{nind*2}ind", "{nindeff}indeff", "{ncell}cell",
+        expnm, "seed-{seed_symsim}", "{rpt}rpt.rds", .sep = "_")
+      save_symsim_data_path <- file.path(
+        symsim_save_path, "data", symsim_data_fnm)
       symsim_umi <- simu_symsim_with_indeffect(
+        myseed = seed_symsim,
+        save_data_path = save_symsim_data_path,
         nind = nind, nindeff = nindeff,
-        group_shift = use_group_shift,
-        myseed = i,
-        save_data_path = file.path(symsim_save_path, "data"),
+        use_group_shift = use_group_shift,
         ncell = ncell, ngene = ngene,
         ratio_ind2cond = ratio_ind2cond,
         scale_in_diffg = scale_in_diffg,
@@ -515,11 +533,15 @@ main <- function(nind = 5,
         "nondiffg: {length(nondiffg)}",
         .sep = "\n"))
       ## draw violin plot
+      plotfnm_prefix <- stringr::str_glue(
+        "symsim", "{ngene}gene", "{nind*2}ind", "{nindeff}indeff", expnm,
+        "{ncell}cell", "{rpt}rpt", .sep = "_")
       vln <- plot_genes_after_batcheffect(symsim_umi,
         nde = length(diffg),
         nnde = length(nondiffg),
         save_path = file.path(symsim_save_path, "figures"),
         save_figure = save_figure,
+        fnm_prefix = plotfnm_prefix,
         width = width,
         height = height
       )
@@ -530,16 +552,26 @@ main <- function(nind = 5,
       pseudo_auc <- mypseudo$calc_auc(pseudo_deseq2_res, diffg, nondiffg)
 
       ## mssc model
+      msscfnm_prefix <- stringr::str_glue(
+        "symsim", "{ngene}gene", "{nind*2}ind", "{nindeff}indeff", expnm,
+        "{ncell}cell", "{rpt}rpt", .sep = "_")
+
       ## mssc20
       r_mssc20 <- run_mssc(
-        model = mssc_20, symsim = symsim_umi, save_result = FALSE)
+        model = mssc_20, symsim = symsim_umi, save_result = TRUE,
+        save_path = file.path(
+          symsim_save_path, "models",
+          stringr::str_glue({msscfnm_prefix}, "_mssc21.rds")))
       raw_auc_mssc20 <- mssc$get_auc(r_mssc20$raw_rankings,
         c1 = diffg, c2 = nondiffg)
       psis_auc_mssc20 <- mssc$get_auc(r_mssc20$psis_rankings,
         c1 = diffg, c2 = nondiffg)
       ## mssc21
       r_mssc21 <- run_mssc(
-        model = mssc_20, symsim = symsim_umi, save_result = FALSE)
+        model = mssc_20, symsim = symsim_umi, save_result = TRUE,
+        save_path = file.path(
+          symsim_save_path, "models",
+          stringr::str_glue({msscfnm_prefix}, "_mssc20.rds")))
       raw_auc_mssc21 <- mssc$get_auc(r_mssc21$raw_rankings,
         c1 = diffg, c2 = nondiffg)
       psis_auc_mssc21 <- mssc$get_auc(r_mssc21$psis_rankings,
@@ -551,12 +583,12 @@ main <- function(nind = 5,
       print(r_i)
     } ## end of ncells
     r[, , i] <- r_i
+    ## show the matrix for current result
     print(r)
-    expnm <- ifelse(use_group_shift, "groupshift", "nonzeroshift")
+    ## save result per repeat for safe.
     fnm <- stringr::str_glue(
-      "{ngene}gene", "{nind*2}ind", "{nindeff}indeff", "{expnm}",
-      "{ratio_ind2cond}",
-      "{scale_in_diffg}", "{scale_in_nondiffg}.rds", .sep = "_")
+      "{ngene}gene", "{nind*2}ind", "{nindeff}indeff", expnm,
+      ratio_ind2cond, scale_in_diffg, "{scale_in_nondiffg}.rds", .sep = "_")
     saveRDS(object = r, file = file.path(symsim_save_path, "results", fnm))
   } ## end of repeat
 } ## end of main
@@ -588,7 +620,7 @@ option_list <- list(
     type = "integer",
     default = 3
   ),
-  make_option(c("--group_shift"), action = "store",
+  make_option(c("--groupshift"), action = "store",
     type = "integer", default = 1),
   make_option(c("--nind"), action = "store",
     type = "integer", default = 3),
