@@ -1,7 +1,7 @@
 
 SCRIPT := sbatch_symsim.sh
 
-5inid_groupshift : ${SCRIPT}
+5ind_groupshift : ${SCRIPT}
 	@sbatch $< 5 2 1 3 80 0.3 1 1
 
 5ind_nogroupshift : ${SCRIPT}
