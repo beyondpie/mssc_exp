@@ -14,7 +14,7 @@ plotphylo <- function(mytree) {
 
 sim_symsim_true <- function(myseed = 0,
                             ncell = 2000, ngene = 300,
-                            hasgenemodule = F, minmodn = 50,
+                            hasgenemodule = F,
                             npop = 2,
                             nevf = 10, n_de_evf = 6,
                             sigma = 0.2, vary = "all") {
@@ -37,7 +37,6 @@ sim_symsim_true <- function(myseed = 0,
     i_minpop = 1, evf_type = "discrete",
     nevf = nevf, n_de_evf = n_de_evf,
     gene_module_prop = gmodprop,
-    min_module_size = minmodn,
     Sigma = sigma, vary = vary,
     prop_hge = 0.0
   )

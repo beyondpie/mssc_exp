@@ -95,7 +95,7 @@ plot_genes_after_batcheffect <- function(symsim_umi,
                      stringr::str_glue(fnm_prefix, "dg.pdf", .sep = "_")),
       plot = sampled_pvd, width = width, height =  height)
     ggsave(file.path(save_path,
-                     stringr::str_glue(fnm_prefix, "nondg.pdf")),
+                     stringr::str_glue(fnm_prefix, "nondg.pdf", .sep = "_")),
       plot = sampled_pvsnd, width = width, height = height)
   }
 
@@ -267,7 +267,7 @@ simu_symsim_with_indeffect <- function(myseed = 1,
     myseed = myseed,
     ncell = ncell * nind * 2,
     ngene = ngene,
-    hasgenemodule = addgenemodule, minmodn = 50,
+    hasgenemodule = addgenemodule,
     npop = 2, nevf = 10, n_de_evf = 7,
     sigma = 0.2, vary = "s"
   )
@@ -470,7 +470,9 @@ main <- function(nind = 5,
                  ncells = c(20, 40, 80, 100, 120, 160),
                  save_figure = TRUE,
                  width = 20,
-                 height = 10) {
+                 height = 10,
+                 save_symsim_data = TRUE,
+                 save_mssc_model = TRUE) {
   ## nind: num of individuals in one condition
   ## nindeff: num of individuals with the side effect
   ## - in symsim simulation, we choose one condition, and
@@ -526,7 +528,7 @@ main <- function(nind = 5,
         scale_in_diffg = scale_in_diffg,
         scale_in_nondiffg = scale_in_nondiffg,
         mssc_model = mssc_21,
-        save_data = TRUE)
+        save_data = save_symsim_data)
 
       ## get diff and non-diff genes
       diffg <- symsim_umi$diffg
@@ -561,7 +563,7 @@ main <- function(nind = 5,
 
       ## mssc20
       r_mssc20 <- run_mssc(
-        model = mssc_20, symsim = symsim_umi, save_result = TRUE,
+        model = mssc_20, symsim = symsim_umi, save_result = save_mssc_model,
         save_path = file.path(
           symsim_save_path, "models",
           stringr::str_glue({msscfnm_prefix}, "_mssc20.rds")))
@@ -571,7 +573,7 @@ main <- function(nind = 5,
         c1 = diffg, c2 = nondiffg)
       ## mssc21
       r_mssc21 <- run_mssc(
-        model = mssc_20, symsim = symsim_umi, save_result = TRUE,
+        model = mssc_20, symsim = symsim_umi, save_result = save_mssc_model,
         save_path = file.path(
           symsim_save_path, "models",
           stringr::str_glue({msscfnm_prefix}, "_mssc21.rds")))
@@ -649,5 +651,7 @@ main(
   ncells = c(20),
   save_figure = T,
   width = 20,
-  height = 10
+  height = 10,
+  save_symsim_data = TRUE,
+  save_mssc_model = FALSE
 )
