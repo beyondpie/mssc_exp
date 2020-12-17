@@ -490,10 +490,8 @@ main <- function(nind = 5,
 
   ## load mssc model
   ## for test firstly
-  mssc_20 <- load_mssc(nind = nind * 2, mssc_version = "mssc_2-0",
-                       num_iter = 20, output_samples = 1000)
-  mssc_21 <- load_mssc(nind = nind * 2, mssc_version = "mssc_2-1",
-                       num_iter = 20, output_samples = 1000)
+  mssc_20 <- load_mssc(nind = nind * 2, mssc_version = "mssc_2-0")
+  mssc_21 <- load_mssc(nind = nind * 2, mssc_version = "mssc_2-1")
 
   ## path to save symsim simulation data
   symsim_save_path <- here::here("src", "symsim")
