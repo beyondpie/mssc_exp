@@ -107,23 +107,6 @@ split_matrix_col <- function(mat, second_dim, second_dim_nms = NULL) {
   return(invisible(r))
 }
 
-get_auc <- function(ranking_statistic, c1, c2) {
-  ## ranking_statistic: a vector, ngene by 1
-  ## c1: index of gene for condition one
-  ## c2: index of gene for condition two
-  ## return: a vector of AUC value for different columns
-  if (is.matrix(ranking_statistic)) {
-    t <- ranking_statistic
-  } else {
-    t <- as.matrix(ranking_statistic, ncol = 1)
-  }
-  true_class <- c(rep(TRUE, length(c1)), rep(FALSE, length(c2)))
-  return(invisible(caTools::colAUC(
-    t[c(c1, c2), ],
-    true_class
-  )))
-}
-
 ## * Genewisenbfit: initialize the parameters
 Genewisenbfit <- R6::R6Class(
   classname = "Genewisenbfit", public = list(
@@ -790,7 +773,7 @@ High2 <- R6::R6Class(
         mucond[i, , ] %*% two_hot_vec
       }, FUN.VALUE = rep(0.0, ngene)))
       ## weighted the samples
-      wr <- diag(normweights) %*% r
+      wr <- diag(as.numeric(normweights)) %*% r
 
       ## one measurement
       ## normalized weights, so we directly use sum
@@ -799,7 +782,7 @@ High2 <- R6::R6Class(
 
       ## one measurement
       ir <- (r > 0.0)
-      p0 <- colSums(diag(normweights) %*% ir)
+      p0 <- colSums(diag(as.numeric(normweights)) %*% ir)
       bf <- abs(log(p0 + 1e-06) - log(1 - p0 + 1e-06))
       ## summary
       result <- cbind(bf = bf, abs_m = abs_expected_d)
@@ -807,6 +790,22 @@ High2 <- R6::R6Class(
         rownames(result) <- dimnames(mucond)[[2]]
       }
       return(invisible(result))
+    },
+    get_auc = function(ranking_statistic, c1, c2) {
+      ## ranking_statistic: a vector, ngene by 1
+      ## c1: index of gene for condition one
+      ## c2: index of gene for condition two
+      ## return: a vector of AUC value for different columns
+      if (is.matrix(ranking_statistic)) {
+        t <- ranking_statistic
+      } else {
+        t <- as.matrix(ranking_statistic, ncol = 1)
+      }
+      true_class <- c(rep(TRUE, length(c1)), rep(FALSE, length(c2)))
+      return(invisible(caTools::colAUC(
+        t[c(c1, c2), ],
+        true_class
+      )))
     }
   ) ## end of public field
 ) ## end of class high2

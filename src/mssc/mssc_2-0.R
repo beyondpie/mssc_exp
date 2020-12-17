@@ -116,24 +116,6 @@ split_matrix_col <- function(mat, second_dim, second_dim_nms = NULL) {
   return(invisible(r))
 }
 
-get_auc <- function(ranking_statistic, c1, c2) {
-  ## ranking_statistic: a vector, ngene by 1
-  ## c1: index of gene for condition one
-  ## c2: index of gene for condition two
-  ## return: a vector of AUC value for different columns
-  if (is.matrix(ranking_statistic)) {
-    t <- ranking_statistic
-  } else {
-    t <- as.matrix(ranking_statistic, ncol = 1)
-  }
-  true_class <- c(rep(TRUE, length(c1)), rep(FALSE, length(c2)))
-  return(invisible(caTools::colAUC(
-    t[c(c1, c2), ],
-    true_class
-  )))
-}
-
-
 ## * define R6 classes
 Genewisenbfit <- R6::R6Class(
   classname = "Genewisenbfit", public = list(
@@ -424,7 +406,7 @@ High2 <- R6::R6Class(
                           output_samples = 2000,
                           tol_rel_obj = 0.0001,
                           adapt_iter = 200,
-                          adapt_engaged = TRUE,
+                          adapt_engaged = FALSE,
                           eta = 0.1,
                           sd_init_muind = 0.1, sd_init_mucond = 0.1) {
       ## initiolize class members
@@ -777,7 +759,7 @@ High2 <- R6::R6Class(
         mucond[i, , ] %*% two_hot_vec
       }, FUN.VALUE = rep(0.0, ngene)))
       ## weighted the samples
-      wr <- diag(normweights) %*% r
+      wr <- diag(as.numeric(normweights)) %*% r
 
       ## one measurement
       ## normalized weights, so we directly use sum
@@ -786,7 +768,7 @@ High2 <- R6::R6Class(
 
       ## one measurement
       ir <- (r > 0.0)
-      p0 <- colSums(diag(normweights) %*% ir)
+      p0 <- colSums(diag(as.numeric(normweights)) %*% ir)
       bf <- abs(log(p0 + 1e-06) - log(1 - p0 + 1e-06))
       ## summary
       result <- cbind(bf = bf, abs_m = abs_expected_d)
@@ -794,6 +776,23 @@ High2 <- R6::R6Class(
         rownames(result) <- dimnames(mucond)[[2]]
       }
       return(invisible(result))
+    },
+    
+    get_auc = function(ranking_statistic, c1, c2) {
+      ## ranking_statistic: a vector, ngene by 1
+      ## c1: index of gene for condition one
+      ## c2: index of gene for condition two
+      ## return: a vector of AUC value for different columns
+      if (is.matrix(ranking_statistic)) {
+        t <- ranking_statistic
+      } else {
+        t <- as.matrix(ranking_statistic, ncol = 1)
+      }
+      true_class <- c(rep(TRUE, length(c1)), rep(FALSE, length(c2)))
+      return(invisible(caTools::colAUC(
+        t[c(c1, c2), ],
+        true_class
+      )))
     }
   ) ## end of public field
 ) ## end of class high2
@@ -802,26 +801,16 @@ High2 <- R6::R6Class(
 ## * test
 test <- function() {
   pbmc <- readRDS(here::here(
-    "src", "modelcheck",
+    "src", "archive", "modelcheck",
     "snb_pool_ref_pbmc.rds"
   ))
   nind <- max(pbmc$ind)
   model <- High2$new(
-    stan_snb_path = here::here(
-      "src", "modelcheck", "high2",
-      "stan", "snb.stan"
-    ),
-    stan_snb_cond_path = here::here(
-      "src", "modelcheck", "high2",
-      "stan", "snb_cond.stan"
-    ),
-    stan_high2_path = here::here(
-      "src", "modelcheck", "high2",
-      "stan", "high2.stan"
-    ),
+    stan_snb_path = here::here("src", "mssc", "stan", "snb.stan"),
+    stan_high2_path = here::here("src", "mssc", "stan", "mssc_2-0.stan"),
     nind = nind,
     tol_rel_obj = 0.0001,
-    adapt_iter = 200
+    adapt_engaged = FALSE
   )
 
   init_params <- model$init_params(
@@ -857,13 +846,11 @@ test <- function() {
   psis <- model$psis()
   print(psis$psis)
 
-  rsis_rankings <- model$get_rsis_ranking_statistics(
-    ngene = 10,
+  psis_rankings <- model$get_psis_ranking_statistics(
+    mucond = mucond,
     two_hot_vec = c(1, -1),
-    genenms = rownames(pbmc$y2c[1:10, ]),
     normweights = psis$normweights
   )
-
-  str(rsis_rankings)
+  str(psis_rankings)
 }
 ## test()

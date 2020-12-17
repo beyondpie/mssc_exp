@@ -441,13 +441,15 @@ run_mssc <- function(model, symsim, save_result = TRUE,
   raw_rankings <- model$get_ranking_statistics(
     mucond = mucond, two_hot_vec = c(1, -1))
   ## use PSIS (importance sampling) to further correct the bias
-  psis <- model$psis()
+  capture.output(psis <- model$psis())
   ## two rankings in order: bf, m
   ## ngene by 2
   psis_rankings <- model$get_psis_ranking_statistics(
     mucond = mucond, two_hot_vec = c(1, -1), normweights = psis$normweights)
 
   if (save_result) {
+    ## TODO: check loading the results
+    ## warning at opt:argparse
     saveRDS(object = list(est_params = est_params, raw_rankings = raw_rankings,
       psis_rankings = psis_rankings, model = model),
     file = save_path)
@@ -505,12 +507,13 @@ main <- function(nind = 5,
   for (i in seq_len(rpt)) {
     ## init the record for current repeat
     r_i <- matrix(NA, nrow = dim(r)[1], ncol = dim(r)[2])
+    rownames(r_i) <- rownames(r)
     for (j in seq_len(length(ncells))) {
       ncell <- ncells[j]
       ## simulate symsim dataset
       symsim_data_fnm <- stringr::str_glue(
         "{ngene}gene", "{nind*2}ind", "{nindeff}indeff", "{ncell}cell",
-        expnm, "seed-{seed_symsim}", "{rpt}rpt.rds", .sep = "_")
+        expnm, "seed-{seed_symsim}", "rpt-{rpt}.rds", .sep = "_")
       save_symsim_data_path <- file.path(
         symsim_save_path, "data", symsim_data_fnm)
       symsim_umi <- simu_symsim_with_indeffect(
@@ -535,7 +538,7 @@ main <- function(nind = 5,
       ## draw violin plot
       plotfnm_prefix <- stringr::str_glue(
         "symsim", "{ngene}gene", "{nind*2}ind", "{nindeff}indeff", expnm,
-        "{ncell}cell", "{rpt}rpt", .sep = "_")
+        "{ncell}cell", "rpt-{i}", .sep = "_")
       vln <- plot_genes_after_batcheffect(symsim_umi,
         nde = length(diffg),
         nnde = length(nondiffg),
@@ -554,27 +557,27 @@ main <- function(nind = 5,
       ## mssc model
       msscfnm_prefix <- stringr::str_glue(
         "symsim", "{ngene}gene", "{nind*2}ind", "{nindeff}indeff", expnm,
-        "{ncell}cell", "{rpt}rpt", .sep = "_")
+        "{ncell}cell", "rpt-{i}", .sep = "_")
 
       ## mssc20
       r_mssc20 <- run_mssc(
         model = mssc_20, symsim = symsim_umi, save_result = TRUE,
         save_path = file.path(
           symsim_save_path, "models",
-          stringr::str_glue({msscfnm_prefix}, "_mssc21.rds")))
-      raw_auc_mssc20 <- mssc$get_auc(r_mssc20$raw_rankings,
+          stringr::str_glue({msscfnm_prefix}, "_mssc20.rds")))
+      raw_auc_mssc20 <- mssc_20$get_auc(r_mssc20$raw_rankings,
         c1 = diffg, c2 = nondiffg)
-      psis_auc_mssc20 <- mssc$get_auc(r_mssc20$psis_rankings,
+      psis_auc_mssc20 <- mssc_20$get_auc(r_mssc20$psis_rankings,
         c1 = diffg, c2 = nondiffg)
       ## mssc21
       r_mssc21 <- run_mssc(
         model = mssc_20, symsim = symsim_umi, save_result = TRUE,
         save_path = file.path(
           symsim_save_path, "models",
-          stringr::str_glue({msscfnm_prefix}, "_mssc20.rds")))
-      raw_auc_mssc21 <- mssc$get_auc(r_mssc21$raw_rankings,
+          stringr::str_glue({msscfnm_prefix}, "_mssc21.rds")))
+      raw_auc_mssc21 <- mssc_21$get_auc(r_mssc21$raw_rankings,
         c1 = diffg, c2 = nondiffg)
-      psis_auc_mssc21 <- mssc$get_auc(r_mssc21$psis_rankings,
+      psis_auc_mssc21 <- mssc_21$get_auc(r_mssc21$psis_rankings,
         c1 = diffg, c2 = nondiffg)
       ## merge results
       r_i[, j] <- c(raw_auc_mssc20, psis_auc_mssc20,
@@ -640,8 +643,10 @@ main(
   scale_in_diffg = args$scale_in_diffg,
   scale_in_nondiffg = args$scale_in_nondiffg,
   ngene = args$ngene,
-  rpt = args$rpt,
-  ncells = c(20, 40),
+  ## for test
+  rpt = 1,
+  ## for test
+  ncells = c(20),
   save_figure = T,
   width = 20,
   height = 10
