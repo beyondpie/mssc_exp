@@ -645,11 +645,10 @@ main(
   scale_in_diffg = args$scale_in_diffg,
   scale_in_nondiffg = args$scale_in_nondiffg,
   ngene = args$ngene,
+  rpt = 3,
   ## for test
-  rpt = 1,
-  ## for test
-  ncells = c(20),
-  save_figure = T,
+  ncells = c(20, 40, 80, 120, 160, 240, 300),
+  save_figure = TRUE,
   width = 20,
   height = 10,
   save_symsim_data = TRUE,
