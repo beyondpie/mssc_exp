@@ -510,7 +510,7 @@ main <- function(nind = 5,
       ## simulate symsim dataset
       symsim_data_fnm <- stringr::str_glue(
         "{ngene}gene", "{nind*2}ind", "{nindeff}indeff", "{ncell}cell",
-        expnm, "seed-{seed_symsim}", "rpt-{rpt}.rds", .sep = "_")
+        expnm, "seed-{i}", "rpt-{rpt}.rds", .sep = "_")
       save_symsim_data_path <- file.path(
         symsim_save_path, "data", symsim_data_fnm)
       symsim_umi <- simu_symsim_with_indeffect(
