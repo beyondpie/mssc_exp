@@ -366,8 +366,8 @@ get_symsim_by_sampling <- function(symsim_umi,
 }
 
 load_mssc <- function(nind = 10, mssc_version = "mssc_2-0",
-                      tol_rel_obj = 1e-05,
-                      num_iter = 30000, output_samples = 2000) {
+                      tol_rel_obj = 1e-06,
+                      num_iter = 20000, output_samples = 3000) {
   ## nind: total number individuals
   ## tol_rel_obj, num_iter, output_samples are used
   ## to tune the model
@@ -380,7 +380,6 @@ load_mssc <- function(nind = 10, mssc_version = "mssc_2-0",
     stan_high2_path = file.path(mssc_path, "stan",
                                 paste0(mssc_version, ".stan")),
     nind = nind,
-    ## or 1e-06
     tol_rel_obj = tol_rel_obj,
     algorithm = "meanfield",
     adapt_engaged = FALSE,
@@ -497,8 +496,6 @@ main <- function(nind = 5,
   symsim_save_path <- here::here("src", "symsim")
   ## experiment name for the usages of saving files
   expnm <- ifelse(use_group_shift, "groupshift", "nonzeroshift")
-  ## seed for symsim
-  seed_symsim <- 1L
 
   ## declare the result
   r <- set_result_array(rpt = rpt, ncells = ncells,
@@ -517,7 +514,8 @@ main <- function(nind = 5,
       save_symsim_data_path <- file.path(
         symsim_save_path, "data", symsim_data_fnm)
       symsim_umi <- simu_symsim_with_indeffect(
-        myseed = seed_symsim,
+        ## seed is set to the current repeat number
+        myseed = i,
         save_data_path = save_symsim_data_path,
         nind = nind, nindeff = nindeff,
         use_group_shift = use_group_shift,
