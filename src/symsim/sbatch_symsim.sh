@@ -3,7 +3,7 @@
 #SBATCH -c 4
 #SBATCH --mem=10000
 #SBATCH -N 1
-#SBATCH -t 48:00:00
+#SBATCH -t 24:00:00
 #SBATCH -p shared
 #SBATCH --verbose
 #SBATCH -J mssc_symsim
