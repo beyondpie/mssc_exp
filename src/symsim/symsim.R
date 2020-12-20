@@ -581,6 +581,7 @@ main <- function(nind = 5,
       r_i[, j] <- c(raw_auc_mssc20, psis_auc_mssc20,
         raw_auc_mssc21, psis_auc_mssc21,
         pseudo_auc$auc)
+      ## show result for current number of cells.
       print(r_i)
     } ## end of ncells
     r[, , i] <- r_i
