@@ -167,6 +167,7 @@ add_batch_effect <- function(symsimobs, nbatch,
 }
 
 ## set getDEgenes on any two groups of cells
+## deprecated: we can directly use SymSim::getDEgenes
 symsim_de_analysis <- function(true_counts_res, popA_idx, popB_idx) {
   meta_cell <- true_counts_res$cell_meta
   meta_gene <- true_counts_res$gene_effects
