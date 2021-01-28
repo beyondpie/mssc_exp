@@ -1,8 +1,5 @@
 ## simulate individual effect (bf) v2 using SymSim
 
-## TODO:
-## - model gene modules
-
 ## * set R environment
 suppressWarnings(suppressMessages({
   library(SymSim)
@@ -12,6 +9,7 @@ suppressWarnings(suppressMessages({
   library(gridExtra)
   library(ggpubr)
   library(ape)
+  library(ggtree)
   library(Rtsne)
   library(cmdstanr)
   library(bayesplot)
@@ -32,6 +30,18 @@ mypseudo <- modules::import("pseudobulk")
 ## load from a local file
 library(phytools)
 library(MASS)
+
+## * meta
+color3 <- c("brown", "brown2", "brown3",
+            "chartreuse", "chartreuse3", "darkolivegreen1")
+
+color5 <- c("brown", "brown2", "brown3", "brown4", "deeppink4",
+            "chartreuse", "chartreuse3", "darkolivegreen1", "darkolivegreen3", "aquamarine3")
+
+color10 <- c("chocolate", paste0("chocolate", 1:4),
+             "coral", paste0("coral", 1:4),
+             "deepskyblue", paste0("deepskyblue", 1:4),
+             "darkslategray", paste0("darkslategray", 1:4))
 
 ## * help functions
 set_population_struct_using_phylo <- function(w = rep(0.1, 6)) {
@@ -147,30 +157,21 @@ get_symsim_de_analysis <- function(true_counts_res, popA, popB) {
   return(list(nDiffEVF = n_useDEevf, logFC_theoretical = logFC_theoretical))
 }
 
-set_mssc_meta <- function(symsim, phyla, logfc_threshold = 0.6) {
-  ## dea: DE gene analysis results
-  dea <- get_symsim_de_analysis(symsim$true, popA = phyla$pop$sub1, popB = phyla$pop$sub2)
-
-  ## TODO: set several criterias
-  diffg <- which((dea$logFC_theoretical >= logfc_threshold) & (dea$nDiffEVF > 0))
-  nondiffg <- setdiff(seq_len(length(dea$logFC_theoretical)), diffg)
-
-  ind <- symsim$umi$cell_meta$pop
+set_mssc_meta <- function(symsim_umi, phyla) {
+  ind <- symsim_umi$cell_meta$pop
+  sub1 <- phyla$pop$sub1
+  sub2 <- phyla$pop$sub2
 
   ncell <- length(ind)
   cond <- floor(rep(0, ncell))
-  cond[ind %in% phyla$pop$sub1] <- 1
-  cond[ind %in% phyla$pop$sub2] <- 2
+  cond[ind %in% sub1] <- 1
+  cond[ind %in% sub2] <- 2
 
-  npop <- length(phyla$tip.label)
+  npop <- length(sub1) + length(sub2)
   cond_of_ind <- floor(rep(1, npop))
-  cond_of_ind[phyla$pop$sub1] <- 1
-  cond_of_ind[phyla$pop$sub2] <- 2
-  return(invisible(list(dea = dea,
-    diffg = diffg,
-    nondiffg = nondiffg,
-    logfc_threshold = logfc_threshold,
-    ind = ind,
+  cond_of_ind[sub1] <- 1
+  cond_of_ind[sub2] <- 2
+  return(invisible(list(ind = ind,
     cond = cond,
     cond_of_ind = cond_of_ind)))
 }
@@ -182,6 +183,18 @@ plot_tree <- function(p) {
   ape::tiplabels(cex = 2)
   ape::edgelabels(text = sprintf("%0.2f", p$edge.length),
     col = "black", bg = "lightgreen", font = 1, adj = c(0.5, 1.5))
+}
+
+plot_tree_v2 <- function(phyla) {
+  ## use ggtree package to plot tree in ggplot way
+  p <- ggtree(phyla) + theme_tree2() +
+    geom_nodepoint(color = "green", size = 5) +
+    geom_rootpoint(color = "red", size = 6) +
+    geom_tippoint(color = "blue", size = 4) +
+    geom_tiplab(align = TRUE, linetype = 'dashed', linesize = .3, hjust =  -1) +
+    geom_treescale(fontsize=5, linesize=2) +
+    theme(axis.text = element_text(size = 20))
+  return(invisible(p))
 }
 
 plot_tsne <- function(symsim_umi, color_values) {
@@ -239,12 +252,9 @@ plot_de_violin <- function(symsim_umi,
                            ind,
                            diffg,
                            nondiffg,
-                           nde = 40, nnde = 40,
-                           pnrow = 5,
-                           save_path = NULL,
-                           save_figure = TRUE,
-                           fnm_prefix = "symsim_violin",
-                           width = 20, height = 10) {
+                           logfc,
+                           nde = 20, nnde = 20,
+                           pnrow = 5) {
   ## show batch effect using violin plot for different genes.
   ## nde: num of differential genes to show
   ## nnde: num of non-differential genes to show
@@ -252,36 +262,23 @@ plot_de_violin <- function(symsim_umi,
   ## violinplot for diffg
   pviolin_symsimdeg <- violin_plot(symsim_umi$counts, ind, diffg)
   n <- ifelse(nde > length(diffg), length(diffg), nde)
-  sampled_pvd <- ggarrange(
-    plotlist = pviolin_symsimdeg[sample(length(diffg), n, replace = F)],
+  pvsd <- arrangeGrob(
+    grobs = pviolin_symsimdeg[sample(length(diffg), n, replace = F)],
     nrow = pnrow,
-    ncol = ceiling(nde / pnrow)
+    ncol = ceiling(nde / pnrow),
+    top = paste0("DE under logFC >= ", logfc)
   )
 
   ## violinplot for nondiffg
   pviolin_symsim_sndeg <- violin_plot(symsim_umi$counts, ind, nondiffg)
   m <- ifelse(nnde > length(nondiffg), length(nondiffg), nnde)
-  sampled_pvsnd <- ggarrange(
-    plotlist = pviolin_symsim_sndeg[sample(length(nondiffg), m, replace = F)],
+  pvsnd <- arrangeGrob(
+    grobs = pviolin_symsim_sndeg[sample(length(nondiffg), m, replace = F)],
     nrow = pnrow,
-    ncol = ceiling(nnde / pnrow)
+    ncol = ceiling(nnde / pnrow),
+    top = paste0("Non-DE under logFC < ", logfc)
   )
-
-  if (save_figure) {
-    ggsave(file.path(save_path,
-      stringr::str_glue(fnm_prefix, "dg.pdf", .sep = "_")),
-    plot = sampled_pvd, width = width, height =  height)
-    ggsave(file.path(save_path,
-      stringr::str_glue(fnm_prefix, "nondg.pdf", .sep = "_")),
-    plot = sampled_pvsnd, width = width, height = height)
-  }
-
-  invisible(list(
-    pvln_alldegs = pviolin_symsimdeg,
-    pvln_allndegs = pviolin_symsim_sndeg,
-    spvln_degs = sampled_pvd,
-    spvln_ndegs = sampled_pvsnd
-  ))
+  return(invisible(list(pvsd, pvsnd)))
 }
 
 simu <- function(ncell_per_ind = 30, nind_per_cond = 3, brn_len = 0.5,
@@ -344,15 +341,6 @@ set_result_array <- function(rpt = 5, ncells = c(20, 40, 80),
 }
 
 ## * main
-phyla3 <- set_population_struct_using_phylo(w = c(0.2, 0.5, 0.4, 0.4, 0.5, 0.3))
-plot_tree(phyla3)
-symsim <- get_symsim_umi(phyla = phyla3, bimod = 1, capt_alpha = 0.1,
-  ngene = 100, ncell_per_subpop = 60)
-color_values <- c("brown", "brown2", "brown3",
-  "chartreuse", "chartreuse3", "darkolivegreen1")
-p_tsne <- plot_tsne(symsim_umi = symsim$umi, color_values)
-p_tsne
-
 ## de analysis
 mssc_meta <- set_mssc_meta(symsim = symsim, phyla = phyla3)
 p <- plot_de_violin(symsim_umi = symsim$umi,
@@ -375,6 +363,9 @@ main <- function(nind_per_cond,
                  save_figure = TRUE,
                  fig_width = 20,
                  fig_height = 10,
+                 nde_plt = 20,
+                 nnde_plt = 20,
+                 pnrow = 5,
                  save_symsim_data = FALSE,
                  save_mssc_model = FALSE) {
   ## argument:
@@ -408,10 +399,11 @@ main <- function(nind_per_cond,
     for (j in seq_along(ncells)) {
       ncell <- ncells[j]
       ## simulate data
-      symsim_data_fnm <- str_glue("{ngene}gene", "{nind_all}ind",
+      symsim_prefix <- str_glue("{ngene}gene", "{nind_all}ind",
                                   "{ncell}cell", "{brn_len}w", "{bimod}bimod",
                                   "{sigma}sigma", "{capt_alpha}alpha", "{i}seed",
-                                  "{rpt}rpt.rds", .sep = "_")
+                                "{rpt}rpt", .sep = "_")
+      message(str_glue("SymSim experiment: {symsim_prefix}."))
       mysimu <- simu(ncell_per_ind = ncell,
                      nind_per_cond = nind_per_cond,
                      brn_len = brn_len,
@@ -420,6 +412,78 @@ main <- function(nind_per_cond,
                      capt_alpha = capt_alpha,
                      ngene = ngene,
                      seed = i)
+      ## get differentially expressed genes based different fold change levels
+      diffg_06 <- which((mysimu$dea$logFC_theoretical >= 0.6) & (mysimu$dea$nDiffEVF >  0))
+      nondiffg_06 <- setdiff(seq_along(mysimu$dea$logFC_theoretical), diffg_06)
+      message(str_glue("SymSim DE analysis under logFC 0.6: ",
+                       "{length(diffg_06)} diffg and {length(nondiffg_06)} nondiffg",
+                       .sep = "\n"))
+
+      diffg_08 <- which((mysimu$dea$logFC_theoretical >= 0.8) & (mysimu$dea$nDiffEVF >  0))
+      nondiffg_08 <- setdiff(seq_along(mysimu$dea$logFC_theoretical), diffg_08)
+      message(str_glue("SymSim DE analysis under logFC 0.8: ",
+                       "{length(diffg_08)} diffg and {length(nondiffg_08)} nondiffg",
+                       .sep = "\n"))
+
+      diffg_10 <- which((mysimu$dea$logFC_theoretical >= 1.0) & (mysimu$dea$nDiffEVF >  0))
+      nondiffg_10 <- setdiff(seq_along(mysimu$dea$logFC_theoretical), diffg_10)
+      message(str_glue("SymSim DE analysis under logFC 1.0: ",
+                       "{length(diffg_10)} diffg and {length(nondiffg_10)} nondiffg",
+                       .sep = "\n"))
+
+      ## prepare mssc meta
+      mssc_meta <- set_mssc_meta(symsimumi = mysimu$symsim$umi, phyla = mysimu$phyla)
+    
+      ## save data
+      if (save_figure) {
+        pdf(file = file.path(simu_fig_dir, paste0(symsim_prefix, ".pdf")),
+            width = fig_width, height = fig_height)
+        ## phylo tree
+        p_phylo <- plot_tree_v2(phyla = mysimu$phyla)
+        colors <- ifelse(test = (nind_per_cond == 3), yes = color3,
+                         no = ifelse(test = (nind_per_cond == 5),
+                                    yes = color5,
+                                    no = color10))
+        ## tsne of cells under population
+        p_tsne <- plot_tsne(symsim_umi = mysimu$symsim$umi, color_values = colors)
+        grid.arrange(grobs = list(p_phylo, p_tsne), nrow  = 1, ncol = 2,
+                     top = "Population structure and t-SNE in SymSim")
+        ## violin of (non-)differentially expression genes.
+        pv_06 <- plot_de_violin(symsim_umi = mysimu$symsim$umi,
+                                ind = mssc_meta$ind,
+                                diffg = diffg_06, nondiffg = nondiffg_06,
+                                nde = nde_plt, nnde = nnde_plt, pnrow = pnrow,
+                                logFC = 0.6)
+        print(pv_06[[1]])
+        print(pv_06[[2]])
+        pv_08 <- plot_de_violin(symsim_umi = mysimu$symsim$umi,
+                                ind = mssc_meta$ind,
+                                diffg = diffg_08, nondiffg = nondiffg_08,
+                                nde = nde_plt, nnde = nnde_plt, pnrow = pnrow,
+                                logFC = 0.8)
+        print(pv_08[[1]])
+        print(pv_08[[2]])
+        pv_10 <- plot_de_violin(symsim_umi = mysimu$symsim$umi,
+                                ind = mssc_meta$ind,
+                                diffg = diffg_10, nondiffg = nondiffg_10,
+                                nde = nde_plt, nnde = nnde_plt, pnrow = pnrow,
+                                logFC = 1.0)
+        print(pv_10[[1]])
+        print(pv_10[[2]])
+        dev.off()
+      } ## end of save figures in one file
+      if (save_symsim_data) {
+        saveRDS(object = list(simu = mysimu, dg06 = diffg_06, nondg06 = nondiffg_06,
+                              dg08 = diffg_08, nondg08 = nondiffg_08,
+                              dg10 = diffg_10, nondg10 = nondiffg_10),
+                file = file.path(simu_data_dir, paste0(symsim_prefix, ".rds")))
+      } ## end of save symsim data
+
+      ## de analysis with mssc
+      ## de analysis with pseudobulk
+      ## de analysis with t-test
+      ## de analysis with wilcox
+      
     } ## end of ncells
   } ## end of rpt
   
@@ -450,3 +514,4 @@ main(
   save_symsim_data = FALSE,
   save_mssc_model = FALSE
 )
+
