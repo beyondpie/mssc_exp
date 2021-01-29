@@ -402,7 +402,7 @@ set_result_array <- function(rpt = 5, ncells = c(20, 40, 80),
     dimnames = list(nms, ncells, seq_len(rpt))))
 }
 
-run_mssc <- function(model, symsim, save_result = TRUE,
+run_mssc <- function(model, symsim_umi, mssc_meta, save_result = TRUE,
                      save_path = NULL) {
   ## mssc analysis
   ## side effect
@@ -412,9 +412,9 @@ run_mssc <- function(model, symsim, save_result = TRUE,
   ## - ranking statistics
 
   ## data from symsim
-  y2c <- round(symsim$obs)
-  ind <- symsim$ind
-  cond <- symsim$cond
+  y2c <- round(symsim_umi)
+  ind <- mssc_meta$ind
+  cond <- mssc_meta$cond
   sumcnt <- colSums(y2c)
   s <- sumcnt / median(sumcnt)
 
@@ -437,25 +437,20 @@ run_mssc <- function(model, symsim, save_result = TRUE,
     param = "mucond", ngene = nrow(y2c), genenms = seq_len(nrow(y2c)))
   ## three rankings in order: t, bf, m
   ## ngene by 3
-  raw_rankings <- model$get_ranking_statistics(
+  r <- model$get_ranking_statistics(
     mucond = mucond, two_hot_vec = c(1, -1))
   ## use PSIS (importance sampling) to further correct the bias
-  capture.output(psis <- model$psis())
+  ## capture.output(psis <- model$psis())
   ## two rankings in order: bf, m
   ## ngene by 2
-  psis_rankings <- model$get_psis_ranking_statistics(
-    mucond = mucond, two_hot_vec = c(1, -1), normweights = psis$normweights)
-
+  ## psis_rankings <- model$get_psis_ranking_statistics(
+    ## mucond = mucond, two_hot_vec = c(1, -1), normweights = psis$normweights)
   if (save_result) {
     ## TODO: check loading the results
     ## warning at opt:argparse
-    saveRDS(object = list(est_params = est_params, raw_rankings = raw_rankings,
-      psis_rankings = psis_rankings, model = model),
-    file = save_path)
+    saveRDS(object = list(est_params = est_params, r = r, model = model),file = save_path)
   }
-
-  return(invisible(
-    list(raw_rankings = raw_rankings, psis_rankings = psis_rankings)))
+  return(invisible(r))
 }
 
 main <- function(nind = 5,

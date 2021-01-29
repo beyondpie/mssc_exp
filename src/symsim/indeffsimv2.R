@@ -44,6 +44,10 @@ color10 <- c("chocolate", paste0("chocolate", 1:4),
              "darkslategray", paste0("darkslategray", 1:4))
 
 ## * help functions
+logtpm <- function(cnt, scale = 10000) {
+  tpm <- scale(cnt, center = F, scale = colSums(cnt)) * scale
+  return(invisible(log(tpm + 1)))
+}
 set_population_struct_using_phylo <- function(w = rep(0.1, 6)) {
   ## two populations (two conditiosn), while each has some subpopulations
   ## used when individual effects as subpopulations in phylogenetic tree
@@ -390,12 +394,20 @@ main <- function(nind_per_cond,
   mssc_20 <- load_mssc(nind = nind_all, mssc_version = "mssc_2-0")
 
   ## declare the result
-  r <- set_result_array(rpt = rpt, ncells = ncells,
+  auc06 <- set_result_array(rpt = rpt, ncells = ncells,
+                        methods = c("mssc_2-0", "pseudo", "wilcox", "t"))
+  auc08 <- set_result_array(rpt = rpt, ncells = ncells,
+                        methods = c("mssc_2-0", "pseudo", "wilcox", "t"))
+  auc10 <- set_result_array(rpt = rpt, ncells = ncells,
                         methods = c("mssc_2-0", "pseudo", "wilcox", "t"))
 
   for (i in seq_len(rpt)) {
-    r_i <- matrix(NA, nrow = dim(r)[1], ncol = dim(r)[2])
-    rownames(r_i) <- rownames(r)
+    auc06_i <- matrix(NA, nrow = dim(r)[1], ncol = dim(r)[2])
+    auc08_i <- matrix(NA, nrow = dim(r)[1], ncol = dim(r)[2])
+    auc10_i <- matrix(NA, nrow = dim(r)[1], ncol = dim(r)[2])
+    rownames(auc06_i) <- rownames(auc06)
+    rownames(auc08_i) <- rownames(auc08)
+    rownames(auc10_i) <- rownames(auc10)
     for (j in seq_along(ncells)) {
       ncell <- ncells[j]
       ## simulate data
@@ -480,13 +492,52 @@ main <- function(nind_per_cond,
       } ## end of save symsim data
 
       ## de analysis with mssc
+      r_mssc20 <- run_mssc(
+        model = mssc_20,
+        symsim_umi = mysimu$symsim$umi$counts,
+        mssc_meta = mssc_meta,
+        save_result = save_mssc_model,
+        save_path = file.path(mssc_v2_dir, str_glue("mssc2_{symsim_prefix}.rds"))
+      )
+      auc06_mssc20 <- mssc_20$get_auc(r_mssc20$r, c1  = diffg_06, c2 = nondiffg_06)
+      auc08_mssc20 <- mssc_20$get_auc(r_mssc20$r, c1  = diffg_08, c2 = nondiffg_08)
+      auc10_mssc20 <- mssc_20$get_auc(r_mssc20$r, c1  = diffg_10, c2 = nondiffg_10)
       ## de analysis with pseudobulk
-      ## de analysis with t-test
-      ## de analysis with wilcox
+      r_pseudo <- mypseudo$pseudobulk_deseq2(
+        cnt_gbc = mysimu$symsim$umi$counts,
+        mybatches = mssc_meta$ind,
+        myconds = factor(mssc_meta$cond)
+      )
+      auc06_pseudo <- mypseudo$calc_auc(deseq2_res = r_pseudo,
+                                        degs = diffg_06, ndegs = nondiffg_06)
+      auc08_pseudo <- mypseudo$calc_auc(deseq2_res = r_pseudo,
+                                        degs = diffg_08, ndegs = nondiffg_08)
+      auc10_pseudo <- mypseudo$calc_auc(deseq2_res = r_pseudo,
+                                        degs = diffg_10, ndegs = nondiffg_10)
       
+      ## de analysis with t-test
+      r_t <- apply(t.test())
+      ## de analysis with wilcox
+
+      ## save result
+      auc06_i[, j] <- c(auc06_mssc20, auc06_pseudo)
+      auc08_i[, j] <- c(auc08_mssc20, auc08_pseudo)
+      auc10_i[, j] <- c(auc10_mssc20, auc10_pseudo)
     } ## end of ncells
+    auc06[, , i] <- auc06_i
+    auc08[, , i] <- auc08_i
+    auc10[, , i] <- auc10_i
+    message(str_glue("In {i}th turn, result is summarized below..."))
+    message("when logfc is 0.6:")
+    print(auc06)
+    message("when logfc is 0.8:")
+    print(auc08)
+    message("when logfc is 1.0:")
+    print(auc10)
+    ## save result
+    saveRDS(object = list(r06 = auc06, r08 = auc08, r10 = auc10),
+            file = file.path(dea_dir, str_glue("dea_r_{symsim_prefix}.rds")))
   } ## end of rpt
-  
 }
 
 library(optparse)
