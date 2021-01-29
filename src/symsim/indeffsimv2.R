@@ -44,10 +44,23 @@ color10 <- c("chocolate", paste0("chocolate", 1:4),
              "darkslategray", paste0("darkslategray", 1:4))
 
 ## * help functions
-logtpm <- function(cnt, scale = 10000) {
+get_logtpm <- function(cnt, scale = 10000) {
   tpm <- scale(cnt, center = F, scale = colSums(cnt)) * scale
   return(invisible(log(tpm + 1)))
 }
+
+zhu_test <- function(x, group, test = "t") {
+  if (sd(x) < 1e-06) {
+    1
+  } else {
+    if (test == "t") {
+      t.test(x ~ group$p.value)
+    } else if (test == "wilcox") {
+      wilcox.test(x ~ group)$p.value
+    }
+  }
+}
+
 set_population_struct_using_phylo <- function(w = rep(0.1, 6)) {
   ## two populations (two conditiosn), while each has some subpopulations
   ## used when individual effects as subpopulations in phylogenetic tree
@@ -516,13 +529,32 @@ main <- function(nind_per_cond,
                                         degs = diffg_10, ndegs = nondiffg_10)
       
       ## de analysis with t-test
-      r_t <- apply(t.test())
+      logtpm <- get_logtpm(cnt = mysimu$symsim$umi$counts, scale = 10000)
+      r_t <- apply(logtpm, 1, zhu_test, group = mssc_meta$cond, test = "t")
+      r_t_adjp <- p.adjust(r_t, method = "fdr")
+      auc06_t <- caTools::colAUC(X = r_t_adjp, y = diffg_06)
+      auc08_t <- caTools::colAUC(X = r_t_adjp, y = diffg_08)
+      auc10_t <- caTools::colAUC(X = r_t_adjp, y = diffg_10)
       ## de analysis with wilcox
+      r_wilcox <- apply(logtpm, 1, zhu_test, group = mssc_meta$cond, test = "wilcox")
+      r_wilcox_adjp <- p.adjust(r_wilcox, method = "fdr")
+      auc06_wilcox <- caTools::colAUC(X = r_wilcox_adjp, y = diffg_06)
+      auc08_wilcox <- caTools::colAUC(X = r_wilcox_adjp, y = diffg_08)
+      auc10_wilcox <- caTools::colAUC(X = r_wilcox_adjp, y = diffg_10)
 
       ## save result
-      auc06_i[, j] <- c(auc06_mssc20, auc06_pseudo)
-      auc08_i[, j] <- c(auc08_mssc20, auc08_pseudo)
-      auc10_i[, j] <- c(auc10_mssc20, auc10_pseudo)
+      auc06_i[, j] <- c(auc06_mssc20, auc06_pseudo, auc06_t, auc06_wilcox)
+      auc08_i[, j] <- c(auc08_mssc20, auc08_pseudo, auc08_t, auc08_wilcox)
+      auc10_i[, j] <- c(auc10_mssc20, auc10_pseudo, auc10_t, auc10_wilcox)
+      message(str_glue("In {i}th turn under {ncell} cells per individual",
+                       "result is summarized below..."))
+      message("when logfc is 0.6:")
+      print(auc06_i)
+      message("when logfc is 0.8:")
+      print(auc08_i)
+      message("when logfc is 1.0:")
+      print(auc10_i)
+
     } ## end of ncells
     auc06[, , i] <- auc06_i
     auc08[, , i] <- auc08_i
