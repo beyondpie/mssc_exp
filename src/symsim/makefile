@@ -8,16 +8,16 @@ ratio_ind2cond := 0.3
 scale_in_diffg := 1
 scale_in_nondiffg := 1
 
-# brn_lens := 0.5 0.8 1.0 1.5
-# bimods := 0 0.5 1
-# sigmas := 0.4 0.6
-# capt_alphas:= 0.05 0.1 0.15 0.2
+brn_lens := 0.5 0.8 1.0 1.5
+bimods := 0 0.5 1
+sigmas := 0.4 0.6
+capt_alphas:= 0.05 0.1 0.15 0.2
 
 ## test
-brn_lens := 0.5
-bimods := 0
-sigmas := 0.4
-capt_alphas:= 0.05
+# brn_lens := 0.5
+# bimods := 0
+# sigmas := 0.4
+# capt_alphas:= 0.05
 
 
 
