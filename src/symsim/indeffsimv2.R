@@ -623,7 +623,7 @@ main <- function(nind_per_cond,
 
 option_list <- list(
   ## make_option(c("--ncell_per_ind"), action = "store", type = "integer", default = 30),
-  ## make_option(c("--ngene"), action = "store", type = "integer", default = 100),
+  make_option(c("--ngene"), action = "store", type = "integer", default = 100),
   make_option(c("--nind_per_cond"), action = "store", type = "integer", default = 3),
   make_option(c("--brn_len"), action = "store", type = "double", default = 0.5),
   make_option(c("--bimod"), action = "store", type = "double", default = 1),
@@ -632,34 +632,35 @@ option_list <- list(
 )
 
 args <- parse_args(OptionParser(option_list = option_list))
-## main(
-##   nind_per_cond = args$nind_per_cond,
-##   brn_len = args$brn_len,
-##   bimod = args$bimod,
-##   sigma = args$sigma,
-   ## ncells = c(30, 50, 80, 120, 160, 240, 300),
-   ## capt_alpha = 0.2,
-##   rpt = 5,
-##   save_figure = T,
-##   fig_width = 20,
-##   fig_height = 10,
-##   save_symsim_data = FALSE,
-##   save_mssc_model = FALSE
-## )
-
-## * test
 main(
   nind_per_cond = args$nind_per_cond,
   brn_len = args$brn_len,
   bimod = args$bimod,
   sigma = args$sigma,
-  ncells = c(30),
+  ncells = c(30, 50, 80, 120, 160, 240, 300),
+  ngene = args$ngene,
   capt_alpha = 0.2,
-  rpt = 1,
-  save_figure = TRUE,
+  rpt = 5,
+  save_figure = T,
   fig_width = 20,
   fig_height = 10,
-  save_symsim_data = TRUE,
-  save_mssc_model = TRUE
+  save_symsim_data = FALSE,
+  save_mssc_model = FALSE
 )
+
+## * test
+## main(
+##   nind_per_cond = args$nind_per_cond,
+##   brn_len = args$brn_len,
+##   bimod = args$bimod,
+##   sigma = args$sigma,
+##   ncells = c(30),
+##   capt_alpha = 0.2,
+##   rpt = 1,
+##   save_figure = TRUE,
+##   fig_width = 20,
+##   fig_height = 10,
+##   save_symsim_data = TRUE,
+##   save_mssc_model = TRUE
+## )
 
