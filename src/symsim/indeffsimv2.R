@@ -26,11 +26,6 @@ options("import.path" = list(here::here("rutils"),
   here::here("src", "mssc")))
 mypseudo <- modules::import("pseudobulk")
 
-## * modify symsim functions
-## load from a local file
-library(phytools)
-library(MASS)
-
 ## * meta
 color3 <- c("brown", "brown2", "brown3",
             "chartreuse", "chartreuse3", "darkolivegreen1")
@@ -305,8 +300,7 @@ simu <- function(ncell_per_ind = 30, nind_per_cond = 3, brn_len = 0.5,
   ncond <- 2
   nind <- nind_per_cond * ncond
   ncell <- nind * ncell_per_ind
-  w <- rep(brn_len, nind)
-  phyla <- set_population_struct_using_phylo(w = brn)
+  phyla <- set_population_struct_using_phylo(w = rep(brn_len, nind))
   symsim <- get_symsim_umi(phyla = phyla, bimod = bimod,
     capt_alpha = capt_alpha, gene_module_prop = 0.0,
     ncell_per_subpop = ncell_per_ind,
@@ -349,6 +343,57 @@ load_mssc <- function(nind = 10, mssc_version = "mssc_2-0",
   ))
 }
 
+run_mssc <- function(model, symsim_umi, mssc_meta, save_result = TRUE,
+                     save_path = NULL) {
+  ## mssc analysis
+  ## side effect
+  ## - model state will be updated
+  ## - save the results into rds file (save_path).
+  ## return
+  ## - ranking statistics
+
+  ## data from symsim
+  y2c <- round(symsim_umi)
+  ind <- mssc_meta$ind
+  cond <- mssc_meta$cond
+  sumcnt <- colSums(y2c)
+  s <- sumcnt / median(sumcnt)
+
+  ## model inference
+  init_params <- model$init_params(
+    cnt = y2c, s = s, cond = cond, ind = ind)
+  data <- model$to_model_data(cnt = y2c,
+    s = s, cond = cond, ind = ind, hp = init_params$hp)
+  model$run(data = data, list_wrap_ip = list(init_params$ip))
+
+  ## get results
+  ## Mannually get the samples for all the params
+  ## the model, in principle, will only save the results
+  ## in a temporary file since it uses cmdstan.
+  est_params <- model$extract_draws_all(
+    ngene = nrow(y2c), genenms = seq_len(nrow(y2c)))
+
+  ## mucond: nsample by ngene
+  mucond <- model$extract_draws(
+    param = "mucond", ngene = nrow(y2c), genenms = seq_len(nrow(y2c)))
+  ## three rankings in order: t, bf, m
+  ## ngene by 3
+  r <- model$get_ranking_statistics(
+    mucond = mucond, two_hot_vec = c(1, -1))
+  ## use PSIS (importance sampling) to further correct the bias
+  ## capture.output(psis <- model$psis())
+  ## two rankings in order: bf, m
+  ## ngene by 2
+  ## psis_rankings <- model$get_psis_ranking_statistics(
+    ## mucond = mucond, two_hot_vec = c(1, -1), normweights = psis$normweights)
+  if (save_result) {
+    ## TODO: check loading the results
+    ## warning at opt:argparse
+    saveRDS(object = list(est_params = est_params, r = r, model = model),file = save_path)
+  }
+  return(invisible(r))
+}
+
 set_result_array <- function(rpt = 5, ncells = c(20, 40, 80),
                              methods = c("mssc_2-0", "pseudo", "wilcox", "t")) {
   ## setup the result array:
@@ -358,17 +403,6 @@ set_result_array <- function(rpt = 5, ncells = c(20, 40, 80),
 }
 
 ## * main
-## de analysis
-mssc_meta <- set_mssc_meta(symsim = symsim, phyla = phyla3)
-p <- plot_de_violin(symsim_umi = symsim$umi,
-  ind = mssc_meta$ind,
-  diffg = mssc_meta$diffg,
-  nondiffg = mssc_meta$nondiffg,
-  nde = 20, nnde = 20,
-  save_figure = F)
-p$spvln_degs
-p$spvln_ndegs
-
 main <- function(nind_per_cond,
                  brn_len,
                  bimod,
@@ -415,9 +449,9 @@ main <- function(nind_per_cond,
                         methods = c("mssc_2-0", "pseudo", "wilcox", "t"))
 
   for (i in seq_len(rpt)) {
-    auc06_i <- matrix(NA, nrow = dim(r)[1], ncol = dim(r)[2])
-    auc08_i <- matrix(NA, nrow = dim(r)[1], ncol = dim(r)[2])
-    auc10_i <- matrix(NA, nrow = dim(r)[1], ncol = dim(r)[2])
+    auc06_i <- matrix(NA, nrow = dim(auc06)[1], ncol = dim(auc06)[2])
+    auc08_i <- matrix(NA, nrow = dim(auc08)[1], ncol = dim(auc08)[2])
+    auc10_i <- matrix(NA, nrow = dim(auc10)[1], ncol = dim(auc10)[2])
     rownames(auc06_i) <- rownames(auc06)
     rownames(auc08_i) <- rownames(auc08)
     rownames(auc10_i) <- rownames(auc10)
@@ -457,7 +491,7 @@ main <- function(nind_per_cond,
                        .sep = "\n"))
 
       ## prepare mssc meta
-      mssc_meta <- set_mssc_meta(symsimumi = mysimu$symsim$umi, phyla = mysimu$phyla)
+      mssc_meta <- set_mssc_meta(symsim_umi = mysimu$symsim$umi, phyla = mysimu$phyla)
     
       ## save data
       if (save_figure) {
@@ -465,10 +499,14 @@ main <- function(nind_per_cond,
             width = fig_width, height = fig_height)
         ## phylo tree
         p_phylo <- plot_tree_v2(phyla = mysimu$phyla)
-        colors <- ifelse(test = (nind_per_cond == 3), yes = color3,
-                         no = ifelse(test = (nind_per_cond == 5),
-                                    yes = color5,
-                                    no = color10))
+        if (nind_per_cond == 3) {
+          colors <- color3
+        } else if(nind_per_cond == 5) {
+          colors <- color5
+        } else {
+          colors <- color10
+        }
+
         ## tsne of cells under population
         p_tsne <- plot_tsne(symsim_umi = mysimu$symsim$umi, color_values = colors)
         grid.arrange(grobs = list(p_phylo, p_tsne), nrow  = 1, ncol = 2,
@@ -478,21 +516,21 @@ main <- function(nind_per_cond,
                                 ind = mssc_meta$ind,
                                 diffg = diffg_06, nondiffg = nondiffg_06,
                                 nde = nde_plt, nnde = nnde_plt, pnrow = pnrow,
-                                logFC = 0.6)
+                                logfc = 0.6)
         print(pv_06[[1]])
         print(pv_06[[2]])
         pv_08 <- plot_de_violin(symsim_umi = mysimu$symsim$umi,
                                 ind = mssc_meta$ind,
                                 diffg = diffg_08, nondiffg = nondiffg_08,
                                 nde = nde_plt, nnde = nnde_plt, pnrow = pnrow,
-                                logFC = 0.8)
+                                logfc = 0.8)
         print(pv_08[[1]])
         print(pv_08[[2]])
         pv_10 <- plot_de_violin(symsim_umi = mysimu$symsim$umi,
                                 ind = mssc_meta$ind,
                                 diffg = diffg_10, nondiffg = nondiffg_10,
                                 nde = nde_plt, nnde = nnde_plt, pnrow = pnrow,
-                                logFC = 1.0)
+                                logfc = 1.0)
         print(pv_10[[1]])
         print(pv_10[[2]])
         dev.off()
@@ -516,6 +554,7 @@ main <- function(nind_per_cond,
       auc08_mssc20 <- mssc_20$get_auc(r_mssc20$r, c1  = diffg_08, c2 = nondiffg_08)
       auc10_mssc20 <- mssc_20$get_auc(r_mssc20$r, c1  = diffg_10, c2 = nondiffg_10)
       ## de analysis with pseudobulk
+      ## TODO: consider when p-value not NA
       r_pseudo <- mypseudo$pseudobulk_deseq2(
         cnt_gbc = mysimu$symsim$umi$counts,
         mybatches = mssc_meta$ind,
@@ -578,23 +617,40 @@ option_list <- list(
   ## make_option(c("--ngene"), action = "store", type = "integer", default = 100),
   make_option(c("--nind_per_cond"), action = "store", type = "integer", default = 3),
   make_option(c("--brn_len"), action = "store", type = "double", default = 0.5),
-  make_option(c("--bimod"), action = "store", type = "double", default = 0.1),
+  make_option(c("--bimod"), action = "store", type = "double", default = 1),
   make_option(c("--sigma"), action = "store", type = "double", default = 0.6),
   make_option(c("--capt_alpha"), action = "store", type = "double", default = 0.2)
 )
 
-args <- parser_args(OptionParser(option_list = option_list))
+args <- parse_args(OptionParser(option_list = option_list))
+## main(
+##   nind_per_cond = args$nind_per_cond,
+##   brn_len = args$brn_len,
+##   bimod = args$bimod,
+##   sigma = args$sigma,
+   ## ncells = c(30, 50, 80, 120, 160, 240, 300),
+   ## capt_alpha = 0.2,
+##   rpt = 5,
+##   save_figure = T,
+##   fig_width = 20,
+##   fig_height = 10,
+##   save_symsim_data = FALSE,
+##   save_mssc_model = FALSE
+## )
+
+## * test
 main(
   nind_per_cond = args$nind_per_cond,
   brn_len = args$brn_len,
   bimod = args$bimod,
   sigma = args$sigma,
-  ncells = c(30, 50, 80, 120, 160, 240, 300),
-  rpt = 5,
-  save_figure = T,
-  fid_width = 20,
+  ncells = c(30),
+  capt_alpha = 0.2,
+  rpt = 1,
+  save_figure = TRUE,
+  fig_width = 20,
   fig_height = 10,
-  save_symsim_data = FALSE,
-  save_mssc_model = FALSE
+  save_symsim_data = TRUE,
+  save_mssc_model = TRUE
 )
 
