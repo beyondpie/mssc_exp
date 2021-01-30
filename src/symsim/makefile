@@ -44,7 +44,7 @@ capt_alphas:= 0.05
     for bimod in ${bimods}; do \
       for sigma in ${sigmas}; do \
         for alpha in ${capt_alphas}; do \
-          @sbatch $< 3 $${brn_len} $${bimod} $${sigma} $${alpha} ${ngene} ;\
+           sbatch $< 3 $${brn_len} $${bimod} $${sigma} $${alpha} ${ngene} ;\
         done; \
       done; \
     done; \
@@ -55,7 +55,7 @@ capt_alphas:= 0.05
     for bimod in ${bimods}; do \
       for sigma in ${sigmas}; do \
         for alpha in ${capt_alphas}; do \
-          @sbatch $< 5 $${brn_len} $${bimod} $${sigma} $${alpha} ${ngene} ;\
+           sbatch $< 5 $${brn_len} $${bimod} $${sigma} $${alpha} ${ngene} ;\
         done; \
       done; \
     done; \
@@ -66,7 +66,7 @@ capt_alphas:= 0.05
     for bimod in ${bimods}; do \
       for sigma in ${sigmas}; do \
         for alpha in ${capt_alphas}; do \
-          @sbatch $< 10 $${brn_len} $${bimod} $${sigma} $${alpha} ${ngene} ;\
+           sbatch $< 10 $${brn_len} $${bimod} $${sigma} $${alpha} ${ngene} ;\
         done; \
       done; \
     done; \
