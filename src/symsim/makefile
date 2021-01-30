@@ -73,5 +73,5 @@ capt_alphas:= 0.05
   done
 
 clean:
-	rm *.err
-	rm *.out
+	-rm *.err
+	-rm *.out
