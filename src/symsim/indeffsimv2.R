@@ -49,7 +49,7 @@ zhu_test <- function(x, group, test = "t") {
     1
   } else {
     if (test == "t") {
-      t.test(x ~ group$p.value)
+      t.test(x ~ group)$p.value
     } else if (test == "wilcox") {
       wilcox.test(x ~ group)$p.value
     }
@@ -320,7 +320,10 @@ simu <- function(ncell_per_ind = 30, nind_per_cond = 3, brn_len = 0.5,
 
 load_mssc <- function(nind = 10, mssc_version = "mssc_2-0",
                       tol_rel_obj = 1e-06,
-                      num_iter = 20000, output_samples = 3000) {
+                      ## num_iter = 20000,
+                      ## test
+                      num_iter = 10,
+                      output_samples = 3000) {
   ## nind: total number individuals
   ## tol_rel_obj, num_iter, output_samples are used
   ## to tune the model
@@ -550,9 +553,9 @@ main <- function(nind_per_cond,
         save_result = save_mssc_model,
         save_path = file.path(mssc_v2_dir, str_glue("mssc2_{symsim_prefix}.rds"))
       )
-      auc06_mssc20 <- mssc_20$get_auc(r_mssc20$r, c1  = diffg_06, c2 = nondiffg_06)
-      auc08_mssc20 <- mssc_20$get_auc(r_mssc20$r, c1  = diffg_08, c2 = nondiffg_08)
-      auc10_mssc20 <- mssc_20$get_auc(r_mssc20$r, c1  = diffg_10, c2 = nondiffg_10)
+      auc06_mssc20 <- mssc_20$get_auc(r_mssc20, c1  = diffg_06, c2 = nondiffg_06)
+      auc08_mssc20 <- mssc_20$get_auc(r_mssc20, c1  = diffg_08, c2 = nondiffg_08)
+      auc10_mssc20 <- mssc_20$get_auc(r_mssc20, c1  = diffg_10, c2 = nondiffg_10)
       ## de analysis with pseudobulk
       ## TODO: consider when p-value not NA
       r_pseudo <- mypseudo$pseudobulk_deseq2(
@@ -571,15 +574,21 @@ main <- function(nind_per_cond,
       logtpm <- get_logtpm(cnt = mysimu$symsim$umi$counts, scale = 10000)
       r_t <- apply(logtpm, 1, zhu_test, group = mssc_meta$cond, test = "t")
       r_t_adjp <- p.adjust(r_t, method = "fdr")
-      auc06_t <- caTools::colAUC(X = r_t_adjp, y = diffg_06)
-      auc08_t <- caTools::colAUC(X = r_t_adjp, y = diffg_08)
-      auc10_t <- caTools::colAUC(X = r_t_adjp, y = diffg_10)
+      auc06_t <- caTools::colAUC(X = r_t_adjp,
+                                 y = (seq_along(mysimu$dea$logFC_theoretical) %in% diffg_06))
+      auc08_t <- caTools::colAUC(X = r_t_adjp,
+                                 y = (seq_along(mysimu$dea$logFC_theoretical) %in% diffg_08))
+      auc10_t <- caTools::colAUC(X = r_t_adjp,
+                                 y = (seq_along(mysimu$dea$logFC_theoretical) %in% diffg_10))
       ## de analysis with wilcox
       r_wilcox <- apply(logtpm, 1, zhu_test, group = mssc_meta$cond, test = "wilcox")
       r_wilcox_adjp <- p.adjust(r_wilcox, method = "fdr")
-      auc06_wilcox <- caTools::colAUC(X = r_wilcox_adjp, y = diffg_06)
-      auc08_wilcox <- caTools::colAUC(X = r_wilcox_adjp, y = diffg_08)
-      auc10_wilcox <- caTools::colAUC(X = r_wilcox_adjp, y = diffg_10)
+      auc06_wilcox <- caTools::colAUC(X = r_wilcox_adjp,
+                                      y = (seq_along(mysimu$dea$logFC_theoretical) %in% diffg_06))
+      auc08_wilcox <- caTools::colAUC(X = r_wilcox_adjp,
+                                      y = (seq_along(mysimu$dea$logFC_theoretical) %in% diffg_08))
+      auc10_wilcox <- caTools::colAUC(X = r_wilcox_adjp,
+                                      y = (seq_along(mysimu$dea$logFC_theoretical) %in% diffg_10))
 
       ## save result
       auc06_i[, j] <- c(auc06_mssc20, auc06_pseudo, auc06_t, auc06_wilcox)
