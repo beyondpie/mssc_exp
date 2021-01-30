@@ -321,9 +321,7 @@ simu <- function(ncell_per_ind = 30, nind_per_cond = 3, brn_len = 0.5,
 
 load_mssc <- function(nind = 10, mssc_version = "mssc_2-0",
                       tol_rel_obj = 1e-06,
-                      ## num_iter = 20000,
-                      ## test
-                      num_iter = 10,
+                      num_iter = 20000,
                       output_samples = 3000) {
   ## nind: total number individuals
   ## tol_rel_obj, num_iter, output_samples are used
