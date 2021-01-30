@@ -1,6 +1,6 @@
 
 SCRIPT := sbatch_symsim.sh
-symsimv2 := indeffsimv2.R
+symsimv2 := sbatch_indeffv2.sh
 
 nrpt := 3
 ngene := 100
