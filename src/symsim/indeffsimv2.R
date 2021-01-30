@@ -14,6 +14,7 @@ suppressWarnings(suppressMessages({
   library(cmdstanr)
   library(bayesplot)
   library(posterior)
+  library(optparse)
 }))
 
 ## warnings/errors traceback settings
@@ -520,22 +521,22 @@ main <- function(nind_per_cond,
                                 diffg = diffg_06, nondiffg = nondiffg_06,
                                 nde = nde_plt, nnde = nnde_plt, pnrow = pnrow,
                                 logfc = 0.6)
-        print(pv_06[[1]])
-        print(pv_06[[2]])
+        grid.arrange(pv_06[[1]])
+        grid.arrange(pv_06[[2]])
         pv_08 <- plot_de_violin(symsim_umi = mysimu$symsim$umi,
                                 ind = mssc_meta$ind,
                                 diffg = diffg_08, nondiffg = nondiffg_08,
                                 nde = nde_plt, nnde = nnde_plt, pnrow = pnrow,
                                 logfc = 0.8)
-        print(pv_08[[1]])
-        print(pv_08[[2]])
+        grid.arrange(pv_08[[1]])
+        grid.arrange(pv_08[[2]])
         pv_10 <- plot_de_violin(symsim_umi = mysimu$symsim$umi,
                                 ind = mssc_meta$ind,
                                 diffg = diffg_10, nondiffg = nondiffg_10,
                                 nde = nde_plt, nnde = nnde_plt, pnrow = pnrow,
                                 logfc = 1.0)
-        print(pv_10[[1]])
-        print(pv_10[[2]])
+        grid.arrange(pv_10[[1]])
+        grid.arrange(pv_10[[2]])
         dev.off()
       } ## end of save figures in one file
       if (save_symsim_data) {
@@ -591,9 +592,9 @@ main <- function(nind_per_cond,
                                       y = (seq_along(mysimu$dea$logFC_theoretical) %in% diffg_10))
 
       ## save result
-      auc06_i[, j] <- c(auc06_mssc20, auc06_pseudo, auc06_t, auc06_wilcox)
-      auc08_i[, j] <- c(auc08_mssc20, auc08_pseudo, auc08_t, auc08_wilcox)
-      auc10_i[, j] <- c(auc10_mssc20, auc10_pseudo, auc10_t, auc10_wilcox)
+      auc06_i[, j] <- c(auc06_mssc20[3], auc06_pseudo$auc, auc06_t, auc06_wilcox)
+      auc08_i[, j] <- c(auc08_mssc20[3], auc08_pseudo$auc, auc08_t, auc08_wilcox)
+      auc10_i[, j] <- c(auc10_mssc20[3], auc10_pseudo$auc, auc10_t, auc10_wilcox)
       message(str_glue("In {i}th turn under {ncell} cells per individual",
                        "result is summarized below..."))
       message("when logfc is 0.6:")
@@ -620,7 +621,6 @@ main <- function(nind_per_cond,
   } ## end of rpt
 }
 
-library(optparse)
 option_list <- list(
   ## make_option(c("--ncell_per_ind"), action = "store", type = "integer", default = 30),
   ## make_option(c("--ngene"), action = "store", type = "integer", default = 100),
