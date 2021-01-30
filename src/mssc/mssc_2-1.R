@@ -1,9 +1,8 @@
 ## mssc 2-1 model
 
 ## This inherits from high2
-## But model the gene-specific variances of conditions,
+## But model the variance of conditional effects in a gene-wise way.
 ## which is actually used in the first-version of mssc.
-
 
 ## * load depenences
 suppressWarnings(suppressMessages({
@@ -724,7 +723,7 @@ High2 <- R6::R6Class(
     ## deprecated
     get_rsis_ranking_statistics = function(ngene, two_hot_vec,
                                            normweights, genenms = NULL,
-                                           method = "simple_no_replace"){
+                                           method = "simple_no_replace") {
       ## method could be "simple_no_replace" or "stratified"
       ## suggest and default: "simple_no_replace"
       ## only for mucond

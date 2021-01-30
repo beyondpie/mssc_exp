@@ -1,4 +1,6 @@
-## high2 model
+## mssc v2-0
+## or named high2 (hierarchical Bayesian based gene-wise model)
+## or named hbnb (hiearchical Bayesian based negative binomial model)
 
 ## param names in model
 ## 1) names defined in  stan script (by us)
@@ -13,9 +15,9 @@
 ## As long as we use variable names to extract the parameters,
 ## it's fine.
 
-## * load R env
+## * load dependeces
 suppressWarnings(suppressMessages({
-  library(tidyverse)
+  ## library(tidyverse)
   library(cmdstanr)
   library(loo)
   library(posterior)
@@ -25,7 +27,7 @@ suppressWarnings(suppressMessages({
 ## warnings/errors traceback settings
 options(error = traceback)
 options(warn = 1)
-options(mc.cores = 3)
+options(mc.cores = 2)
 
 ## * common functions
 init_snb_log_mean <- function(y, s) {
@@ -92,7 +94,7 @@ check_s <- function(s) {
 }
 
 rep_row <- function(x, n) {
-  matrix(rep(x, each = n), nrow = n)
+  matrix(rep(x, each = n), nrow = n, byrow = FALSE)
 }
 
 rep_col <- function(x, n) {
@@ -116,7 +118,7 @@ split_matrix_col <- function(mat, second_dim, second_dim_nms = NULL) {
   return(invisible(r))
 }
 
-## * define R6 classes
+## * Genewisenbfit: initialize the parameters
 Genewisenbfit <- R6::R6Class(
   classname = "Genewisenbfit", public = list(
     ## stan models for fitting
@@ -260,7 +262,7 @@ Genewisenbfit <- R6::R6Class(
     est_varofr = function(r) {
       ## r: ngene by 1
       ## r prior: log normal
-      ## return: log level of mean, var, gamma_alpah, gamma_beta
+      ## return: log level of mean, var, gamma_alpha, gamma_beta
       logr <- log(r)
       invisible(self$est_varofmu(logr))
     },
@@ -339,6 +341,7 @@ Genewisenbfit <- R6::R6Class(
       init_mgsnb <- t(t_init_mgsnb)
       init_varofmu <- self$est_varofmu(init_mgsnb[, 1])
       init_varofr <- self$est_varofr(init_mgsnb[, 2])
+      ## a list of two elements
       init_varofcond <- self$est_varofcond(init_mgsnb[, 3:(2 + ncond)])
       init_varofind <- self$est_varofind(
         init_mgsnb[, (2 + ncond + 1):ncol(init_mgsnb)]
@@ -545,10 +548,12 @@ High2 <- R6::R6Class(
       }
       log_ratios <- self$high2fit$lp() -
         self$high2fit$lp_approx()
-      capture.output(r <- loo::psis(
+
+      ## suppressWarnings for psis
+      capture.output(suppressWarnings(r <- loo::psis(
         log_ratios = log_ratios,
         r_eff = NA
-      ))
+      )))
       normweights <- weights(r, log = takelog, normalize = donormalize)
       invisible(list(
         psis = r,
