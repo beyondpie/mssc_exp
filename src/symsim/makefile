@@ -41,7 +41,7 @@ capt_alphas:= 0.05
 
 3ind_symsim_v2: ${symsimv2}
 	for brn_len in ${brn_lens}; do \
-    for bimod in ${bimod}; do \
+    for bimod in ${bimods}; do \
       for sigma in ${sigmas}; do \
         for alpha in ${capt_alphas}; do \
           @sbatch $< 3 $${brn_len} $${bimod} $${sigma} $${alpha} ${ngene} ;\
@@ -52,7 +52,7 @@ capt_alphas:= 0.05
 
 5ind_symsim_v2: ${symsimv2}
 	for brn_len in ${brn_lens}; do \
-    for bimod in ${bimod}; do \
+    for bimod in ${bimods}; do \
       for sigma in ${sigmas}; do \
         for alpha in ${capt_alphas}; do \
           @sbatch $< 5 $${brn_len} $${bimod} $${sigma} $${alpha} ${ngene} ;\
@@ -63,7 +63,7 @@ capt_alphas:= 0.05
 
 10ind_symsim_v2: ${symsimv2}
 	for brn_len in ${brn_lens}; do \
-    for bimod in ${bimod}; do \
+    for bimod in ${bimods}; do \
       for sigma in ${sigmas}; do \
         for alpha in ${capt_alphas}; do \
           @sbatch $< 10 $${brn_len} $${bimod} $${sigma} $${alpha} ${ngene} ;\
