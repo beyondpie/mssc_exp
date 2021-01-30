@@ -378,9 +378,6 @@ High2 <- R6::R6Class(
     adapt_iter = NULL,
     adapt_engaged = NULL,
     eta = NULL,
-    ## random init parameters
-    sd_init_muind = NULL,
-    sd_init_mucond = NULL,
     ## high2 parameter names
     all_params_nms = c(
       "centerofmu", "varofmu", "mu", "centerofr",
@@ -410,8 +407,7 @@ High2 <- R6::R6Class(
                           tol_rel_obj = 0.0001,
                           adapt_iter = 200,
                           adapt_engaged = FALSE,
-                          eta = 0.1,
-                          sd_init_muind = 0.1, sd_init_mucond = 0.1) {
+                          eta = 0.1) {
       ## initiolize class members
       self$gwsnb <- Genewisenbfit$new(
         stan_snb_path = stan_snb_path,
@@ -435,8 +431,6 @@ High2 <- R6::R6Class(
       self$adapt_iter <- adapt_iter
       self$adapt_engaged <- adapt_engaged
       self$eta <- eta
-      self$sd_init_muind <- sd_init_muind
-      self$sd_init_mucond <- sd_init_mucond
       self$nind <- nind
       self$ncond <- ncond
     },
