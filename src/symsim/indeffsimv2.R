@@ -462,11 +462,11 @@ main <- function(nind_per_cond,
     for (j in seq_along(ncells)) {
       ncell <- ncells[j]
       ## simulate data
-      symsim_prefix <- str_glue("{ngene}gene", "{nind_all}ind",
-                                  "{ncell}cell", "{brn_len}w", "{bimod}bimod",
-                                  "{sigma}sigma", "{capt_alpha}alpha", "{i}seed",
-                                "{rpt}rpt", .sep = "_")
-      message(str_glue("SymSim experiment: {symsim_prefix}."))
+      symsim_prefix_per_rpt <- str_glue(
+        "{ngene}gene", "{nind_all}ind",
+        "{ncell}cell", "{brn_len}w", "{bimod}bimod",
+        "{sigma}sigma", "{capt_alpha}alpha", "{i}seed", .sep = "_")
+      message(str_glue("SymSim experiment: {symsim_prefix_per_rpt}."))
       mysimu <- simu(ncell_per_ind = ncell,
                      nind_per_cond = nind_per_cond,
                      brn_len = brn_len,
@@ -499,7 +499,7 @@ main <- function(nind_per_cond,
     
       ## save data
       if (save_figure) {
-        pdf(file = file.path(simu_fig_dir, paste0(symsim_prefix, ".pdf")),
+        pdf(file = file.path(simu_fig_dir, paste0(symsim_prefix_per_rpt, ".pdf")),
             width = fig_width, height = fig_height)
         ## phylo tree
         p_phylo <- plot_tree_v2(phyla = mysimu$phyla)
@@ -550,7 +550,7 @@ main <- function(nind_per_cond,
         saveRDS(object = list(simu = mysimu, dg06 = diffg_06, nondg06 = nondiffg_06,
                               dg08 = diffg_08, nondg08 = nondiffg_08,
                               dg10 = diffg_10, nondg10 = nondiffg_10),
-                file = file.path(simu_data_dir, paste0(symsim_prefix, ".rds")))
+                file = file.path(simu_data_dir, paste0(symsim_prefix_per_rpt, ".rds")))
       } ## end of save symsim data
 
       ## de analysis with mssc
@@ -559,11 +559,8 @@ main <- function(nind_per_cond,
         symsim_umi = mysimu$symsim$umi$counts,
         mssc_meta = mssc_meta,
         save_result = save_mssc_model,
-        save_path = file.path(mssc_v2_dir, str_glue("mssc2_{symsim_prefix}.rds"))
+        save_path = file.path(mssc_v2_dir, str_glue("mssc2_{symsim_prefix_per_rpt}.rds"))
       )
-      auc06_mssc20 <- mssc_20$get_auc(r_mssc20, c1  = diffg_06, c2 = nondiffg_06)
-      auc08_mssc20 <- mssc_20$get_auc(r_mssc20, c1  = diffg_08, c2 = nondiffg_08)
-      auc10_mssc20 <- mssc_20$get_auc(r_mssc20, c1  = diffg_10, c2 = nondiffg_10)
       ## de analysis with pseudobulk
       ## TODO: consider when p-value not NA
       r_pseudo <- mypseudo$pseudobulk_deseq2(
@@ -571,37 +568,66 @@ main <- function(nind_per_cond,
         mybatches = mssc_meta$ind,
         myconds = factor(mssc_meta$cond)
       )
-      auc06_pseudo <- mypseudo$calc_auc(deseq2_res = r_pseudo,
-                                        degs = diffg_06, ndegs = nondiffg_06)
-      auc08_pseudo <- mypseudo$calc_auc(deseq2_res = r_pseudo,
-                                        degs = diffg_08, ndegs = nondiffg_08)
-      auc10_pseudo <- mypseudo$calc_auc(deseq2_res = r_pseudo,
-                                        degs = diffg_10, ndegs = nondiffg_10)
-      
       ## de analysis with t-test
       logtpm <- get_logtpm(cnt = mysimu$symsim$umi$counts, scale = 10000)
       r_t <- apply(logtpm, 1, zhu_test, group = mssc_meta$cond, test = "t")
       r_t_adjp <- p.adjust(r_t, method = "fdr")
-      auc06_t <- caTools::colAUC(X = r_t_adjp,
-                                 y = (seq_along(mysimu$dea$logFC_theoretical) %in% diffg_06))
-      auc08_t <- caTools::colAUC(X = r_t_adjp,
-                                 y = (seq_along(mysimu$dea$logFC_theoretical) %in% diffg_08))
-      auc10_t <- caTools::colAUC(X = r_t_adjp,
-                                 y = (seq_along(mysimu$dea$logFC_theoretical) %in% diffg_10))
       ## de analysis with wilcox
       r_wilcox <- apply(logtpm, 1, zhu_test, group = mssc_meta$cond, test = "wilcox")
       r_wilcox_adjp <- p.adjust(r_wilcox, method = "fdr")
-      auc06_wilcox <- caTools::colAUC(X = r_wilcox_adjp,
-                                      y = (seq_along(mysimu$dea$logFC_theoretical) %in% diffg_06))
-      auc08_wilcox <- caTools::colAUC(X = r_wilcox_adjp,
-                                      y = (seq_along(mysimu$dea$logFC_theoretical) %in% diffg_08))
-      auc10_wilcox <- caTools::colAUC(X = r_wilcox_adjp,
-                                      y = (seq_along(mysimu$dea$logFC_theoretical) %in% diffg_10))
-
+      
+      if (length(diffg_06) > 0) {
+        auc06_mssc20 <- mssc_20$get_auc(r_mssc20, c1  = diffg_06, c2 = nondiffg_06)[3]
+        auc06_pseudo <- mypseudo$calc_auc(
+          deseq2_res = r_pseudo, degs = diffg_06, ndegs = nondiffg_06)$auc
+        auc06_t <- caTools::colAUC(
+          X = r_t_adjp,
+          y = (seq_along(mysimu$dea$logFC_theoretical) %in% diffg_06))
+        auc06_wilcox <- caTools::colAUC(
+          X = r_wilcox_adjp,
+          y = (seq_along(mysimu$dea$logFC_theoretical) %in% diffg_06))
+      } else {
+        auc06_mssc20 <- NA
+        auc06_pseudo <- NA
+        auc06_t <- NA
+        auc06_wilcox <- NA
+      }
+      if (length(diffg_08) > 0) {
+        auc08_mssc20 <- mssc_20$get_auc(r_mssc20, c1  = diffg_08, c2 = nondiffg_08)[3]
+        auc08_pseudo <- mypseudo$calc_auc(
+          deseq2_res = r_pseudo, degs = diffg_08, ndegs = nondiffg_08)$auc
+        auc08_t <- caTools::colAUC(
+          X = r_t_adjp,
+          y = (seq_along(mysimu$dea$logFC_theoretical) %in% diffg_08))
+        auc08_wilcox <- caTools::colAUC(
+          X = r_wilcox_adjp,
+          y = (seq_along(mysimu$dea$logFC_theoretical) %in% diffg_08))
+      } else {
+        auc08_mssc20 <- NA
+        auc08_pseudo <- NA
+        auc08_t <- NA
+        auc08_wilcox <- NA
+      }
+      if (length(diffg_10) > 0) {
+        auc10_mssc20 <- mssc_20$get_auc(r_mssc20, c1  = diffg_10, c2 = nondiffg_10)[3]
+        auc10_pseudo <- mypseudo$calc_auc(
+          deseq2_res = r_pseudo, degs = diffg_10, ndegs = nondiffg_10)$auc
+        auc10_t <- caTools::colAUC(
+          X = r_t_adjp,
+          y = (seq_along(mysimu$dea$logFC_theoretical) %in% diffg_10))
+        auc10_wilcox <- caTools::colAUC(
+          X = r_wilcox_adjp,
+          y = (seq_along(mysimu$dea$logFC_theoretical) %in% diffg_10))
+      } else {
+        auc10_mssc20 <- NA
+        auc10_pseudo <- NA
+        auc10_t <- NA
+        auc10_wilcox <- NA
+      }
       ## save result
-      auc06_i[, j] <- c(auc06_mssc20[3], auc06_pseudo$auc, auc06_t, auc06_wilcox)
-      auc08_i[, j] <- c(auc08_mssc20[3], auc08_pseudo$auc, auc08_t, auc08_wilcox)
-      auc10_i[, j] <- c(auc10_mssc20[3], auc10_pseudo$auc, auc10_t, auc10_wilcox)
+      auc06_i[, j] <- c(auc06_mssc20, auc06_pseudo, auc06_t, auc06_wilcox)
+      auc08_i[, j] <- c(auc08_mssc20, auc08_pseudo, auc08_t, auc08_wilcox)
+      auc10_i[, j] <- c(auc10_mssc20, auc10_pseudo, auc10_t, auc10_wilcox)
       message(str_glue("In {i}th turn under {ncell} cells per individual",
                        "result is summarized below..."))
       message("when logfc is 0.6:")
@@ -622,11 +648,17 @@ main <- function(nind_per_cond,
     print(auc08)
     message("when logfc is 1.0:")
     print(auc10)
-    ## save result
-    saveRDS(object = list(r06 = auc06, r08 = auc08, r10 = auc10),
-            file = file.path(dea_dir, str_glue("dea_r_{symsim_prefix}.rds")))
+    
+    ## save result even per turn
+    ## in case some error happens
+    symsim_prefix_per_rpt <- str_glue(
+      "{ngene}gene", "{nind_all}ind",
+      "{ncell}cell", "{brn_len}w", "{bimod}bimod",
+      "{sigma}sigma", "{capt_alpha}alpha", .sep = "_")
+    saveRDS(object = list(auc06 = auc06, auc08 = auc08, auc10 = auc10),
+            file = file.path(dea_dir, str_glue("dea_auc_{symsim_prefix}.rds")))
   } ## end of rpt
-}
+} ## end of main function
 
 option_list <- list(
   ## make_option(c("--ncell_per_ind"), action = "store", type = "integer", default = 30),
