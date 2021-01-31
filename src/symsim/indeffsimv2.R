@@ -425,8 +425,10 @@ main <- function(nind_per_cond,
   ## - ncells: vector of ncell_per_ind
   
   ## set local path to save results
-  result_dir <- here::here("src", "symsim",
-                           paste0("symsim_", format(Sys.time(), format = "%Y%m%d%H%M")))
+  result_dir <- here::here(
+    "src", "symsim",
+    ## use year-month-day to deside the dir
+    paste0("symsim_", format(Sys.time(), format = "%Y%m%d")))
   simu_fig_dir <- file.path(result_dir, "simu_figs")
   simu_data_dir <- file.path(result_dir, "simu_data")
   dea_dir <- file.path(result_dir, "dea")
@@ -514,27 +516,34 @@ main <- function(nind_per_cond,
         grid.arrange(grobs = list(p_phylo, p_tsne), nrow  = 1, ncol = 2,
                      top = "Population structure and t-SNE in SymSim")
         ## violin of (non-)differentially expression genes.
-        pv_06 <- plot_de_violin(symsim_umi = mysimu$symsim$umi,
-                                ind = mssc_meta$ind,
-                                diffg = diffg_06, nondiffg = nondiffg_06,
-                                nde = nde_plt, nnde = nnde_plt, pnrow = pnrow,
-                                logfc = 0.6)
-        grid.arrange(pv_06[[1]])
-        grid.arrange(pv_06[[2]])
-        pv_08 <- plot_de_violin(symsim_umi = mysimu$symsim$umi,
-                                ind = mssc_meta$ind,
-                                diffg = diffg_08, nondiffg = nondiffg_08,
-                                nde = nde_plt, nnde = nnde_plt, pnrow = pnrow,
-                                logfc = 0.8)
-        grid.arrange(pv_08[[1]])
-        grid.arrange(pv_08[[2]])
-        pv_10 <- plot_de_violin(symsim_umi = mysimu$symsim$umi,
-                                ind = mssc_meta$ind,
-                                diffg = diffg_10, nondiffg = nondiffg_10,
-                                nde = nde_plt, nnde = nnde_plt, pnrow = pnrow,
-                                logfc = 1.0)
-        grid.arrange(pv_10[[1]])
-        grid.arrange(pv_10[[2]])
+        if (length(diffg_06) > 0) {
+          pv_06 <- plot_de_violin(symsim_umi = mysimu$symsim$umi,
+                                  ind = mssc_meta$ind,
+                                  diffg = diffg_06, nondiffg = nondiffg_06,
+                                  nde = nde_plt, nnde = nnde_plt, pnrow = pnrow,
+                                  logfc = 0.6)
+          grid.arrange(pv_06[[1]])
+          grid.arrange(pv_06[[2]])
+        }
+
+        if (length(diffg_08) > 0) {
+          pv_08 <- plot_de_violin(symsim_umi = mysimu$symsim$umi,
+                                  ind = mssc_meta$ind,
+                                  diffg = diffg_08, nondiffg = nondiffg_08,
+                                  nde = nde_plt, nnde = nnde_plt, pnrow = pnrow,
+                                  logfc = 0.8)
+          grid.arrange(pv_08[[1]])
+          grid.arrange(pv_08[[2]])
+        }
+        if (length(diffg_10) > 0) {
+          pv_10 <- plot_de_violin(symsim_umi = mysimu$symsim$umi,
+                                  ind = mssc_meta$ind,
+                                  diffg = diffg_10, nondiffg = nondiffg_10,
+                                  nde = nde_plt, nnde = nnde_plt, pnrow = pnrow,
+                                  logfc = 1.0)
+          grid.arrange(pv_10[[1]])
+          grid.arrange(pv_10[[2]])
+        }
         dev.off()
       } ## end of save figures in one file
       if (save_symsim_data) {
