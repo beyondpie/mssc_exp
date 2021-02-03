@@ -498,6 +498,7 @@ main <- function(nind_per_cond,
       mssc_meta <- set_mssc_meta(symsim_umi = mysimu$symsim$umi, phyla = mysimu$phyla)
     
       ## save data
+      ## TODO: merge all tsne and diff into one figure for different cell numbers.
       if (save_figure) {
         pdf(file = file.path(simu_fig_dir, paste0(symsim_prefix_per_rpt, ".pdf")),
             width = fig_width, height = fig_height)

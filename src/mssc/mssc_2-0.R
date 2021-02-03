@@ -514,9 +514,11 @@ High2 <- R6::R6Class(
         ind = ind, y = t(cnt)
       ), hp))
     },
-    run = function(data, list_wrap_ip = NULL) {
+    run = function(data, list_wrap_ip = NULL, method = "vi") {
       ## set the result of high2 to high2fit
       ## adapt_iter: 5 (default in cmdstan) * adapt_iter we set
+
+      if (method == "vi") {
       self$high2fit <- self$high2$variational(
         data = data,
         init = list_wrap_ip,
@@ -529,8 +531,28 @@ High2 <- R6::R6Class(
         algorithm = self$algorithm,
         output_samples = self$output_samples,
         tol_rel_obj = self$tol_rel_obj,
-        eta = self$eta
-      )
+        eta = self$eta)
+      }
+      if (method == "opt") {
+      self$high2fit <- self$high2$optimize(
+        data = data,
+        init = list_wrap_ip,
+        seed = self$seed,
+        refresh = self$vi_refresh,
+        save_latent_dynamics = FALSE,
+        output_dir = NULL,
+        sig_figs = NULL,
+        threads = 2,
+        algorithm = self$algorithm,
+        init_alpha = NULL,
+        iter = self$num_iter,
+        tol_obj = NULL,
+        tol_rel_obj = self$tol_rel_obj,
+        tol_grad = NULL,
+        tol_rel_grad = NULL,
+        tol_param = NULL,
+        history_size = NULL)
+      }
     },
 
     psis = function(takelog = FALSE, donormalize = TRUE) {
