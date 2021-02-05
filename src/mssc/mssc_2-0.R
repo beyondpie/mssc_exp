@@ -39,9 +39,9 @@ init_snb_log_mean <- function(y, s) {
 }
 
 init_stan_model <- function(model_path,
-                            use_thread = FALSE,
-                            use_mpi = FALSE,
-                            use_opencl = FALSE) {
+                            use_thread = NULL,
+                            use_mpi = NULL,
+                            use_opencl = NULL) {
   ## load stan model
   ## argument
   ## - use_thread: when stan script uses reduce_sum or map_rect
@@ -61,6 +61,9 @@ init_stan_model <- function(model_path,
   ##   case.
   ##   We supply these IDs when starting the executable as shown below:
   ##   path/to/model sample data file=data.json opencl platform=0 device=1
+
+  ## BUG: set use_xxx = NULL when we don't want to use them.
+  ##      setting them FALSE will be equal to setting them TRUE
   
   if (file.exists(model_path)) {
     return(invisible(cmdstanr::cmdstan_model(
@@ -68,6 +71,7 @@ init_stan_model <- function(model_path,
       compile = TRUE,
       quiet = TRUE,
       pedantic = TRUE,
+      ## FIXME: when use_thread = FALSE, compling procedures still uses thread
       cpp_options = list(stan_threads = use_thread,
                          stan_map = use_mpi,
                          stan_opencl = use_opencl),
@@ -398,7 +402,7 @@ High2 <- R6::R6Class(
     ### store the fitting result of vi
     high2fit = NULL,
     ### store the fitting result of opt
-    hight2optfit = NULL,
+    high2optfit = NULL,
     ## vi training parameters
     num_iter = NULL,
     vi_refresh = NULL,
@@ -568,10 +572,16 @@ High2 <- R6::R6Class(
 
     run_opt = function(data,
                        list_wrap_ip = NULL,
+                       threads = NULL,
                        refresh = 10,
                        max_iter = 5000,
                        opt_method = "lbfgs",
                        init_alpha = 0.001,
+                       tol_obj = NULL,
+                       tol_rel_obj = NULL,
+                       tol_grad = NULL,
+                       tol_rel_grad = NULL,
+                       tol_param = NULL,
                        history_size = 10) {
       ## optimization
       ## - Jacobian adjustment is not an issue: Stan turns off the built-in Jacobian
@@ -613,15 +623,15 @@ High2 <- R6::R6Class(
         save_latent_dynamics = FALSE,
         output_dir = NULL,
         sig_figs = NULL,
-        threads = 2,
+        threads = threads,
         algorithm = opt_method,
         init_alpha = init_alpha,
         iter = max_iter,
-        tol_obj = NULL,
-        tol_rel_obj = self$tol_rel_obj,
-        tol_grad = NULL,
-        tol_rel_grad = NULL,
-        tol_param = NULL,
+        tol_obj = tol_obj,
+        tol_rel_obj = tol_rel_obj,
+        tol_grad = tol_grad,
+        tol_rel_grad = tol_rel_grad,
+        tol_param = tol_param,
         history_size = history_size)
     }, ## end of run_opt method
 
@@ -714,13 +724,13 @@ High2 <- R6::R6Class(
             second_dim_nms = genenms
           )))
         }
-      },
+      }, ## end of try block
       error = function(e) {
         warning(e)
         return(invisible(NA))
-      }
-      )
-    },
+      }) ## end of try-catch
+    }, ## end of extract draws
+    
     extract_draws_all = function(ngene = NULL,
                                  genenms = NULL) {
       est_params <- lapply(self$all_params_nms, function(nm) {
@@ -731,7 +741,8 @@ High2 <- R6::R6Class(
       })
       names(est_params) <- self$all_params_nms
       invisible(est_params)
-    },
+    }, ## end of extract_draws_all
+    
     get_ranking_statistics = function(mucond, two_hot_vec) {
       ## mucond: nsample by ngene by ncond
       ## two_hot_vec: like (1, -1) or (0, 0, -1, 0, 1, 0)
@@ -822,7 +833,8 @@ High2 <- R6::R6Class(
       invisible(self$get_ranking_statistics(
         mucond = mucond_rsis, two_hot_vec = two_hot_vec
       ))
-    },
+    }, ## end of get_rsis_ranking_statistics
+    
     get_psis_ranking_statistics = function(mucond, two_hot_vec,
                                            normweights) {
       ## mucond, two_hot_vec: ref get_ranking_statistics.
@@ -910,6 +922,7 @@ test <- function() {
     cond = pbmc$cond,
     ind = pbmc$ind
   )
+  
   data <- model$to_model_data(
     cnt = pbmc$y2c[1:10, ],
     s = pbmc$s,
@@ -917,6 +930,8 @@ test <- function() {
     ind = pbmc$ind,
     hp = init_params$hp
   )
+  
+  ## variational inference
   model$run(data = data, list_wrap_ip = list(init_params$ip))
 
   est_params <- model$extract_draws_all(
@@ -943,5 +958,7 @@ test <- function() {
     normweights = psis$normweights
   )
   str(psis_rankings)
+  ## optimization
+  model$run_opt(data = data, list_wrap_ip = list(init_params$ip))
 }
 ## test()
