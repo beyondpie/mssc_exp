@@ -38,12 +38,41 @@ init_snb_log_mean <- function(y, s) {
   invisible(mu)
 }
 
-init_stan_model <- function(model_path) {
+init_stan_model <- function(model_path,
+                            use_thread = FALSE,
+                            use_mpi = FALSE,
+                            use_opencl = FALSE) {
   ## load stan model
+  ## argument
+  ## - use_thread: when stan script uses reduce_sum or map_rect
+  ##   set this to be TRUE
+  ##   - when running, remember to export STAN_NUM_THREADS=4
+  ## - use_mpi: used when stan script uses map_rect 
+  ## - use_opencl: enable the OpenCL backend by setting
+  ##   STAN_OPENCL=true when compiling
+  ##   https://mc-stan.org/docs/2_26/cmdstan-guide/parallelization.html
+  ##   The Stan model compiled with STAN_OPENCL can also be supplied the
+  ##   OpenCL platform and device IDs of the target device. These IDs
+  ##   determine the device on which to run the OpenCL-supported functions
+  ##   on. You can list the devices on your system using the clinfo
+  ##   program. If the system has one GPU and no OpenCL CPU runtime, the
+  ##   platform and device IDs of the GPU are typically 0. In that case you
+  ##   can also omit the OpenCL IDs as the default 0 IDs are used in that
+  ##   case.
+  ##   We supply these IDs when starting the executable as shown below:
+  ##   path/to/model sample data file=data.json opencl platform=0 device=1
+  
   if (file.exists(model_path)) {
     return(invisible(cmdstanr::cmdstan_model(
       stan_file = model_path,
-      compile = T, quiet = T
+      compile = TRUE,
+      quiet = TRUE,
+      pedantic = TRUE,
+      cpp_options = list(stan_threads = use_thread,
+                         stan_map = use_mpi,
+                         stan_opencl = use_opencl),
+      stanc_options = list(),
+      force_recompile = FALSE
     )))
   } else {
     stop(paste(model_path, "not exist.", sep = " "))
@@ -366,8 +395,10 @@ High2 <- R6::R6Class(
     gwsnb = NULL,
     ## stan model
     high2 = NULL,
-    ### store the fitting result
+    ### store the fitting result of vi
     high2fit = NULL,
+    ### store the fitting result of opt
+    hight2optfit = NULL,
     ## vi training parameters
     num_iter = NULL,
     vi_refresh = NULL,
@@ -384,7 +415,7 @@ High2 <- R6::R6Class(
       "varofr", "r", "varofcond", "mucond",
       "tau2", "centerofind", "varofind", "muind"
     ),
-    initialize = function(## gwsnb parameters
+    initialize = function( ## gwsnb parameters
                           stan_snb_path,
                           gamma_alpha = 0.05,
                           gamma_beta = 0.05,
@@ -502,6 +533,7 @@ High2 <- R6::R6Class(
         )
       ))
     },
+    
     to_model_data = function(cnt, ind, cond, s, hp) {
       ## given the basic data, we translate it into
       ## what hbnb needs.
@@ -514,11 +546,11 @@ High2 <- R6::R6Class(
         ind = ind, y = t(cnt)
       ), hp))
     },
-    run = function(data, list_wrap_ip = NULL, method = "vi") {
+    
+    run = function(data, list_wrap_ip = NULL) {
       ## set the result of high2 to high2fit
       ## adapt_iter: 5 (default in cmdstan) * adapt_iter we set
 
-      if (method == "vi") {
       self$high2fit <- self$high2$variational(
         data = data,
         init = list_wrap_ip,
@@ -532,28 +564,66 @@ High2 <- R6::R6Class(
         output_samples = self$output_samples,
         tol_rel_obj = self$tol_rel_obj,
         eta = self$eta)
-      }
-      if (method == "opt") {
-      self$high2fit <- self$high2$optimize(
+    }, ## end of run method
+
+    run_opt = function(data,
+                       list_wrap_ip = NULL,
+                       refresh = 10,
+                       max_iter = 5000,
+                       opt_method = "lbfgs",
+                       init_alpha = 0.001,
+                       history_size = 10) {
+      ## optimization
+      ## - Jacobian adjustment is not an issue: Stan turns off the built-in Jacobian
+      ##   adjustments for optimization.
+      ## - (L-)BFGS is controlled by a number of tolerance values
+      ##   - any one of which being satisfied caused the algorithm to terminate.
+      ##   - any of the convergence tests can be disabled by setting its
+      ##     corresponding tolerance parameter to zero.
+      ## - relative convergence tolerance will be multiplied by an epsilon
+      ##   - epsilon around 2 * 10^(-16), is machine precision
+      ## - for any given optimization probm it's worthwhile trying the program
+      ##   with and without constraint to see which oen is more efficient
+      ## arguments
+      ## - refresh
+      ##   - 0: only error messages will be printed
+      ##   - n(>0): number of iterations between printed screen updates
+      ## - init_alpha: initial step size, default is 0.001
+      ## - tol_obj: convergence tolerance on relative changes in object function
+      ##   - NULL: default 10^(-12) used in cmdstan
+      ## - tol_rel_obj: convergence tolerance on relative changes in object function
+      ##   - NULL: default 10^(4) used in cmdstan
+      ## - tol_grad: convergence tolerance on the norm of gradient
+      ##   - NULL: default 10^(-8) used in cmdstan
+      ## - tol_rel_grad: convergence tolerance on relative norm of the gradient
+      ##   - NULL: default 10^(7) used in cmdstan
+      ## - tol_param: convergence tolerance on changes in parameter value
+      ##   - NULL: default 10^(-8) used in cmdstan
+      ## - history_size: used for lbfgs to estimate the pseudo Hessian
+      ##   - NULL: default 5 used in cmdstan, should be sufficient around5-10
+      ##     must smaller than the dim of parameters
+      ##     When lbfgs performs poorly but bfgs performs well, consider to increase
+      ##     history_size.
+      
+      self$high2optfit <- self$high2$optimize(
         data = data,
         init = list_wrap_ip,
         seed = self$seed,
-        refresh = self$vi_refresh,
+        refresh = refresh,
         save_latent_dynamics = FALSE,
         output_dir = NULL,
         sig_figs = NULL,
         threads = 2,
-        algorithm = self$algorithm,
-        init_alpha = NULL,
-        iter = self$num_iter,
+        algorithm = opt_method,
+        init_alpha = init_alpha,
+        iter = max_iter,
         tol_obj = NULL,
         tol_rel_obj = self$tol_rel_obj,
         tol_grad = NULL,
         tol_rel_grad = NULL,
         tol_param = NULL,
-        history_size = NULL)
-      }
-    },
+        history_size = history_size)
+    }, ## end of run_opt method
 
     psis = function(takelog = FALSE, donormalize = TRUE) {
       ## Get the Pareto Smoothed Importance Sampling (PSIS) weights.
@@ -575,7 +645,7 @@ High2 <- R6::R6Class(
         psis = r,
         normweights = normweights
       ))
-    },
+    }, ## end of psis method
 
     extract_draws = function(param,
                              ngene = NULL,
@@ -594,61 +664,61 @@ High2 <- R6::R6Class(
         }
       }
       tryCatch({
-          if (param %in% c(
-            "centerofmu", "varofmu",
-            "centerofr", "varofr", "tau2"
-          )) {
-            ## when param is scalar
-            return(invisible(self$high2fit$draws(param)))
-          }
-          if (param %in% c("mu", "r", "nb_r")) {
-            ## when param is vector len of ngene
-            check_ngene()
-            t <- self$high2fit$draws(str_glue_vec(param, ngene))
-            if (!is.null(genenms)) {
-              names(t) <- genenms
-            }
-            return(invisible(t))
-          }
-          if (param %in% c("varofcond")) {
-            ## when param is vector of len of ncond
-            return(invisible(
-              self$high2fit$draws(str_glue_vec(param, self$ncond))
-            ))
-          }
-          if (param %in% c("varofind", "centerofind")) {
-            ## when param is vector of len of nind
-            return(invisible(
-              self$high2fit$draws(str_glue_vec(param, self$nind))
-            ))
-          }
-          if (param %in% c("mucond")) {
-            ## when param is a matrix of ngene by ncond
-            check_ngene()
-            t <- self$high2fit$draws(
-              str_glue_mat_rowise(param, ngene, self$ncond)
-            )
-            return(invisible(split_matrix_col(
-              mat = t, second_dim = ngene,
-              second_dim_nms = genenms
-            )))
-          }
-          if (param %in% c("muind")) {
-            ## when param is a matrix of ngene by nind
-            check_ngene()
-            t <- self$high2fit$draws(
-              str_glue_mat_rowise(param, ngene, self$nind)
-            )
-            return(invisible(split_matrix_col(
-              mat = t, second_dim = ngene,
-              second_dim_nms = genenms
-            )))
-          }
-        },
-        error = function(e) {
-          warning(e)
-          return(invisible(NA))
+        if (param %in% c(
+          "centerofmu", "varofmu",
+          "centerofr", "varofr", "tau2"
+        )) {
+          ## when param is scalar
+          return(invisible(self$high2fit$draws(param)))
         }
+        if (param %in% c("mu", "r", "nb_r")) {
+          ## when param is vector len of ngene
+          check_ngene()
+          t <- self$high2fit$draws(str_glue_vec(param, ngene))
+          if (!is.null(genenms)) {
+            names(t) <- genenms
+          }
+          return(invisible(t))
+        }
+        if (param %in% c("varofcond")) {
+          ## when param is vector of len of ncond
+          return(invisible(
+            self$high2fit$draws(str_glue_vec(param, self$ncond))
+          ))
+        }
+        if (param %in% c("varofind", "centerofind")) {
+          ## when param is vector of len of nind
+          return(invisible(
+            self$high2fit$draws(str_glue_vec(param, self$nind))
+          ))
+        }
+        if (param %in% c("mucond")) {
+          ## when param is a matrix of ngene by ncond
+          check_ngene()
+          t <- self$high2fit$draws(
+            str_glue_mat_rowise(param, ngene, self$ncond)
+          )
+          return(invisible(split_matrix_col(
+            mat = t, second_dim = ngene,
+            second_dim_nms = genenms
+          )))
+        }
+        if (param %in% c("muind")) {
+          ## when param is a matrix of ngene by nind
+          check_ngene()
+          t <- self$high2fit$draws(
+            str_glue_mat_rowise(param, ngene, self$nind)
+          )
+          return(invisible(split_matrix_col(
+            mat = t, second_dim = ngene,
+            second_dim_nms = genenms
+          )))
+        }
+      },
+      error = function(e) {
+        warning(e)
+        return(invisible(NA))
+      }
       )
     },
     extract_draws_all = function(ngene = NULL,
@@ -771,8 +841,8 @@ High2 <- R6::R6Class(
       nsample <- dim(mucond)[1]
       if (len_of_nw != nsample) {
         stop("Length of normweights",
-             len_of_nm, " != nsample ",
-             nsample)
+          len_of_nm, " != nsample ",
+          nsample)
       }
       ngene <- dim(mucond)[2]
       ## r: nsample by ngene
@@ -798,7 +868,7 @@ High2 <- R6::R6Class(
       }
       return(invisible(result))
     },
-    
+
     get_auc = function(ranking_statistic, c1, c2) {
       ## ranking_statistic: a vector, ngene by 1
       ## c1: index of gene for condition one
@@ -814,7 +884,7 @@ High2 <- R6::R6Class(
         t[c(c1, c2), ],
         true_class
       )))
-    }
+    } ## end of get_auc method
   ) ## end of public field
 ) ## end of class high2
 
