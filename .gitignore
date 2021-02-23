@@ -100,3 +100,13 @@ vignettes/*.pdf
 /src/dirty_stan/mssc_hbnb_mat
 *.*~
 /src/mssc_2-1/stan/mssc
+/src/archive/modelcheck/01_hbnb_share_vcond_share_vmu/*.pdf
+/src/archive/modelcheck/high2/makefile~
+/src/archive/modelcheck/gwnb_figures/*.pdf
+/src/mssc/stan/mssc_2-0
+/src/symsim/makefile~
+/src/archive/modelcheck/high2/*.pdf
+/src/archive/modelcheck/gwnb_figures/
+src/archive/modelcheck/high2/stan/*
+/src/symsim/results_simu_as_batch_effect/
+/src/symsim/symsim_202101300028/
