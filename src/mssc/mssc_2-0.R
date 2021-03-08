@@ -809,78 +809,6 @@ High2 <- R6::R6Class(
       return(invisible(result))
     },
 
-    get_rsis_ranking_statistics = function(ngene, two_hot_vec,
-                                           normweights, genenms = NULL,
-                                           method = "simple_no_replace",
-                                           ndraws = 1000) {
-      ## method could be "simple_no_replace" or "stratified"
-      ## suggest and default: "simple_no_replace"
-      ## only for mucond
-      t <- self$high2fit$draws(
-        str_glue_mat_rowise("mucond", ngene, self$ncond)
-      )
-      t_rsis <- posterior::resample_draws(
-        x = t, weights = normweights,
-        method = method
-      )
-
-      mucond_rsis <- split_matrix_col(
-        mat = t_rsis, second_dim = ngene,
-        second_dim_nms = genenms,
-        ndraws = ndraws
-      )
-
-      invisible(self$get_ranking_statistics(
-        mucond = mucond_rsis, two_hot_vec = two_hot_vec
-      ))
-    }, ## end of get_rsis_ranking_statistics
-    
-    get_psis_ranking_statistics = function(mucond, two_hot_vec,
-                                           normweights) {
-      ## mucond, two_hot_vec: ref get_ranking_statistics.
-      ## normweights: getting from psis function, are normalized weights.
-      if (sum(two_hot_vec) > 1) {
-        stop("Set 1 and -1 for two conditions.")
-      }
-      if (length(two_hot_vec) != self$ncond) {
-        stop(
-          "Length of two_hot_vec ",
-          length(two_hot_vec), " is not equals to ncond ",
-          self$ncond
-        )
-      }
-      len_of_nw <- length(normweights)
-      nsample <- dim(mucond)[1]
-      if (len_of_nw != nsample) {
-        stop("Length of normweights",
-          len_of_nm, " != nsample ",
-          nsample)
-      }
-      ngene <- dim(mucond)[2]
-      ## r: nsample by ngene
-      r <- t(vapply(1:nsample, function(i) {
-        mucond[i, , ] %*% two_hot_vec
-      }, FUN.VALUE = rep(0.0, ngene)))
-      ## weighted the samples
-      wr <- diag(as.numeric(normweights)) %*% r
-
-      ## one measurement
-      ## normalized weights, so we directly use sum
-      ## to get the weighted sample mean.
-      abs_expected_d <- abs(colSums(wr))
-
-      ## one measurement
-      ir <- (r > 0.0)
-      p0 <- colSums(diag(as.numeric(normweights)) %*% ir)
-      bf <- abs(log(p0 + 1e-06) - log(1 - p0 + 1e-06))
-      ## summary
-      result <- cbind(bf = bf, abs_m = abs_expected_d)
-      if (!is.null(dimnames(mucond)[[2]])) {
-        rownames(result) <- dimnames(mucond)[[2]]
-      }
-      return(invisible(result))
-    },
-
     get_auc = function(ranking_statistic, c1, c2) {
       ## ranking_statistic: a vector, ngene by 1
       ## c1: index of gene for condition one
@@ -949,15 +877,16 @@ test <- function() {
     two_hot_vec = c(1, -1)
   )
   str(rankings)
+  
   psis <- model$psis()
   print(psis$psis)
-
   psis_rankings <- model$get_psis_ranking_statistics(
     mucond = mucond,
     two_hot_vec = c(1, -1),
     normweights = psis$normweights
   )
   str(psis_rankings)
+  
   ## optimization
   model$run_opt(data = data, list_wrap_ip = list(init_params$ip))
 }
