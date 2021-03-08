@@ -1,5 +1,4 @@
 
-SCRIPT := sbatch_symsim.sh
 symsimv2 := sbatch_indeffv2.sh
 
 nrpt := 3
@@ -19,25 +18,6 @@ capt_alphas:= 0.05 0.1 0.15 0.2
 # sigmas := 0.4
 # capt_alphas:= 0.05
 
-
-
-5ind_groupshift : ${SCRIPT}
-	@sbatch $< 5 2 1 ${nrpt} ${ngene} ${ratio_ind2cond} ${scale_in_diffg} ${scale_in_nondiffg}
-
-5ind_nogroupshift : ${SCRIPT}
-	@sbatch $< 5 2 0 ${nrpt} ${ngene} ${ratio_ind2cond} ${scale_in_diffg} ${scale_in_nondiffg}
-
-3ind_groupshift : ${SCRIPT}
-	@sbatch $< 3 1 1 ${nrpt} ${ngene} ${ratio_ind2cond} ${scale_in_diffg} ${scale_in_nondiffg}
-
-3ind_nogroupshift : ${SCRIPT}
-	@sbatch $< 3 1 0 ${nrpt} ${ngene} ${ratio_ind2cond} ${scale_in_diffg} ${scale_in_nondiffg}
-
-10ind_groupshift : ${SCRIPT}
-	@sbatch $< 10 3 1 ${nrpt} ${ngene} ${ratio_ind2cond} ${scale_in_diffg} ${scale_in_nondiffg}
-
-10ind_nogroupshift : ${SCRIPT}
-	@sbatch $< 10 3 0 ${nrpt} ${ngene} ${ratio_ind2cond} ${scale_in_diffg} ${scale_in_nondiffg}
 
 3ind_symsim_v2: ${symsimv2}
 	for brn_len in ${brn_lens}; do \
