@@ -39,165 +39,7 @@ color10 <- c("chocolate", paste0("chocolate", 1:4),
              "deepskyblue", paste0("deepskyblue", 1:4),
              "darkslategray", paste0("darkslategray", 1:4))
 
-## * help functions
-get_logtpm <- function(cnt, scale = 10000) {
-  tpm <- scale(cnt, center = F, scale = colSums(cnt)) * scale
-  return(invisible(log(tpm + 1)))
-}
-
-zhu_test <- function(x, group, test = "t") {
-  if (sd(x) < 1e-06) {
-    1
-  } else {
-    if (test == "t") {
-      t.test(x ~ group)$p.value
-    } else if (test == "wilcox") {
-      wilcox.test(x ~ group)$p.value
-    }
-  }
-}
-
-set_population_struct_using_phylo <- function(w = rep(0.1, 6)) {
-  ## two populations (two conditiosn), while each has some subpopulations
-  ## used when individual effects as subpopulations in phylogenetic tree
-  ## w: vector of branch length in phylo tree, such as (0.1,0.2,0.3, 0.2,0.1,0.2)
-  ##   - one minus the branch length describes the correlation
-  ##     between the parent and the tip, so should be less than 1
-  ##   - 1 to length(w)/2 describes the subpopulation structure in one case,
-  ##     rest the other
-
-  n <- ceiling(length(w) / 2)
-  sub1 <- 1:n
-  sub2 <- (n + 1):length(w)
-  ## generate newick tree format
-  newick_tree <- paste("((", paste(sub1, w[sub1], sep = ":", collapse = ","), "):1, (",
-    paste(sub2, w[sub2], sep = ":", collapse = ","), "):1);")
-  p <- ape::read.tree(text = newick_tree)
-  p$pop <- list(sub1 = sub1, sub2 = sub2)
-  p$w <- w
-  return(invisible(p))
-}
-
-get_symsim_umi <- function(phyla, bimod = 0, capt_alpha = 0.1,
-                           gene_module_prop = 0.0,
-                           ncell_per_subpop = 100,
-                           ngene = 100,
-                           seed = 1L, nevf = 10, n_de_evf = 7,
-                           sigma = 0.6, vary = "s") {
-  ## - bimod: bimodility in expressions
-  ##   - In SymSim, be default, half of the genes will use this feature
-  ##   - Though we can use continuous value between [0, 1], in SymSim examples,
-  ##     they only use 0 or 1.
-  ## - capt_alpha: capture efficiency mean
-  ##   - used to generate the observed counts, default is 0.1
-  ##   - we could vary this from (0.0, 0.2] by 0.05 step size.
-  ## - sigma: std of evf within the same population
-  ##   - It determines gene expression variations whithn one population.
-  ##   - default as 0.2 or 0.6
-
-  npop <- length(phyla$tip.label)
-  ncell_total <- npop * ncell_per_subpop
-  ## simulate the true counts per cell
-  symsim_true <- SymSim::SimulateTrueCounts(
-    ncells_total = ncell_total,
-    ngene = ngene,
-    phyla = phyla,
-    bimod = bimod,
-    ## scale kinetic parameter:s
-    scale_s = 1,
-    param_realdata = "zeisel.imputed",
-    geffect_mean = 0,
-    gene_effects_sd = 1,
-    ## prob gene_effect not zero
-    gene_effect_prob = 0.3,
-    evf_center = 1,
-    Sigma = sigma,
-    evf_type = "discrete",
-    nevf = nevf,
-    n_de_evf = n_de_evf,
-    vary = vary,
-    min_popsize = floor(ncell_total / npop),
-    prop_hge = 0.0,
-    gene_module_prop = gene_module_prop,
-    randseed = seed
-  )
-  ## simulate reads per cell under UMI-based scRNA sequencing
-  data(gene_len_pool, package = "SymSim")
-  gene_len <- sample(gene_len_pool, ngene, replace = FALSE)
-  symsim_umi <- SymSim::True2ObservedCounts(
-    true_counts = symsim_true$counts,
-    meta_cell = symsim_true$cell_meta,
-    protocol = "UMI",
-    alpha_mean = capt_alpha,
-    alpha_sd = 0.002,
-    gene_len = gene_len,
-    depth_mean = 45000,
-    depth_sd = 4500,
-    lenslope = 0.02,
-    nbins = 20,
-    amp_bias_limit = c(-0.2, 0.2),
-    nPCR1 = 14,
-    nPCR2 = 10,
-    LinearAmp = F,
-    LinearAmp_coef = 2000)
-  return(invisible(list(true = symsim_true, umi = symsim_umi)))
-}
-
-get_symsim_de_analysis <- function(true_counts_res, popA, popB) {
-  meta_cell <- true_counts_res$cell_meta
-  meta_gene <- true_counts_res$gene_effects
-  ## when popA or popB has multiple subpopulations
-  popA_idx <- which(meta_cell$pop %in% popA)
-  popB_idx <- which(meta_cell$pop %in% popB)
-  ngenes <- dim(true_counts_res$gene_effects[[1]])[1]
-
-  DEstr <- sapply(strsplit(colnames(meta_cell)[which(grepl("evf", colnames(meta_cell)))], "_"), "[[", 2)
-  param_str <- sapply(strsplit(colnames(meta_cell)[which(grepl("evf", colnames(meta_cell)))], "_"), "[[", 1)
-  n_useDEevf <- sapply(1:ngenes, function(igene) {
-    return(sum(abs(meta_gene[[1]][igene, DEstr[which(param_str == "kon")] == "DE"]) - 0.001 > 0) +
-      sum(abs(meta_gene[[2]][igene, DEstr[which(param_str == "koff")] == "DE"]) - 0.001 > 0) +
-      sum(abs(meta_gene[[3]][igene, DEstr[which(param_str == "s")] == "DE"]) - 0.001 > 0))
-  })
-
-  kon_mat <- true_counts_res$kinetic_params[[1]]
-  koff_mat <- true_counts_res$kinetic_params[[2]]
-  s_mat <- true_counts_res$kinetic_params[[3]]
-
-  logFC_theoretical <- sapply(1:ngenes, function(igene)
-    return(log2(mean(s_mat[igene, popA_idx] * kon_mat[igene, popA_idx] / (kon_mat[igene, popA_idx] + koff_mat[igene, popA_idx])) /
-      mean(s_mat[igene, popB_idx] * kon_mat[igene, popB_idx] / (kon_mat[igene, popB_idx] + koff_mat[igene, popB_idx])))))
-
-  return(list(nDiffEVF = n_useDEevf, logFC_theoretical = logFC_theoretical))
-}
-
-set_mssc_meta <- function(symsim_umi, phyla) {
-  ind <- symsim_umi$cell_meta$pop
-  sub1 <- phyla$pop$sub1
-  sub2 <- phyla$pop$sub2
-
-  ncell <- length(ind)
-  cond <- floor(rep(0, ncell))
-  cond[ind %in% sub1] <- 1
-  cond[ind %in% sub2] <- 2
-
-  npop <- length(sub1) + length(sub2)
-  cond_of_ind <- floor(rep(1, npop))
-  cond_of_ind[sub1] <- 1
-  cond_of_ind[sub2] <- 2
-  return(invisible(list(ind = ind,
-    cond = cond,
-    cond_of_ind = cond_of_ind)))
-}
-
-## plot utilities
-plot_tree <- function(p) {
-  ape::plot.phylo(p, show.tip.label = F, lwd = 2)
-  ape::nodelabels(cex = 1)
-  ape::tiplabels(cex = 2)
-  ape::edgelabels(text = sprintf("%0.2f", p$edge.length),
-    col = "black", bg = "lightgreen", font = 1, adj = c(0.5, 1.5))
-}
-
+## * plot functions
 plot_tree_v2 <- function(phyla) {
   ## use ggtree package to plot tree in ggplot way
   p <- ggtree(phyla) + theme_tree2() +
@@ -294,17 +136,166 @@ plot_de_violin <- function(symsim_umi,
   return(invisible(list(pvsd, pvsnd)))
 }
 
-simu <- function(ncell_per_ind = 30, nind_per_cond = 3, brn_len = 0.5,
+## * help functions
+get_logtpm <- function(cnt, scale = 10000) {
+  tpm <- scale(cnt, center = F, scale = colSums(cnt)) * scale
+  return(invisible(log(tpm + 1)))
+}
+
+zhu_test <- function(x, group, test = "t") {
+  if (sd(x) < 1e-06) {
+    1
+  } else {
+    if (test == "t") {
+      t.test(x ~ group)$p.value
+    } else if (test == "wilcox") {
+      wilcox.test(x ~ group)$p.value
+    }
+  }
+}
+
+set_population_struct_using_phylo <- function(w = rep(0.1, 6)) {
+  ## two populations (two conditiosn), while each has some subpopulations
+  ## used when individual effects as subpopulations in phylogenetic tree
+  ## w: vector of branch length in phylo tree, such as (0.1,0.2,0.3, 0.2,0.1,0.2)
+  ##   - one minus the branch length describes the correlation
+  ##     between the parent and the tip, so should be less than 1
+  ##   - 1 to length(w)/2 describes the subpopulation structure in one case,
+  ##     rest the other
+
+  n <- ceiling(length(w) / 2)
+  sub1 <- 1:n
+  sub2 <- (n + 1):length(w)
+  ## generate newick tree format
+  newick_tree <- paste("((", paste(sub1, w[sub1], sep = ":", collapse = ","), "):1, (",
+    paste(sub2, w[sub2], sep = ":", collapse = ","), "):1);")
+  p <- ape::read.tree(text = newick_tree)
+  p$pop <- list(sub1 = sub1, sub2 = sub2)
+  p$w <- w
+  return(invisible(p))
+}
+
+run_symsim_simu <- function(phyla, bimod = 0, capt_alpha = 0.1,
+                           gene_module_prop = 0.0,
+                           ncell_per_ind = 100,
+                           ngene = 100,
+                           seed = 1L, nevf = 10, n_de_evf = 7,
+                           sigma = 0.6, vary = "s") {
+  ## - bimod: bimodility in expressions
+  ##   - In SymSim, be default, half of the genes will use this feature
+  ##   - Though we can use continuous value between [0, 1], in SymSim examples,
+  ##     they only use 0 or 1.
+  ## - capt_alpha: capture efficiency mean
+  ##   - used to generate the observed counts, default is 0.1
+  ##   - we could vary this from (0.0, 0.2] by 0.05 step size.
+  ## - sigma: std of evf within the same population
+  ##   - It determines gene expression variations whithn one population.
+  ##   - default as 0.2 or 0.6
+
+  npop <- length(phyla$tip.label)
+  ncell_total <- npop * ncell_per_ind
+  ## simulate the true counts per cell
+  symsim_true <- SymSim::SimulateTrueCounts(
+    ncells_total = ncell_total,
+    ngene = ngene,
+    phyla = phyla,
+    bimod = bimod,
+    ## scale kinetic parameter:s
+    scale_s = 1,
+    param_realdata = "zeisel.imputed",
+    geffect_mean = 0,
+    gene_effects_sd = 1,
+    ## prob gene_effect not zero
+    gene_effect_prob = 0.3,
+    evf_center = 1,
+    Sigma = sigma,
+    evf_type = "discrete",
+    nevf = nevf,
+    n_de_evf = n_de_evf,
+    vary = vary,
+    min_popsize = floor(ncell_total / npop),
+    prop_hge = 0.0,
+    gene_module_prop = gene_module_prop,
+    randseed = seed
+  )
+  ## simulate reads per cell under UMI-based scRNA sequencing
+  data(gene_len_pool, package = "SymSim")
+  gene_len <- sample(gene_len_pool, ngene, replace = FALSE)
+  symsim_umi <- SymSim::True2ObservedCounts(
+    true_counts = symsim_true$counts,
+    meta_cell = symsim_true$cell_meta,
+    protocol = "UMI",
+    alpha_mean = capt_alpha,
+    alpha_sd = 0.002,
+    gene_len = gene_len,
+    depth_mean = 45000,
+    depth_sd = 4500,
+    lenslope = 0.02,
+    nbins = 20,
+    amp_bias_limit = c(-0.2, 0.2),
+    nPCR1 = 14,
+    nPCR2 = 10,
+    LinearAmp = F,
+    LinearAmp_coef = 2000)
+  return(invisible(list(true = symsim_true, umi = symsim_umi)))
+}
+
+get_symsim_de_analysis <- function(true_counts_res, popA, popB) {
+  meta_cell <- true_counts_res$cell_meta
+  meta_gene <- true_counts_res$gene_effects
+  ## when popA or popB has multiple subpopulations
+  popA_idx <- which(meta_cell$pop %in% popA)
+  popB_idx <- which(meta_cell$pop %in% popB)
+  ngenes <- dim(true_counts_res$gene_effects[[1]])[1]
+
+  DEstr <- sapply(strsplit(colnames(meta_cell)[which(grepl("evf", colnames(meta_cell)))], "_"), "[[", 2)
+  param_str <- sapply(strsplit(colnames(meta_cell)[which(grepl("evf", colnames(meta_cell)))], "_"), "[[", 1)
+  n_useDEevf <- sapply(1:ngenes, function(igene) {
+    return(sum(abs(meta_gene[[1]][igene, DEstr[which(param_str == "kon")] == "DE"]) - 0.001 > 0) +
+      sum(abs(meta_gene[[2]][igene, DEstr[which(param_str == "koff")] == "DE"]) - 0.001 > 0) +
+      sum(abs(meta_gene[[3]][igene, DEstr[which(param_str == "s")] == "DE"]) - 0.001 > 0))
+  })
+
+  kon_mat <- true_counts_res$kinetic_params[[1]]
+  koff_mat <- true_counts_res$kinetic_params[[2]]
+  s_mat <- true_counts_res$kinetic_params[[3]]
+
+  logFC_theoretical <- sapply(1:ngenes, function(igene)
+    return(log2(mean(s_mat[igene, popA_idx] * kon_mat[igene, popA_idx] / (kon_mat[igene, popA_idx] + koff_mat[igene, popA_idx])) /
+      mean(s_mat[igene, popB_idx] * kon_mat[igene, popB_idx] / (kon_mat[igene, popB_idx] + koff_mat[igene, popB_idx])))))
+
+  return(list(nDiffEVF = n_useDEevf, logFC_theoretical = logFC_theoretical))
+}
+
+set_mssc_meta <- function(symsim_umi, phyla) {
+  ind <- symsim_umi$cell_meta$pop
+  sub1 <- phyla$pop$sub1
+  sub2 <- phyla$pop$sub2
+
+  ncell <- length(ind)
+  cond <- floor(rep(0, ncell))
+  cond[ind %in% sub1] <- 1
+  cond[ind %in% sub2] <- 2
+
+  npop <- length(sub1) + length(sub2)
+  cond_of_ind <- floor(rep(1, npop))
+  cond_of_ind[sub1] <- 1
+  cond_of_ind[sub2] <- 2
+  return(invisible(list(ind = ind,
+    cond = cond,
+    cond_of_ind = cond_of_ind)))
+}
+
+get_symsim_simu <- function(ncell_per_ind = 30, nind_per_cond = 3, brn_len = 0.5,
                  bimod = 0, sigma = 0.6, capt_alpha = 0.2, ngene = 200,
                  seed = 1L) {
   ## simulate individual effect using symsim
   ncond <- 2
   nind <- nind_per_cond * ncond
-  ncell <- nind * ncell_per_ind
   phyla <- set_population_struct_using_phylo(w = rep(brn_len, nind))
-  symsim <- get_symsim_umi(phyla = phyla, bimod = bimod,
+  symsim <- run_symsim_simu(phyla = phyla, bimod = bimod,
     capt_alpha = capt_alpha, gene_module_prop = 0.0,
-    ncell_per_subpop = ncell_per_ind,
+    ncell_per_ind = ncell_per_ind,
     sigma = sigma,
     ngene = ngene,
     seed = seed,
@@ -319,10 +310,55 @@ simu <- function(ncell_per_ind = 30, nind_per_cond = 3, brn_len = 0.5,
     dea = dea)))
 }
 
+get_symsim_by_sampling <- function(mysymsim,
+                                   ncell_per_ind = 20) {
+  ## generate symsim simulation data from another symsim data
+  ## by sampling the specific number of cells from each individual.
+
+  ## Return
+  ## - another symsim simulation data (list) like mysymsim
+  ##   plus the sample_cell_index as one field
+  
+  r <- list(phyla = mysymsim$phyla,
+            symsim = list(true = NULL, umi = NULL),
+            dea = mysymsim$dea,
+            sample_cell_index = sample_cell_index)
+
+  ind <- mysymsim$symsim_umi$pop
+  sample_cell_index <- unlist(lapply(seq_len(max(ind)), function(i) {
+    cell_index <- which(ind == i)
+    ncell <- length(cell_index)
+    if (ncell_per_ind >= ncell) {
+      invisible(cell_index)
+    }
+    invisible(sample(x = cell_index, size = ncell_per_ind, replace = FALSE))
+  }))
+  
+  ## complete symsim true
+  r$symsim$true <- list(
+    counts = mysymsim$counts[, sample_cell_index],
+    ## cell_meta is a dataframe: ncell by features
+    cell_meta = mysymsim$true$cell_meta[sample_cell_index, ],
+    gene_effects = mysymsim$true$gene_effects,
+    cell_meta = mysymsim$true$cell_meta[sample_cell_index, ],
+    kinetic_params = lapply(mysymsim$true$kinetic_params,
+                            function(x) {x[, sample_cell_index]}),
+    in_module = mysymsim$true$in_module)
+  r$symsim$umi <- list(
+    counts = mysymsim$umi$counts[, sample_cell_index],
+    cell_meta = mysymsim$umi$cell_meta[sample_cell_index, ],
+    ## nreads_perUMI is a list (length of ncells)
+    nreads_perUMI = mysymsim$umi$nreads_perUMI[sample_cell_index],
+    ## nUMI2seq is a vector length of ncells
+    nUMI2seq = mysymsim$umi$nUMI2seq[sample_cell_index])
+  return(invisible(r))
+}
+
+
 load_mssc <- function(nind = 10, mssc_version = "mssc_2-0",
                       tol_rel_obj = 1e-06,
                       num_iter = 20000,
-                      output_samples = 3000) {
+                      output_samples = 1000) {
   ## nind: total number individuals
   ## tol_rel_obj, num_iter, output_samples are used
   ## to tune the model
@@ -382,12 +418,6 @@ run_mssc <- function(model, symsim_umi, mssc_meta, save_result = TRUE,
   ## ngene by 3
   r <- model$get_ranking_statistics(
     mucond = mucond, two_hot_vec = c(1, -1))
-  ## use PSIS (importance sampling) to further correct the bias
-  ## capture.output(psis <- model$psis())
-  ## two rankings in order: bf, m
-  ## ngene by 2
-  ## psis_rankings <- model$get_psis_ranking_statistics(
-    ## mucond = mucond, two_hot_vec = c(1, -1), normweights = psis$normweights)
   if (save_result) {
     ## TODO: check loading the results
     ## warning at opt:argparse
@@ -445,20 +475,11 @@ main <- function(nind_per_cond,
   mssc_20 <- load_mssc(nind = nind_all, mssc_version = "mssc_2-0")
 
   ## declare the result
-  auc06 <- set_result_array(rpt = rpt, ncells = ncells,
-                        methods = c("mssc_2-0", "pseudo", "wilcox", "t"))
   auc08 <- set_result_array(rpt = rpt, ncells = ncells,
                         methods = c("mssc_2-0", "pseudo", "wilcox", "t"))
-  auc10 <- set_result_array(rpt = rpt, ncells = ncells,
-                        methods = c("mssc_2-0", "pseudo", "wilcox", "t"))
-
   for (i in seq_len(rpt)) {
-    auc06_i <- matrix(NA, nrow = dim(auc06)[1], ncol = dim(auc06)[2])
     auc08_i <- matrix(NA, nrow = dim(auc08)[1], ncol = dim(auc08)[2])
-    auc10_i <- matrix(NA, nrow = dim(auc10)[1], ncol = dim(auc10)[2])
-    rownames(auc06_i) <- rownames(auc06)
     rownames(auc08_i) <- rownames(auc08)
-    rownames(auc10_i) <- rownames(auc10)
     for (j in seq_along(ncells)) {
       ncell <- ncells[j]
       ## simulate data
@@ -467,7 +488,7 @@ main <- function(nind_per_cond,
         "{ncell}cell", "{brn_len}w", "{bimod}bimod",
         "{sigma}sigma", "{capt_alpha}alpha", "{i}seed", .sep = "_")
       message(str_glue("SymSim experiment: {symsim_prefix_per_rpt}."))
-      mysimu <- simu(ncell_per_ind = ncell,
+      mysimu <- get_symsim_simu(ncell_per_ind = ncell,
                      nind_per_cond = nind_per_cond,
                      brn_len = brn_len,
                      bimod = bimod,
@@ -476,22 +497,15 @@ main <- function(nind_per_cond,
                      ngene = ngene,
                      seed = i)
       ## get differentially expressed genes based different fold change levels
-      diffg_06 <- which((mysimu$dea$logFC_theoretical >= 0.6) & (mysimu$dea$nDiffEVF >  0))
-      nondiffg_06 <- setdiff(seq_along(mysimu$dea$logFC_theoretical), diffg_06)
-      message(str_glue("SymSim DE analysis under logFC 0.6: ",
-                       "{length(diffg_06)} diffg and {length(nondiffg_06)} nondiffg",
-                       .sep = "\n"))
-
+      ## 0.8 is a recommended value (0.6 or 1.0 is ok, but 1.0 seems too restricted.)
       diffg_08 <- which((mysimu$dea$logFC_theoretical >= 0.8) & (mysimu$dea$nDiffEVF >  0))
+      if (length(diffg_08) > 0 ) {
+        message(str_glue("SymSim DE analysis under logFC 0.8 have no diff genes. ", "Skip it."))
+        next
+      }
       nondiffg_08 <- setdiff(seq_along(mysimu$dea$logFC_theoretical), diffg_08)
       message(str_glue("SymSim DE analysis under logFC 0.8: ",
                        "{length(diffg_08)} diffg and {length(nondiffg_08)} nondiffg",
-                       .sep = "\n"))
-
-      diffg_10 <- which((mysimu$dea$logFC_theoretical >= 1.0) & (mysimu$dea$nDiffEVF >  0))
-      nondiffg_10 <- setdiff(seq_along(mysimu$dea$logFC_theoretical), diffg_10)
-      message(str_glue("SymSim DE analysis under logFC 1.0: ",
-                       "{length(diffg_10)} diffg and {length(nondiffg_10)} nondiffg",
                        .sep = "\n"))
 
       ## prepare mssc meta
@@ -517,40 +531,17 @@ main <- function(nind_per_cond,
         grid.arrange(grobs = list(p_phylo, p_tsne), nrow  = 1, ncol = 2,
                      top = "Population structure and t-SNE in SymSim")
         ## violin of (non-)differentially expression genes.
-        if (length(diffg_06) > 0) {
-          pv_06 <- plot_de_violin(symsim_umi = mysimu$symsim$umi,
-                                  ind = mssc_meta$ind,
-                                  diffg = diffg_06, nondiffg = nondiffg_06,
-                                  nde = nde_plt, nnde = nnde_plt, pnrow = pnrow,
-                                  logfc = 0.6)
-          grid.arrange(pv_06[[1]])
-          grid.arrange(pv_06[[2]])
-        }
-
-        if (length(diffg_08) > 0) {
-          pv_08 <- plot_de_violin(symsim_umi = mysimu$symsim$umi,
-                                  ind = mssc_meta$ind,
-                                  diffg = diffg_08, nondiffg = nondiffg_08,
-                                  nde = nde_plt, nnde = nnde_plt, pnrow = pnrow,
-                                  logfc = 0.8)
-          grid.arrange(pv_08[[1]])
-          grid.arrange(pv_08[[2]])
-        }
-        if (length(diffg_10) > 0) {
-          pv_10 <- plot_de_violin(symsim_umi = mysimu$symsim$umi,
-                                  ind = mssc_meta$ind,
-                                  diffg = diffg_10, nondiffg = nondiffg_10,
-                                  nde = nde_plt, nnde = nnde_plt, pnrow = pnrow,
-                                  logfc = 1.0)
-          grid.arrange(pv_10[[1]])
-          grid.arrange(pv_10[[2]])
-        }
+        pv_08 <- plot_de_violin(symsim_umi = mysimu$symsim$umi,
+                                ind = mssc_meta$ind,
+                                diffg = diffg_08, nondiffg = nondiffg_08,
+                                nde = nde_plt, nnde = nnde_plt, pnrow = pnrow,
+                                logfc = 0.8)
+        grid.arrange(pv_08[[1]])
+        grid.arrange(pv_08[[2]])
         dev.off()
       } ## end of save figures in one file
       if (save_symsim_data) {
-        saveRDS(object = list(simu = mysimu, dg06 = diffg_06, nondg06 = nondiffg_06,
-                              dg08 = diffg_08, nondg08 = nondiffg_08,
-                              dg10 = diffg_10, nondg10 = nondiffg_10),
+        saveRDS(object = list(simu = mysimu, dg08 = diffg_08, nondg08 = nondiffg_08), 
                 file = file.path(simu_data_dir, paste0(symsim_prefix_per_rpt, ".rds")))
       } ## end of save symsim data
 
@@ -577,22 +568,6 @@ main <- function(nind_per_cond,
       r_wilcox <- apply(logtpm, 1, zhu_test, group = mssc_meta$cond, test = "wilcox")
       r_wilcox_adjp <- p.adjust(r_wilcox, method = "fdr")
       
-      if (length(diffg_06) > 0) {
-        auc06_mssc20 <- mssc_20$get_auc(r_mssc20, c1  = diffg_06, c2 = nondiffg_06)[3]
-        auc06_pseudo <- mypseudo$calc_auc(
-          deseq2_res = r_pseudo, degs = diffg_06, ndegs = nondiffg_06)$auc
-        auc06_t <- caTools::colAUC(
-          X = r_t_adjp,
-          y = (seq_along(mysimu$dea$logFC_theoretical) %in% diffg_06))
-        auc06_wilcox <- caTools::colAUC(
-          X = r_wilcox_adjp,
-          y = (seq_along(mysimu$dea$logFC_theoretical) %in% diffg_06))
-      } else {
-        auc06_mssc20 <- NA
-        auc06_pseudo <- NA
-        auc06_t <- NA
-        auc06_wilcox <- NA
-      }
       if (length(diffg_08) > 0) {
         auc08_mssc20 <- mssc_20$get_auc(r_mssc20, c1  = diffg_08, c2 = nondiffg_08)[3]
         auc08_pseudo <- mypseudo$calc_auc(
@@ -609,46 +584,17 @@ main <- function(nind_per_cond,
         auc08_t <- NA
         auc08_wilcox <- NA
       }
-      if (length(diffg_10) > 0) {
-        auc10_mssc20 <- mssc_20$get_auc(r_mssc20, c1  = diffg_10, c2 = nondiffg_10)[3]
-        auc10_pseudo <- mypseudo$calc_auc(
-          deseq2_res = r_pseudo, degs = diffg_10, ndegs = nondiffg_10)$auc
-        auc10_t <- caTools::colAUC(
-          X = r_t_adjp,
-          y = (seq_along(mysimu$dea$logFC_theoretical) %in% diffg_10))
-        auc10_wilcox <- caTools::colAUC(
-          X = r_wilcox_adjp,
-          y = (seq_along(mysimu$dea$logFC_theoretical) %in% diffg_10))
-      } else {
-        auc10_mssc20 <- NA
-        auc10_pseudo <- NA
-        auc10_t <- NA
-        auc10_wilcox <- NA
-      }
       ## save result
-      auc06_i[, j] <- c(auc06_mssc20, auc06_pseudo, auc06_t, auc06_wilcox)
       auc08_i[, j] <- c(auc08_mssc20, auc08_pseudo, auc08_t, auc08_wilcox)
-      auc10_i[, j] <- c(auc10_mssc20, auc10_pseudo, auc10_t, auc10_wilcox)
       message(str_glue("In {i}th turn under {ncell} cells per individual",
                        "result is summarized below..."))
-      message("when logfc is 0.6:")
-      print(auc06_i)
       message("when logfc is 0.8:")
       print(auc08_i)
-      message("when logfc is 1.0:")
-      print(auc10_i)
-
     } ## end of ncells
-    auc06[, , i] <- auc06_i
     auc08[, , i] <- auc08_i
-    auc10[, , i] <- auc10_i
     message(str_glue("In {i}th turn, result is summarized below..."))
-    message("when logfc is 0.6:")
-    print(auc06)
     message("when logfc is 0.8:")
     print(auc08)
-    message("when logfc is 1.0:")
-    print(auc10)
     
     ## save result even per turn
     ## in case some error happens
@@ -656,7 +602,7 @@ main <- function(nind_per_cond,
       "{ngene}gene", "{nind_all}ind",
       "{ncell}cell", "{brn_len}w", "{bimod}bimod",
       "{sigma}sigma", "{capt_alpha}alpha", .sep = "_")
-    saveRDS(object = list(auc06 = auc06, auc08 = auc08, auc10 = auc10),
+    saveRDS(object = list(auc08 = auc08),
             file = file.path(dea_dir, str_glue("dea_auc_{symsim_prefix}.rds")))
   } ## end of rpt
 } ## end of main function
