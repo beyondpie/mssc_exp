@@ -1,5 +1,4 @@
 ## simulate individual effect (bf) v2 using SymSim
-
 ## * set R environment
 suppressWarnings(suppressMessages({
   library(SymSim)
@@ -29,15 +28,15 @@ mypseudo <- modules::import("pseudobulk")
 
 ## * meta
 color3 <- c("brown", "brown2", "brown3",
-            "chartreuse", "chartreuse3", "darkolivegreen1")
+  "chartreuse", "chartreuse3", "darkolivegreen1")
 
 color5 <- c("brown", "brown2", "brown3", "brown4", "deeppink4",
-            "chartreuse", "chartreuse3", "darkolivegreen1", "darkolivegreen3", "aquamarine3")
+  "chartreuse", "chartreuse3", "darkolivegreen1", "darkolivegreen3", "aquamarine3")
 
 color10 <- c("chocolate", paste0("chocolate", 1:4),
-             "coral", paste0("coral", 1:4),
-             "deepskyblue", paste0("deepskyblue", 1:4),
-             "darkslategray", paste0("darkslategray", 1:4))
+  "coral", paste0("coral", 1:4),
+  "deepskyblue", paste0("deepskyblue", 1:4),
+  "darkslategray", paste0("darkslategray", 1:4))
 
 ## * plot functions
 plot_tree_v2 <- function(phyla) {
@@ -47,7 +46,7 @@ plot_tree_v2 <- function(phyla) {
     geom_rootpoint(color = "red", size = 6) +
     geom_tippoint(color = "blue", size = 4) +
     geom_tiplab(align = TRUE, linetype = 'dashed', linesize = .3, hjust =  -1) +
-    geom_treescale(fontsize=5, linesize=2) +
+    geom_treescale(fontsize = 5, linesize = 2) +
     theme(axis.text = element_text(size = 20))
   return(invisible(p))
 }
@@ -176,11 +175,11 @@ set_population_struct_using_phylo <- function(w = rep(0.1, 6)) {
 }
 
 run_symsim_simu <- function(phyla, bimod = 0, capt_alpha = 0.1,
-                           gene_module_prop = 0.0,
-                           ncell_per_ind = 100,
-                           ngene = 100,
-                           seed = 1L, nevf = 10, n_de_evf = 7,
-                           sigma = 0.6, vary = "s") {
+                            gene_module_prop = 0.0,
+                            ncell_per_ind = 100,
+                            ngene = 100,
+                            seed = 1L, nevf = 10, n_de_evf = 7,
+                            sigma = 0.6, vary = "s") {
   ## - bimod: bimodility in expressions
   ##   - In SymSim, be default, half of the genes will use this feature
   ##   - Though we can use continuous value between [0, 1], in SymSim examples,
@@ -286,54 +285,126 @@ set_mssc_meta <- function(symsim_umi, phyla) {
     cond_of_ind = cond_of_ind)))
 }
 
-get_symsim_simu <- function(ncell_per_ind = 30, nind_per_cond = 3, brn_len = 0.5,
-                 bimod = 0, sigma = 0.6, capt_alpha = 0.2, ngene = 200,
-                 seed = 1L) {
+get_symsim_simu <- function(ncell_per_ind = 300, nind_per_cond = 3, brn_len = 0.5,
+                            bimod = 0, sigma = 0.6, capt_alpha = 0.2, ngene = 200,
+                            seed = 1, logfc_threshold = 0.8, ndg_threshold = 10, ntry = 10,
+                            save_data = TRUE, save_data_path = "symsim.rds",
+                            save_figure = FALSE, save_fig_path = "symsim.pdf",
+                            fig_width = 20, fig_height = 10,
+                            nde_plt = 20, nnde_plt = 20, pnrow = 5) {
   ## simulate individual effect using symsim
+  ## get differentially expressed genes based different fold change levels
+  ## 0.8 is a recommended value (0.6 or 1.0 is ok, but 1.0 seems too restricted.)
+  ## the program could throw error.
+
   ncond <- 2
   nind <- nind_per_cond * ncond
   phyla <- set_population_struct_using_phylo(w = rep(brn_len, nind))
-  symsim <- run_symsim_simu(phyla = phyla, bimod = bimod,
-    capt_alpha = capt_alpha, gene_module_prop = 0.0,
-    ncell_per_ind = ncell_per_ind,
-    sigma = sigma,
-    ngene = ngene,
-    seed = seed,
-    nevf = 10,
-    n_de_evf = 7,
-    vary = "s")
-  dea <- get_symsim_de_analysis(true_counts_res = symsim$true,
-    popA = phyla$pop$sub1,
-    popB = phyla$pop$sub2)
-  return(invisible(list(phyla = phyla,
-    symsim = symsim,
-    dea = dea)))
+
+  symsim <- NULL
+  dea <- NULL
+  ndiffg <- 0
+  ntry_now <- 1
+  ## run symsim until it touches the needs.
+  ## usually it will run only one time.
+  while ((ndiffg < ndg_threshold) && (ntry_now < ntry)) {
+    message(str_glue(""))
+    symsim <- run_symsim_simu(phyla = phyla, bimod = bimod,
+      capt_alpha = capt_alpha, gene_module_prop = 0.0,
+      ncell_per_ind = ncell_per_ind,
+      sigma = sigma,
+      ngene = ngene,
+      seed = seed,
+      nevf = 10,
+      n_de_evf = 7,
+      vary = "s")
+    dea <- get_symsim_de_analysis(true_counts_res = symsim$true,
+      popA = phyla$pop$sub1,
+      popB = phyla$pop$sub2)
+    diffg <- which((dea$logFC_theoretical >= logfc_threshold) & (dea$nDiffEVF > 0))
+    nondiffg <- setdiff(seq_along(dea$logFC_threshold), diffg)
+    ndiffg <- length(diffg)
+    ntry_now  <- ntry_now + 1
+  } ## end of while
+
+  if ((ntry_now == ntry) && (ndiffg < ndg_threshold)) {
+    stop(str_glue("Simulation failed: ndiffg_{ndifg} after try {ntry} times."))
+  }
+  r <- list(phyla = phyla, symsim = symsim, dea = dea,
+    diffg = diffg, nondiffg = nondiffg,
+    logfc_threshold = logfc_threshold)
+  if (save_data) {
+    saveRDS(object = r, file = save_data_path)
+  } ## end of save data
+
+  if (save_figure) {
+    pdf(file = save_fig_path, width = fig_width, height = fig_height)
+    ## phylo tree
+    p_phylo <- plot_tree_v2(phyla)
+    if (nind_per_cond == 3) {
+      colors <- color3
+    } else if (nind_per_cond == 5) {
+      colors <- color5
+    } else {
+      colors <- color10
+    }
+    ## tsne of cells under population
+    p_tsne <- plot_tsne(symsim_umi = symsim$umi, color_values = colors)
+    grid.arrange(grobs = list(p_phylo, p_tsne), nrow  = 1, ncol = 2,
+      top = "Population structure and t-SNE in SymSim")
+
+    tryCatch(
+      {
+        ## violin of (non-)differentially expression genes.
+        ## may have bugs when nde / nnde equals to 1
+        pv_08 <- plot_de_violin(symsim_umi = symsim$umi,
+          ind = symsim$umi$cell_meta$pop,
+          diffg = diffg, nondiffg = nondiffg,
+          nde = nde_plt, nnde = nnde_plt, pnrow = pnrow,
+          logfc = logfc_threshold)
+        grid.arrange(pv_08[[1]])
+        grid.arrange(pv_08[[2]])
+      },
+      error = function(cond) {
+        message(cond)
+      },
+      finally = {
+        dev.off()
+      }
+    )
+  } ## end of save figure.
+  return(invisible(r))
 }
 
 get_symsim_by_sampling <- function(mysymsim,
-                                   ncell_per_ind = 20) {
+                                   ncell_per_ind = 20,
+                                   seed = 1L) {
   ## generate symsim simulation data from another symsim data
   ## by sampling the specific number of cells from each individual.
 
   ## Return
   ## - another symsim simulation data (list) like mysymsim
   ##   plus the sample_cell_index as one field
-  
   r <- list(phyla = mysymsim$phyla,
-            symsim = list(true = NULL, umi = NULL),
-            dea = mysymsim$dea,
-            sample_cell_index = sample_cell_index)
-
+    symsim = list(true = NULL, umi = NULL),
+    dea = mysymsim$dea,
+    diffg = mysymsim$diffg,
+    nondiffg = mysymsim$nondiffg,
+    logfc_threshold = mysymsim$logfc_threshold,
+    sample_cell_index = sample_cell_index)
   ind <- mysymsim$symsim_umi$pop
+  ## reproduce the sampling results
+  set.seed(seed = seed)
   sample_cell_index <- unlist(lapply(seq_len(max(ind)), function(i) {
     cell_index <- which(ind == i)
     ncell <- length(cell_index)
     if (ncell_per_ind >= ncell) {
       invisible(cell_index)
     }
-    invisible(sample(x = cell_index, size = ncell_per_ind, replace = FALSE))
+    r <- sample(x = cell_index, size = ncell_per_ind, replace = FALSE)
+    return(invisible(r))
   }))
-  
+
   ## complete symsim true
   r$symsim$true <- list(
     counts = mysymsim$counts[, sample_cell_index],
@@ -341,8 +412,9 @@ get_symsim_by_sampling <- function(mysymsim,
     cell_meta = mysymsim$true$cell_meta[sample_cell_index, ],
     gene_effects = mysymsim$true$gene_effects,
     cell_meta = mysymsim$true$cell_meta[sample_cell_index, ],
+    ## kinetic_params: list of data.frame
     kinetic_params = lapply(mysymsim$true$kinetic_params,
-                            function(x) {x[, sample_cell_index]}),
+      function(x) {x[, sample_cell_index]}),
     in_module = mysymsim$true$in_module)
   r$symsim$umi <- list(
     counts = mysymsim$umi$counts[, sample_cell_index],
@@ -369,7 +441,7 @@ load_mssc <- function(nind = 10, mssc_version = "mssc_2-0",
   invisible(model$High2$new(
     stan_snb_path = file.path(mssc_path, "stan", "snb.stan"),
     stan_high2_path = file.path(mssc_path, "stan",
-                                paste0(mssc_version, ".stan")),
+      paste0(mssc_version, ".stan")),
     nind = nind,
     tol_rel_obj = tol_rel_obj,
     algorithm = "meanfield",
@@ -421,7 +493,7 @@ run_mssc <- function(model, symsim_umi, mssc_meta, save_result = TRUE,
   if (save_result) {
     ## TODO: check loading the results
     ## warning at opt:argparse
-    saveRDS(object = list(est_params = est_params, r = r, model = model),file = save_path)
+    saveRDS(object = list(est_params = est_params, r = r, model = model), file = save_path)
   }
   return(invisible(r))
 }
@@ -431,7 +503,7 @@ set_result_array <- function(rpt = 5, ncells = c(20, 40, 80),
   ## setup the result array:
   ## - num_measurement by length(ncell) by repeat_num
   invisible(array(data = NA, dim = c(length(methods), length(ncells), rpt),
-                  dimnames = list(methods, ncells, seq_len(rpt))))
+    dimnames = list(methods, ncells, seq_len(rpt))))
 }
 
 ## * main
@@ -441,169 +513,130 @@ main <- function(nind_per_cond,
                  sigma,
                  ncells,
                  capt_alpha,
-                 ngene = 100,
+                 ngene = 200,
                  rpt = 5,
-                 save_figure = TRUE,
-                 fig_width = 20,
-                 fig_height = 10,
-                 nde_plt = 20,
-                 nnde_plt = 20,
-                 pnrow = 5,
-                 save_symsim_data = FALSE,
-                 save_mssc_model = FALSE) {
+                 save_mssc_model = FALSE,
+                 logfc_threshold = 0.8) {
   ## argument:
   ## - ncells: vector of ncell_per_ind
-  
+
   ## set local path to save results
   result_dir <- here::here(
     "src", "symsim",
     ## use year-month-day to deside the dir
     paste0("symsim_", format(Sys.time(), format = "%Y%m%d")))
-  simu_fig_dir <- file.path(result_dir, "simu_figs")
   simu_data_dir <- file.path(result_dir, "simu_data")
   dea_dir <- file.path(result_dir, "dea")
   mssc_v2_dir <- file.path(result_dir, "mssc_v2")
 
-  for ( d in c(result_dir, simu_fig_dir, simu_data_dir, dea_dir, mssc_v2_dir)) {
+  for (d in c(result_dir, simu_fig_dir, simu_data_dir, dea_dir, mssc_v2_dir)) {
     if (!dir.exists(d)) {
       dir.create(path = d)
     }
   }
+
+  ## - simulate datasets
+  symsim_prefix <- str_glue(
+    "{ngene}gene", "{nind_all}ind",
+    "{ncell}cell", "{brn_len}w", "{bimod}bimod",
+    "{sigma}sigma", "{capt_alpha}alpha", .sep = "_")
+  message(str_glue("SymSim experiment: ", "{symsim_prefix}.", .sep = "\n"))
+  simubulk <- get_symsim_simu(ncell_per_ind = 300, nind_per_cond = nind_per_cond,
+    brn_len = brn_len, bimod = bimod, sigma = sigma,
+    capt_alpha = capt_alpha, ngene = ngene,
+    seed = 1, logfc_threshold = logfc_threshold, ndg_threshold = 10,
+    ntry = 10, save_data = TRUE,
+    save_data_path = file.path(simu_data_dir,
+      paste0(symsim_prefix, ".rds")),
+    save_figure = FALSE,
+    save_fig_path = file.path(simu_data_dir,
+      paste0(symsim_prefix, ".pdf")),
+    fig_width = 20, fig_height = 10, nde_plt = 20,
+    nnde_plt = 20, pnrow = 5)
+  diffg <- simubulk$diffg
+  nondiffg <- simubulk$nondiffg
+  ## report diffg info.
+  message(str_glue("SymSim DE analysis under logFC {logfc_threshold}:",
+                   "{length(diffg)} diffg and {length(nondiffg)} nondiffg",
+                   .sep = "\n"))
   
-  ## load mssc model
+  ## - load mssc model
   nind_all <- nind_per_cond * 2
   mssc_20 <- load_mssc(nind = nind_all, mssc_version = "mssc_2-0")
 
-  ## declare the result
-  auc08 <- set_result_array(rpt = rpt, ncells = ncells,
-                        methods = c("mssc_2-0", "pseudo", "wilcox", "t"))
+  ## - declare the result
+  aucs <- set_result_array(rpt = rpt, ncells = ncells,
+    methods = c("mssc_2-0", "pseudo", "wilcox", "t"))
+
+  ## - start experiment
   for (i in seq_len(rpt)) {
-    auc08_i <- matrix(NA, nrow = dim(auc08)[1], ncol = dim(auc08)[2])
-    rownames(auc08_i) <- rownames(auc08)
+    auci <- matrix(NA, nrow = dim(aucs)[1], ncol = dim(aucs)[2])
+    rownames(auci) <- rownames(aucs)
     for (j in seq_along(ncells)) {
       ncell <- ncells[j]
       ## simulate data
-      symsim_prefix_per_rpt <- str_glue(
-        "{ngene}gene", "{nind_all}ind",
-        "{ncell}cell", "{brn_len}w", "{bimod}bimod",
-        "{sigma}sigma", "{capt_alpha}alpha", "{i}seed", .sep = "_")
-      message(str_glue("SymSim experiment: {symsim_prefix_per_rpt}."))
-      mysimu <- get_symsim_simu(ncell_per_ind = ncell,
-                     nind_per_cond = nind_per_cond,
-                     brn_len = brn_len,
-                     bimod = bimod,
-                     sigma = sigma,
-                     capt_alpha = capt_alpha,
-                     ngene = ngene,
-                     seed = i)
-      ## get differentially expressed genes based different fold change levels
-      ## 0.8 is a recommended value (0.6 or 1.0 is ok, but 1.0 seems too restricted.)
-      diffg_08 <- which((mysimu$dea$logFC_theoretical >= 0.8) & (mysimu$dea$nDiffEVF >  0))
-      if (length(diffg_08) > 0 ) {
-        message(str_glue("SymSim DE analysis under logFC 0.8 have no diff genes. ", "Skip it."))
-        next
-      }
-      nondiffg_08 <- setdiff(seq_along(mysimu$dea$logFC_theoretical), diffg_08)
-      message(str_glue("SymSim DE analysis under logFC 0.8: ",
-                       "{length(diffg_08)} diffg and {length(nondiffg_08)} nondiffg",
-                       .sep = "\n"))
-
+      mysimu <- get_symsim_by_sampling(simubulk, necll_per_ind = ncell, seed = i)
       ## prepare mssc meta
       mssc_meta <- set_mssc_meta(symsim_umi = mysimu$symsim$umi, phyla = mysimu$phyla)
-    
-      ## save data
-      ## TODO: merge all tsne and diff into one figure for different cell numbers.
-      if (save_figure) {
-        pdf(file = file.path(simu_fig_dir, paste0(symsim_prefix_per_rpt, ".pdf")),
-            width = fig_width, height = fig_height)
-        ## phylo tree
-        p_phylo <- plot_tree_v2(phyla = mysimu$phyla)
-        if (nind_per_cond == 3) {
-          colors <- color3
-        } else if(nind_per_cond == 5) {
-          colors <- color5
-        } else {
-          colors <- color10
-        }
 
-        ## tsne of cells under population
-        p_tsne <- plot_tsne(symsim_umi = mysimu$symsim$umi, color_values = colors)
-        grid.arrange(grobs = list(p_phylo, p_tsne), nrow  = 1, ncol = 2,
-                     top = "Population structure and t-SNE in SymSim")
-        ## violin of (non-)differentially expression genes.
-        pv_08 <- plot_de_violin(symsim_umi = mysimu$symsim$umi,
-                                ind = mssc_meta$ind,
-                                diffg = diffg_08, nondiffg = nondiffg_08,
-                                nde = nde_plt, nnde = nnde_plt, pnrow = pnrow,
-                                logfc = 0.8)
-        grid.arrange(pv_08[[1]])
-        grid.arrange(pv_08[[2]])
-        dev.off()
-      } ## end of save figures in one file
-      if (save_symsim_data) {
-        saveRDS(object = list(simu = mysimu, dg08 = diffg_08, nondg08 = nondiffg_08), 
-                file = file.path(simu_data_dir, paste0(symsim_prefix_per_rpt, ".rds")))
-      } ## end of save symsim data
+      tryCatch({
+        ## - de analysis with mssc
+        ## rarely fitting unfished, and unable to retrieve the draws.
+        r_mssc20 <- run_mssc(
+          model = mssc_20,
+          symsim_umi = mysimu$symsim$umi$counts,
+          mssc_meta = mssc_meta,
+          save_result = save_mssc_model,
+          save_path = file.path(mssc_v2_dir, str_glue("mssc2_{symsim_prefix_per_rpt}.rds"))
+        )
+        ## de analysis with pseudobulk
+        ## TODO: consider the genes when p-value not NA
+        ## rarely fitting might fail.
+        r_pseudo <- mypseudo$pseudobulk_deseq2(
+          cnt_gbc = mysimu$symsim$umi$counts,
+          mybatches = mssc_meta$ind,
+          myconds = factor(mssc_meta$cond)
+        )
+        ## de analysis with t-test
+        logtpm <- get_logtpm(cnt = mysimu$symsim$umi$counts, scale = 10000)
+        r_t <- apply(logtpm, 1, zhu_test, group = mssc_meta$cond, test = "t")
+        r_t_adjp <- p.adjust(r_t, method = "fdr")
+        ## de analysis with wilcox
+        r_wilcox <- apply(logtpm, 1, zhu_test, group = mssc_meta$cond, test = "wilcox")
+        r_wilcox_adjp <- p.adjust(r_wilcox, method = "fdr")
 
-      ## de analysis with mssc
-      r_mssc20 <- run_mssc(
-        model = mssc_20,
-        symsim_umi = mysimu$symsim$umi$counts,
-        mssc_meta = mssc_meta,
-        save_result = save_mssc_model,
-        save_path = file.path(mssc_v2_dir, str_glue("mssc2_{symsim_prefix_per_rpt}.rds"))
-      )
-      ## de analysis with pseudobulk
-      ## TODO: consider when p-value not NA
-      r_pseudo <- mypseudo$pseudobulk_deseq2(
-        cnt_gbc = mysimu$symsim$umi$counts,
-        mybatches = mssc_meta$ind,
-        myconds = factor(mssc_meta$cond)
-      )
-      ## de analysis with t-test
-      logtpm <- get_logtpm(cnt = mysimu$symsim$umi$counts, scale = 10000)
-      r_t <- apply(logtpm, 1, zhu_test, group = mssc_meta$cond, test = "t")
-      r_t_adjp <- p.adjust(r_t, method = "fdr")
-      ## de analysis with wilcox
-      r_wilcox <- apply(logtpm, 1, zhu_test, group = mssc_meta$cond, test = "wilcox")
-      r_wilcox_adjp <- p.adjust(r_wilcox, method = "fdr")
-      
-      if (length(diffg_08) > 0) {
-        auc08_mssc20 <- mssc_20$get_auc(r_mssc20, c1  = diffg_08, c2 = nondiffg_08)[3]
-        auc08_pseudo <- mypseudo$calc_auc(
-          deseq2_res = r_pseudo, degs = diffg_08, ndegs = nondiffg_08)$auc
-        auc08_t <- caTools::colAUC(
+        auc_mssc20 <- mssc_20$get_auc(r_mssc20, c1 = diffg, c2 = nondiffg)[3]
+        auc_pseudo <- mypseudo$calc_auc(
+          deseq2_res = r_pseudo, degs = diffg, ndegs = nondiffg)$auc
+        auc_t <- caTools::colAUC(
           X = r_t_adjp,
-          y = (seq_along(mysimu$dea$logFC_theoretical) %in% diffg_08))
-        auc08_wilcox <- caTools::colAUC(
+          y = (seq_along(mysimu$dea$logFC_theoretical) %in% diffg))
+        auc_wilcox <- caTools::colAUC(
           X = r_wilcox_adjp,
-          y = (seq_along(mysimu$dea$logFC_theoretical) %in% diffg_08))
-      } else {
-        auc08_mssc20 <- NA
-        auc08_pseudo <- NA
-        auc08_t <- NA
-        auc08_wilcox <- NA
-      }
-      ## save result
-      auc08_i[, j] <- c(auc08_mssc20, auc08_pseudo, auc08_t, auc08_wilcox)
-      message(str_glue("In {i}th turn under {ncell} cells per individual",
-                       "result is summarized below..."))
-      message("when logfc is 0.8:")
-      print(auc08_i)
+          y = (seq_along(mysimu$dea$logFC_theoretical) %in% diffg))
+        ## save result
+        auci[, j] <- c(auc_mssc20, auc_pseudo, auc_t, auc_wilcox)
+      },
+      error = function(cond) {
+        message(cond)
+      },
+      finally = {
+        message(str_glue("In {i}th repeat under {ncell} cells per individual",
+          "when logfc is {logfc_threshold}:", .sep = "\n"))
+        print(auci)
+      } ) ## end of tryCatch for de analysis
     } ## end of ncells
-    auc08[, , i] <- auc08_i
-    message(str_glue("In {i}th turn, result is summarized below..."))
-    message("when logfc is 0.8:")
-    print(auc08)
-    
+    aucs[, , i] <- auci
+    message(str_glue("In {i}th repeat,", "when logfc is {logfc_threshold}:", .sep = "\n"))
+    print(aucs)
     ## save result even per turn
     ## in case some error happens
-    symsim_prefix_per_rpt <- str_glue(
+    symsim_prefix <- str_glue(
       "{ngene}gene", "{nind_all}ind",
       "{ncell}cell", "{brn_len}w", "{bimod}bimod",
       "{sigma}sigma", "{capt_alpha}alpha", .sep = "_")
-    saveRDS(object = list(auc08 = auc08),
-            file = file.path(dea_dir, str_glue("dea_auc_{symsim_prefix}.rds")))
+    saveRDS(object = aucs,
+      file = file.path(dea_dir, str_glue("dea_auc_{symsim_prefix}.rds")))
   } ## end of rpt
 } ## end of main function
 
@@ -627,12 +660,8 @@ main(
   ngene = args$ngene,
   capt_alpha = 0.2,
   rpt = 5,
-  save_figure = T,
-  fig_width = 20,
-  fig_height = 10,
-  save_symsim_data = FALSE,
-  save_mssc_model = FALSE
-)
+  save_mssc_model = FALSE,
+  logfc_threshold = 0.8)
 
 ## * test
 ## main(
@@ -649,4 +678,3 @@ main(
 ##   save_symsim_data = TRUE,
 ##   save_mssc_model = TRUE
 ## )
-
