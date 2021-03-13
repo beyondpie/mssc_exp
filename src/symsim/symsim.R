@@ -566,7 +566,9 @@ main <- function(nind_per_cond,
 
   ## - declare the result
   aucs <- set_result_array(rpt = rpt, ncells = ncells,
-    methods = c("mssc_2-0", "pseudo", "wilcox", "t"))
+    methods = c("mssc_2-0", "pseudo_deseq2_no_inds",
+                "pseudo_deseq2_with_inds",
+                "wilcox", "t"))
 
   ## - start experiment
   for (i in seq_len(rpt)) {
@@ -582,6 +584,7 @@ main <- function(nind_per_cond,
       tryCatch({
         ## - de analysis with mssc
         ## rarely fitting unfished, and unable to retrieve the draws.
+        start_time <- Sys.time()
         r_mssc20 <- run_mssc(
           model = mssc_20,
           symsim_umi = mysimu$symsim$umi$counts,
@@ -589,13 +592,23 @@ main <- function(nind_per_cond,
           save_result = save_mssc_model,
           save_path = file.path(mssc_v2_dir, str_glue("mssc2_{symsim_prefix_per_rpt}.rds"))
         )
+        end_time <- Sys.time()
+        message(str_glue("mssc running time: " ,
+                         "{format(end_time - start_time, nsmall = 2)}"))
         ## de analysis with pseudobulk
         ## TODO: consider the genes when p-value not NA
         ## rarely fitting might fail.
-        r_pseudo <- mypseudo$pseudobulk_deseq2(
+        r_pseudo_deseq2_no_inds <- mypseudo$pseudobulk_deseq2(
           cnt_gbc = mysimu$symsim$umi$counts,
           mybatches = mssc_meta$ind,
-          myconds = factor(mssc_meta$cond)
+          myconds = factor(mssc_meta$cond),
+          add_individual_effect = FALSE
+        )
+        r_pseudo_deseq2_with_inds <- mypseudo$pseudobulk_deseq2(
+          cnt_gbc = mysimu$symsim$umi$counts,
+          mybatches = mssc_meta$ind,
+          myconds = factor(mssc_meta$cond),
+          add_individual_effect = TRUE
         )
         ## de analysis with t-test
         logtpm <- get_logtpm(cnt = mysimu$symsim$umi$counts, scale = 10000)
@@ -606,8 +619,10 @@ main <- function(nind_per_cond,
         r_wilcox_adjp <- p.adjust(r_wilcox, method = "fdr")
 
         auc_mssc20 <- mssc_20$get_auc(r_mssc20, c1 = diffg, c2 = nondiffg)[3]
-        auc_pseudo <- mypseudo$calc_auc(
-          deseq2_res = r_pseudo, degs = diffg, ndegs = nondiffg)$auc
+        auc_pseudo_deseq2_no_inds <- mypseudo$calc_auc(
+          deseq2_res = r_pseudo_deseq2_no_inds, degs = diffg, ndegs = nondiffg)$auc
+        auc_pseudo_deseq2_with_inds <- mypseudo$calc_auc(
+          deseq2_res = r_pseudo_deseq2_with_inds, degs = diffg, ndegs = nondiffg)$auc
         auc_t <- caTools::colAUC(
           X = r_t_adjp,
           y = (seq_along(mysimu$dea$logFC_theoretical) %in% diffg))
@@ -615,7 +630,9 @@ main <- function(nind_per_cond,
           X = r_wilcox_adjp,
           y = (seq_along(mysimu$dea$logFC_theoretical) %in% diffg))
         ## save result
-        auci[, j] <- c(auc_mssc20, auc_pseudo, auc_t, auc_wilcox)
+        auci[, j] <- c(auc_mssc20, auc_pseudo_deseq2_no_inds,
+                       auc_pseudo_deseq2_with_inds,
+                       auc_t, auc_wilcox)
       },
       error = function(cond) {
         message(cond)
