@@ -22,12 +22,15 @@ pseudobulk_deseq2 <- function(cnt_gbc,
   names(myconds) <- as.character(mybatches)
   ubatches <- colnames(mypseudobulk)
   uconds <- myconds[as.character(ubatches)]
-
-  exp_design <- ifelse(add_individual_effect, ~ ubatches + uconds, ~ uconds)
+  
+  coldf <- data.frame(ubatches, uconds)
+  exp_design <- ifelse(add_individual_effect,
+                       ~ as.factor(ubatches) + as.factor(uconds),
+                       ~ as.factor(uconds))
 
   dataset <- DESeq2::DESeqDataSetFromMatrix(
     countData = mypseudobulk,
-    colData = data.frame(uconds),
+    colData = coldf, 
     design = exp_design
   )
   r <- data.frame(DESeq2::results(DEseq2::DESeq(dataset)))
