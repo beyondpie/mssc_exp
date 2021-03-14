@@ -568,6 +568,7 @@ main <- function(nind_per_cond,
   aucs <- set_result_array(rpt = rpt, ncells = ncells,
     methods = c("mssc_2-0", "pseudo_deseq2_no_inds",
                 "pseudo_deseq2_with_inds",
+                "cellevel_deseq2",
                 "wilcox", "t"))
 
   ## - start experiment
@@ -610,6 +611,11 @@ main <- function(nind_per_cond,
           myconds = factor(mssc_meta$cond),
           add_individual_effect = TRUE
         )
+        r_cellevel_deseq2 <- mypseudo$cellevel_deseq2(
+          cnt_gbc = mysimu$symsim$umi$counts,
+          mybatches = mssc_meta$ind,
+          myconds = factor(mssc_meta$cond)
+        )
         ## de analysis with t-test
         logtpm <- get_logtpm(cnt = mysimu$symsim$umi$counts, scale = 10000)
         r_t <- apply(logtpm, 1, zhu_test, group = mssc_meta$cond, test = "t")
@@ -623,6 +629,8 @@ main <- function(nind_per_cond,
           deseq2_res = r_pseudo_deseq2_no_inds, degs = diffg, ndegs = nondiffg)$auc
         auc_pseudo_deseq2_with_inds <- mypseudo$calc_auc(
           deseq2_res = r_pseudo_deseq2_with_inds, degs = diffg, ndegs = nondiffg)$auc
+        auc_cellevel_deseq2 <- mypeudo$calc_auc(
+          deseq2_res = r_cellevel_deseq2, degs = diffg, ndegs = nondiffg)$auc
         auc_t <- caTools::colAUC(
           X = r_t_adjp,
           y = (seq_along(mysimu$dea$logFC_theoretical) %in% diffg))
@@ -632,6 +640,7 @@ main <- function(nind_per_cond,
         ## save result
         auci[, j] <- c(auc_mssc20, auc_pseudo_deseq2_no_inds,
                        auc_pseudo_deseq2_with_inds,
+                       auc_cellevel_deseq2,
                        auc_t, auc_wilcox)
       },
       error = function(cond) {

@@ -12,6 +12,7 @@ get_pseudobulk <- function(cnt_gbc, mybatches) {
   invisible(pseudobulk)
 }
 
+
 pseudobulk_deseq2 <- function(cnt_gbc,
                               mybatches,
                               myconds, add_individual_effect = FALSE) {
@@ -33,7 +34,22 @@ pseudobulk_deseq2 <- function(cnt_gbc,
     colData = coldf, 
     design = exp_design
   )
-  r <- data.frame(DESeq2::results(DEseq2::DESeq(dataset)))
+  r <- data.frame(DESeq2::results(DESeq2::DESeq(dataset)))
+  invisible(r)
+}
+
+cellevel_deseq2 <- function(cnt_gbc, mybatches, myconds) {
+  ## myconds: vector, len of individuals, with names as individuals
+  
+  countdata <- data.frame(cnt_gbc)
+  colnames(countData) <- as.character(mybatches)
+  coldata <- data.frame(sample = mybatches, cond = myconds[as.character(mybatches)])
+  dataset <- DESeq2::DESeqDataSetFromMatrix(
+    countData = countdata,
+    colData = coldata,
+    design = ~ sample + cond
+  )
+  r <- data.frame(DESeq2::results(DESeq2::DESeq(dataset)))
   invisible(r)
 }
 
