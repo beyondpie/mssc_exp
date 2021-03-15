@@ -152,7 +152,7 @@ get_pseudobulk <- function(cnt_gbc, mybatches) {
 
 pseudobulk_deseq2 <- function(cnt_gbc,
                               mybatches,
-                              myconds, add_individual_effect = FALSE) {
+                              myconds) {
   ## using deseq2 to analyze pseudobulk
   ## return the data.frame format of deseq result.
 
@@ -162,31 +162,12 @@ pseudobulk_deseq2 <- function(cnt_gbc,
   uconds <- myconds[as.character(ubatches)]
 
   coldf <- data.frame(ubatches, uconds)
-  if (add_individual_effect) {
-    exp_design <- ~ as.factor(ubatches) + as.factor(uconds)
-  } else {
-    exp_design <- ~as.factor(uconds)
-  }
+  exp_design <- ~as.factor(uconds)
 
   dataset <- DESeq2::DESeqDataSetFromMatrix(
     countData = mypseudobulk,
     colData = coldf,
     design = exp_design
-  )
-  r <- data.frame(DESeq2::results(DESeq2::DESeq(dataset)))
-  invisible(r)
-}
-
-cellevel_deseq2 <- function(cnt_gbc, mybatches, myconds) {
-  ## myconds: vector, len of individuals, with names as individuals
-
-  countdata <- data.frame(cnt_gbc)
-  colnames(countdata) <- as.character(mybatches)
-  coldata <- data.frame(sample = mybatches, cond = myconds[as.character(mybatches)])
-  dataset <- DESeq2::DESeqDataSetFromMatrix(
-    countData = countdata,
-    colData = coldata,
-    design = ~ as.factor(sample) + as.factor(cond)
   )
   r <- data.frame(DESeq2::results(DESeq2::DESeq(dataset)))
   invisible(r)
@@ -677,20 +658,9 @@ main <- function(nind_per_cond,
         r_pseudo_deseq2_no_inds <- pseudobulk_deseq2(
           cnt_gbc = mysimu$symsim$umi$counts,
           mybatches = mssc_meta$ind,
-          myconds = factor(mssc_meta$cond),
-          add_individual_effect = FALSE
-        )
-        r_pseudo_deseq2_with_inds <- pseudobulk_deseq2(
-          cnt_gbc = mysimu$symsim$umi$counts,
-          mybatches = mssc_meta$ind,
-          myconds = factor(mssc_meta$cond),
-          add_individual_effect = TRUE
-        )
-        r_cellevel_deseq2 <- cellevel_deseq2(
-          cnt_gbc = mysimu$symsim$umi$counts,
-          mybatches = mssc_meta$ind,
           myconds = factor(mssc_meta$cond)
         )
+        
         ## de analysis with t-test
         logtpm <- get_logtpm(cnt = mysimu$symsim$umi$counts, scale = 10000)
         r_t <- apply(logtpm, 1, zhu_test, group = mssc_meta$cond, test = "t")
@@ -702,10 +672,6 @@ main <- function(nind_per_cond,
         auc_mssc20 <- mssc_20$get_auc(r_mssc20, c1 = diffg, c2 = nondiffg)[3]
         auc_pseudo_deseq2_no_inds <- calc_auc(
           deseq2_res = r_pseudo_deseq2_no_inds, degs = diffg, ndegs = nondiffg)$auc
-        auc_pseudo_deseq2_with_inds <- calc_auc(
-          deseq2_res = r_pseudo_deseq2_with_inds, degs = diffg, ndegs = nondiffg)$auc
-        auc_cellevel_deseq2 <- mypeudo$calc_auc(
-          deseq2_res = r_cellevel_deseq2, degs = diffg, ndegs = nondiffg)$auc
         auc_t <- caTools::colAUC(
           X = r_t_adjp,
           y = (seq_along(mysimu$dea$logFC_theoretical) %in% diffg))
