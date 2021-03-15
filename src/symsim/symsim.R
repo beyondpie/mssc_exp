@@ -24,7 +24,6 @@ options(mc.cores = 3)
 ## load help functions
 options("import.path" = list(here::here("rutils"),
   here::here("src", "mssc")))
-mypseudo <- modules::import("pseudobulk")
 
 ## * meta
 color3 <- c("brown", "brown2", "brown3",
@@ -134,6 +133,78 @@ plot_de_violin <- function(symsim_umi,
   )
   return(invisible(list(pvsd, pvsnd)))
 }
+
+## * pseudobulk analysis
+## functions for pseudobulk analysis
+
+get_pseudobulk <- function(cnt_gbc, mybatches) {
+  ## given the cnt data, and colmeta batches,
+  ## return the pseudobulk data with the colnames.
+
+  ubatches <- sort(unique(mybatches))
+  pseudobulk <- vapply(ubatches, function(i) {
+    rowSums(cnt_gbc[, mybatches %in% i])
+  }, FUN.VALUE = rep(0, nrow(cnt_gbc)))
+  colnames(pseudobulk) <- as.character(ubatches)
+  invisible(pseudobulk)
+}
+
+
+pseudobulk_deseq2 <- function(cnt_gbc,
+                              mybatches,
+                              myconds, add_individual_effect = FALSE) {
+  ## using deseq2 to analyze pseudobulk
+  ## return the data.frame format of deseq result.
+
+  mypseudobulk <- get_pseudobulk(cnt_gbc, mybatches)
+  names(myconds) <- as.character(mybatches)
+  ubatches <- colnames(mypseudobulk)
+  uconds <- myconds[as.character(ubatches)]
+
+  coldf <- data.frame(ubatches, uconds)
+  if (add_individual_effect) {
+    exp_design <- ~ as.factor(ubatches) + as.factor(uconds)
+  } else {
+    exp_design <- ~as.factor(uconds)
+  }
+
+  dataset <- DESeq2::DESeqDataSetFromMatrix(
+    countData = mypseudobulk,
+    colData = coldf,
+    design = exp_design
+  )
+  r <- data.frame(DESeq2::results(DESeq2::DESeq(dataset)))
+  invisible(r)
+}
+
+cellevel_deseq2 <- function(cnt_gbc, mybatches, myconds) {
+  ## myconds: vector, len of individuals, with names as individuals
+
+  countdata <- data.frame(cnt_gbc)
+  colnames(countdata) <- as.character(mybatches)
+  coldata <- data.frame(sample = mybatches, cond = myconds[as.character(mybatches)])
+  dataset <- DESeq2::DESeqDataSetFromMatrix(
+    countData = countdata,
+    colData = coldata,
+    design = ~ as.factor(sample) + as.factor(cond)
+  )
+  r <- data.frame(DESeq2::results(DESeq2::DESeq(dataset)))
+  invisible(r)
+}
+
+calc_auc <- function(deseq2_res, degs, ndegs,
+                     scorecol = "pvalue") {
+  mybackend <- c(rep(TRUE, length(degs)), rep(FALSE, length(ndegs)))
+  bgnms <- c(degs, ndegs)
+  names(mybackend) <- as.character(bgnms)
+
+  scores <- deseq2_res[[scorecol]]
+  names(scores) <- rownames(deseq2_res)
+  scores[is.na(scores)] <- 1.0
+  myauc <- caTools::colAUC(scores[bgnms], mybackend)
+  invisible(list(auc = myauc, sts = scores))
+}
+
 
 ## * help functions
 get_logtpm <- function(cnt, scale = 10000) {
@@ -322,7 +393,7 @@ get_symsim_simu <- function(ncell_per_ind = 300, nind_per_cond = 3, brn_len = 0.
       popA = phyla$pop$sub1,
       popB = phyla$pop$sub2)
     diffg <- which((dea$logFC_theoretical >= logfc_threshold) & (dea$nDiffEVF > 0))
-    nondiffg <- setdiff(seq_along(dea$logFC_threshold), diffg)
+    nondiffg <- setdiff(seq_along(dea$logFC_theoretical), diffg)
     ndiffg <- length(diffg)
     ntry_now  <- ntry_now + 1
   } ## end of while
@@ -376,7 +447,7 @@ get_symsim_simu <- function(ncell_per_ind = 300, nind_per_cond = 3, brn_len = 0.
   return(invisible(r))
 }
 
-get_symsim_by_sampling <- function(mysymsim,
+get_symsim_by_sampling <- function(simubulk,
                                    ncell_per_ind = 20,
                                    seed = 1L) {
   ## generate symsim simulation data from another symsim data
@@ -385,16 +456,10 @@ get_symsim_by_sampling <- function(mysymsim,
   ## Return
   ## - another symsim simulation data (list) like mysymsim
   ##   plus the sample_cell_index as one field
-  r <- list(phyla = mysymsim$phyla,
-    symsim = list(true = NULL, umi = NULL),
-    dea = mysymsim$dea,
-    diffg = mysymsim$diffg,
-    nondiffg = mysymsim$nondiffg,
-    logfc_threshold = mysymsim$logfc_threshold,
-    sample_cell_index = sample_cell_index)
-  ind <- mysymsim$symsim_umi$pop
+
   ## reproduce the sampling results
   set.seed(seed = seed)
+  ind <- simubulk$symsim$umi$cell_meta$pop
   sample_cell_index <- unlist(lapply(seq_len(max(ind)), function(i) {
     cell_index <- which(ind == i)
     ncell <- length(cell_index)
@@ -404,25 +469,34 @@ get_symsim_by_sampling <- function(mysymsim,
     r <- sample(x = cell_index, size = ncell_per_ind, replace = FALSE)
     return(invisible(r))
   }))
+  
+  r <- list(phyla = simubulk$phyla,
+    symsim = list(true = NULL, umi = NULL),
+    dea = simubulk$dea,
+    diffg = simubulk$diffg,
+    nondiffg = simubulk$nondiffg,
+    logfc_threshold = simubulk$logfc_threshold,
+    sample_cell_index = sample_cell_index)
 
   ## complete symsim true
   r$symsim$true <- list(
-    counts = mysymsim$counts[, sample_cell_index],
+    counts = simubulk$symsim$true$counts[, sample_cell_index],
     ## cell_meta is a dataframe: ncell by features
-    cell_meta = mysymsim$true$cell_meta[sample_cell_index, ],
-    gene_effects = mysymsim$true$gene_effects,
-    cell_meta = mysymsim$true$cell_meta[sample_cell_index, ],
+    cell_meta = simubulk$symsim$true$cell_meta[sample_cell_index, ],
+    gene_effects = simubulk$symsim$true$gene_effects,
+    cell_meta = simubulk$symsim$true$cell_meta[sample_cell_index, ],
     ## kinetic_params: list of data.frame
-    kinetic_params = lapply(mysymsim$true$kinetic_params,
+    kinetic_params = lapply(simubulk$symsim$true$kinetic_params,
       function(x) {x[, sample_cell_index]}),
-    in_module = mysymsim$true$in_module)
+    in_module = simubulk$symsim$true$in_module)
+  ## complete symsim umi
   r$symsim$umi <- list(
-    counts = mysymsim$umi$counts[, sample_cell_index],
-    cell_meta = mysymsim$umi$cell_meta[sample_cell_index, ],
+    counts = simubulk$symsim$umi$counts[, sample_cell_index],
+    cell_meta = simubulk$symsim$umi$cell_meta[sample_cell_index, ],
     ## nreads_perUMI is a list (length of ncells)
-    nreads_perUMI = mysymsim$umi$nreads_perUMI[sample_cell_index],
+    nreads_perUMI = simubulk$symsim$umi$nreads_perUMI[sample_cell_index],
     ## nUMI2seq is a vector length of ncells
-    nUMI2seq = mysymsim$umi$nUMI2seq[sample_cell_index])
+    nUMI2seq = simubulk$symsim$umi$nUMI2seq[sample_cell_index])
   return(invisible(r))
 }
 
@@ -529,16 +603,17 @@ main <- function(nind_per_cond,
   dea_dir <- file.path(result_dir, "dea")
   mssc_v2_dir <- file.path(result_dir, "mssc_v2")
 
-  for (d in c(result_dir, simu_fig_dir, simu_data_dir, dea_dir, mssc_v2_dir)) {
+  for (d in c(result_dir, simu_data_dir, dea_dir, mssc_v2_dir)) {
     if (!dir.exists(d)) {
       dir.create(path = d)
     }
   }
 
+  nind_all <- nind_per_cond * 2
   ## - simulate datasets
   symsim_prefix <- str_glue(
     "{ngene}gene", "{nind_all}ind",
-    "{ncell}cell", "{brn_len}w", "{bimod}bimod",
+    "{ncells}cell", "{brn_len}w", "{bimod}bimod",
     "{sigma}sigma", "{capt_alpha}alpha", .sep = "_")
   message(str_glue("SymSim experiment: ", "{symsim_prefix}.", .sep = "\n"))
   simubulk <- get_symsim_simu(ncell_per_ind = 300, nind_per_cond = nind_per_cond,
@@ -548,7 +623,7 @@ main <- function(nind_per_cond,
     ntry = 10, save_data = TRUE,
     save_data_path = file.path(simu_data_dir,
       paste0(symsim_prefix, ".rds")),
-    save_figure = FALSE,
+    save_figure = TRUE,
     save_fig_path = file.path(simu_data_dir,
       paste0(symsim_prefix, ".pdf")),
     fig_width = 20, fig_height = 10, nde_plt = 20,
@@ -557,9 +632,9 @@ main <- function(nind_per_cond,
   nondiffg <- simubulk$nondiffg
   ## report diffg info.
   message(str_glue("SymSim DE analysis under logFC {logfc_threshold}:",
-                   "{length(diffg)} diffg and {length(nondiffg)} nondiffg",
-                   .sep = "\n"))
-  
+    "{length(diffg)} diffg and {length(nondiffg)} nondiffg",
+    .sep = "\n"))
+
   ## - load mssc model
   nind_all <- nind_per_cond * 2
   mssc_20 <- load_mssc(nind = nind_all, mssc_version = "mssc_2-0")
@@ -567,9 +642,9 @@ main <- function(nind_per_cond,
   ## - declare the result
   aucs <- set_result_array(rpt = rpt, ncells = ncells,
     methods = c("mssc_2-0", "pseudo_deseq2_no_inds",
-                "pseudo_deseq2_with_inds",
-                "cellevel_deseq2",
-                "wilcox", "t"))
+      "pseudo_deseq2_with_inds",
+      "cellevel_deseq2",
+      "wilcox", "t"))
 
   ## - start experiment
   for (i in seq_len(rpt)) {
@@ -578,7 +653,7 @@ main <- function(nind_per_cond,
     for (j in seq_along(ncells)) {
       ncell <- ncells[j]
       ## simulate data
-      mysimu <- get_symsim_by_sampling(simubulk, necll_per_ind = ncell, seed = i)
+      mysimu <- get_symsim_by_sampling(simubulk, ncell_per_ind = ncell, seed = i)
       ## prepare mssc meta
       mssc_meta <- set_mssc_meta(symsim_umi = mysimu$symsim$umi, phyla = mysimu$phyla)
 
@@ -594,24 +669,24 @@ main <- function(nind_per_cond,
           save_path = file.path(mssc_v2_dir, str_glue("mssc2_{symsim_prefix_per_rpt}.rds"))
         )
         end_time <- Sys.time()
-        message(str_glue("mssc running time: " ,
-                         "{format(end_time - start_time, nsmall = 2)}"))
+        message(str_glue("mssc running time: ",
+          "{format(end_time - start_time, nsmall = 2)}"))
         ## de analysis with pseudobulk
         ## TODO: consider the genes when p-value not NA
         ## rarely fitting might fail.
-        r_pseudo_deseq2_no_inds <- mypseudo$pseudobulk_deseq2(
+        r_pseudo_deseq2_no_inds <- pseudobulk_deseq2(
           cnt_gbc = mysimu$symsim$umi$counts,
           mybatches = mssc_meta$ind,
           myconds = factor(mssc_meta$cond),
           add_individual_effect = FALSE
         )
-        r_pseudo_deseq2_with_inds <- mypseudo$pseudobulk_deseq2(
+        r_pseudo_deseq2_with_inds <- pseudobulk_deseq2(
           cnt_gbc = mysimu$symsim$umi$counts,
           mybatches = mssc_meta$ind,
           myconds = factor(mssc_meta$cond),
           add_individual_effect = TRUE
         )
-        r_cellevel_deseq2 <- mypseudo$cellevel_deseq2(
+        r_cellevel_deseq2 <- cellevel_deseq2(
           cnt_gbc = mysimu$symsim$umi$counts,
           mybatches = mssc_meta$ind,
           myconds = factor(mssc_meta$cond)
@@ -625,9 +700,9 @@ main <- function(nind_per_cond,
         r_wilcox_adjp <- p.adjust(r_wilcox, method = "fdr")
 
         auc_mssc20 <- mssc_20$get_auc(r_mssc20, c1 = diffg, c2 = nondiffg)[3]
-        auc_pseudo_deseq2_no_inds <- mypseudo$calc_auc(
+        auc_pseudo_deseq2_no_inds <- calc_auc(
           deseq2_res = r_pseudo_deseq2_no_inds, degs = diffg, ndegs = nondiffg)$auc
-        auc_pseudo_deseq2_with_inds <- mypseudo$calc_auc(
+        auc_pseudo_deseq2_with_inds <- calc_auc(
           deseq2_res = r_pseudo_deseq2_with_inds, degs = diffg, ndegs = nondiffg)$auc
         auc_cellevel_deseq2 <- mypeudo$calc_auc(
           deseq2_res = r_cellevel_deseq2, degs = diffg, ndegs = nondiffg)$auc
@@ -639,9 +714,9 @@ main <- function(nind_per_cond,
           y = (seq_along(mysimu$dea$logFC_theoretical) %in% diffg))
         ## save result
         auci[, j] <- c(auc_mssc20, auc_pseudo_deseq2_no_inds,
-                       auc_pseudo_deseq2_with_inds,
-                       auc_cellevel_deseq2,
-                       auc_t, auc_wilcox)
+          auc_pseudo_deseq2_with_inds,
+          auc_cellevel_deseq2,
+          auc_t, auc_wilcox)
       },
       error = function(cond) {
         message(cond)
@@ -650,7 +725,7 @@ main <- function(nind_per_cond,
         message(str_glue("In {i}th repeat under {ncell} cells per individual",
           "when logfc is {logfc_threshold}:", .sep = "\n"))
         print(auci)
-      } ) ## end of tryCatch for de analysis
+      }) ## end of tryCatch for de analysis
     } ## end of ncells
     aucs[, , i] <- auci
     message(str_glue("In {i}th repeat,", "when logfc is {logfc_threshold}:", .sep = "\n"))
@@ -675,32 +750,41 @@ option_list <- list(
   make_option(c("--sigma"), action = "store", type = "double", default = 0.6),
   make_option(c("--capt_alpha"), action = "store", type = "double", default = 0.2)
 )
-
 args <- parse_args(OptionParser(option_list = option_list))
-main(
-  nind_per_cond = args$nind_per_cond,
-  brn_len = args$brn_len,
-  bimod = args$bimod,
-  sigma = args$sigma,
-  ncells = c(30, 50, 80, 120, 160, 240, 300),
-  ngene = args$ngene,
-  capt_alpha = 0.2,
-  rpt = 5,
-  save_mssc_model = FALSE,
-  logfc_threshold = 0.8)
 
-## * test
 ## main(
 ##   nind_per_cond = args$nind_per_cond,
 ##   brn_len = args$brn_len,
 ##   bimod = args$bimod,
 ##   sigma = args$sigma,
-##   ncells = c(30),
+##   ncells = c(30, 50, 80, 120, 160, 240, 300),
+##   ngene = args$ngene,
 ##   capt_alpha = 0.2,
-##   rpt = 1,
-##   save_figure = TRUE,
-##   fig_width = 20,
-##   fig_height = 10,
-##   save_symsim_data = TRUE,
-##   save_mssc_model = TRUE
-## )
+##   rpt = 5,
+##   save_mssc_model = FALSE,
+##   logfc_threshold = 0.8)
+
+## * test
+nind_per_cond <- args$nind_per_cond
+brn_len <- args$brn_len
+bimod <- args$bimod
+sigma <- args$sigma
+ncells <- c(30)
+capt_alpha <- 0.2
+ngene <- args$ngene
+rpt <- 1
+save_mssc_model <- TRUE
+logfc_threshold <- 0.8
+
+main(
+  nind_per_cond = args$nind_per_cond,
+  brn_len = args$brn_len,
+  bimod = args$bimod,
+  sigma = args$sigma,
+  ncells = c(30),
+  capt_alpha = 0.2,
+  ngene = args$ngene,
+  rpt = 1,
+  save_mssc_model = TRUE,
+  logfc_threshold = 0.8
+)

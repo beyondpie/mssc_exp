@@ -66,6 +66,8 @@ init_stan_model <- function(model_path,
   ##      setting them FALSE will be equal to setting them TRUE
   
   if (file.exists(model_path)) {
+    ## TODO: cmdstanr have output message like
+    ## "Model executable is up to date"
     return(invisible(cmdstanr::cmdstan_model(
       stan_file = model_path,
       compile = TRUE,
