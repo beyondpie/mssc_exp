@@ -318,6 +318,34 @@ get_symsim_simu <- function(ncell_per_ind = 300, nind_per_cond = 3, brn_len = 0.
   return(invisible(r))
 }
 
+get_symsim_de_analysis <- function(true_counts_res, popA, popB) {
+  meta_cell <- true_counts_res$cell_meta
+  meta_gene <- true_counts_res$gene_effects
+  ## when popA or popB has multiple subpopulations
+  popA_idx <- which(meta_cell$pop %in% popA)
+  popB_idx <- which(meta_cell$pop %in% popB)
+  ngenes <- dim(true_counts_res$gene_effects[[1]])[1]
+
+  DEstr <- sapply(strsplit(colnames(meta_cell)[which(grepl("evf", colnames(meta_cell)))], "_"), "[[", 2)
+  param_str <- sapply(strsplit(colnames(meta_cell)[which(grepl("evf", colnames(meta_cell)))], "_"), "[[", 1)
+  n_useDEevf <- sapply(1:ngenes, function(igene) {
+    return(sum(abs(meta_gene[[1]][igene, DEstr[which(param_str == "kon")] == "DE"]) - 0.001 > 0) +
+      sum(abs(meta_gene[[2]][igene, DEstr[which(param_str == "koff")] == "DE"]) - 0.001 > 0) +
+      sum(abs(meta_gene[[3]][igene, DEstr[which(param_str == "s")] == "DE"]) - 0.001 > 0))
+  })
+
+  kon_mat <- true_counts_res$kinetic_params[[1]]
+  koff_mat <- true_counts_res$kinetic_params[[2]]
+  s_mat <- true_counts_res$kinetic_params[[3]]
+
+  logFC_theoretical <- sapply(1:ngenes, function(igene)
+    return(log2(mean(s_mat[igene, popA_idx] * kon_mat[igene, popA_idx] / (kon_mat[igene, popA_idx] + koff_mat[igene, popA_idx])) /
+      mean(s_mat[igene, popB_idx] * kon_mat[igene, popB_idx] / (kon_mat[igene, popB_idx] + koff_mat[igene, popB_idx])))))
+
+  return(list(nDiffEVF = n_useDEevf, logFC_theoretical = logFC_theoretical))
+}
+
+
 
 ## * main
 ## number of individuals in each condition
@@ -336,13 +364,15 @@ capt_alpha <- 0.2
 ngene <- 200
 ## simulation repeat index
 rpt <- 1
+## de threshold used in symsim
+logfc_threshold <- 0.8 
 
 ## where to save the figure
 ## By default, create a local dir
-result_dir <- here::here("src", "symsim",
+simu_data_dir <- here::here("src", "symsim",
                          paste0("simu_data_", format(Sys.time(), format = "%Y%m%d")))
-if (!dir.exists(result_dir)) {
-  dir.create(path = result_dir)
+if (!dir.exists(simu_data_dir)) {
+  dir.create(path = simu_data_dir)
 }
 
 ## simulation process
