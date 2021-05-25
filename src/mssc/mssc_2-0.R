@@ -514,6 +514,7 @@ High2 <- R6::R6Class(
       ### nind by 1
       varofind <- init_mgsnb$ind$est_varofind[, 2]
       ### ngene by nind
+      ## TODO: muind estimated by the genes from DESEQ2.
       muind <- init_mgsnb$mgsnb[, (2 + self$ncond + 1):
       (2 + self$ncond + self$nind)]
       ngene <- nrow(cnt)

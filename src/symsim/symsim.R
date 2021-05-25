@@ -360,7 +360,6 @@ get_symsim_simu <- function(ncell_per_ind = 300, nind_per_cond = 3, brn_len = 0.
   ## run symsim until it touches the needs.
   ## usually it will run only one time.
   while ((ndiffg < ndg_threshold) && (ntry_now < ntry)) {
-    message(str_glue(""))
     symsim <- run_symsim_simu(phyla = phyla, bimod = bimod,
       capt_alpha = capt_alpha, gene_module_prop = 0.0,
       ncell_per_ind = ncell_per_ind,
@@ -380,7 +379,10 @@ get_symsim_simu <- function(ncell_per_ind = 300, nind_per_cond = 3, brn_len = 0.
   } ## end of while
 
   if ((ntry_now == ntry) && (ndiffg < ndg_threshold)) {
-    stop(str_glue("Simulation failed: ndiffg_{ndifg} after try {ntry} times."))
+    stop(str_glue("Simulation failed:" ,
+                  "ndiffg is {ndiffg}",
+                  "less than threshold {ndg_threshold}",
+                  "after try {ntry} times."))
   }
   r <- list(phyla = phyla, symsim = symsim, dea = dea,
     diffg = diffg, nondiffg = nondiffg,
@@ -574,7 +576,6 @@ main <- function(nind_per_cond,
                  logfc_threshold = 0.8) {
   ## argument:
   ## - ncells: vector of ncell_per_ind
-
   ## set local path to save results
   result_dir <- here::here(
     "src", "symsim",
@@ -593,8 +594,7 @@ main <- function(nind_per_cond,
   nind_all <- nind_per_cond * 2
   ## - simulate datasets
   symsim_prefix <- str_glue(
-    "{ngene}gene", "{nind_all}ind",
-    "{ncells}cell", "{brn_len}w", "{bimod}bimod",
+    "{ngene}gene", "{nind_all}ind", "{brn_len}w", "{bimod}bimod",
     "{sigma}sigma", "{capt_alpha}alpha", .sep = "_")
   message(str_glue("SymSim experiment: ", "{symsim_prefix}.", .sep = "\n"))
   simubulk <- get_symsim_simu(ncell_per_ind = 300, nind_per_cond = nind_per_cond,
@@ -632,6 +632,7 @@ main <- function(nind_per_cond,
     auci <- matrix(NA, nrow = dim(aucs)[1], ncol = dim(aucs)[2])
     rownames(auci) <- rownames(aucs)
     for (j in seq_along(ncells)) {
+      message(str_glue("when ncell per individual is {j}:"))
       ncell <- ncells[j]
       ## simulate data
       mysimu <- get_symsim_by_sampling(simubulk, ncell_per_ind = ncell, seed = i)
@@ -735,7 +736,7 @@ nind_per_cond <- args$nind_per_cond
 brn_len <- args$brn_len
 bimod <- args$bimod
 sigma <- args$sigma
-ncells <- c(30)
+ncells <- c(30, 50, 80, 100)
 capt_alpha <- 0.2
 ngene <- args$ngene
 rpt <- 1
@@ -743,14 +744,14 @@ save_mssc_model <- TRUE
 logfc_threshold <- 0.8
 
 main(
-  nind_per_cond = args$nind_per_cond,
-  brn_len = args$brn_len,
-  bimod = args$bimod,
-  sigma = args$sigma,
-  ncells = c(30),
+  nind_per_cond = nind_per_cond,
+  brn_len = brn_len,
+  bimod = bimod,
+  sigma = sigma,
+  ncells = ncells,
   capt_alpha = 0.2,
-  ngene = args$ngene,
+  ngene = ngene,
   rpt = 1,
-  save_mssc_model = TRUE,
-  logfc_threshold = 0.8
+  save_mssc_model = save_mssc_model,
+  logfc_threshold = logfc_threshold
 )
