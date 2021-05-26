@@ -676,11 +676,18 @@ High2 <- R6::R6Class(
 
     extract_draws = function(param,
                              ngene = NULL,
-                             genenms = NULL) {
+                             genenms = NULL,
+                             method = "vi") {
       ## extract draws from model given the param name
       ## after getting the fit
       ## this depends on cmdstanr method, but mofidy the names we need
-      if (is.null(self$high2fit)) {
+      if(method == "vi") {
+        high2fit <- self$high2fit
+      }
+      else {
+        high2fit <- self$high2optfit
+      }
+      if (is.null(high2fit)) {
         warning("High2 has not been run.")
         return(invisible(NA))
       }
@@ -696,12 +703,12 @@ High2 <- R6::R6Class(
           "centerofr", "varofr", "tau2"
         )) {
           ## when param is scalar
-          return(invisible(self$high2fit$draws(param)))
+          return(invisible(high2fit$draws(param)))
         }
         if (param %in% c("mu", "r", "nb_r")) {
           ## when param is vector len of ngene
           check_ngene()
-          t <- self$high2fit$draws(str_glue_vec(param, ngene))
+          t <- high2fit$draws(str_glue_vec(param, ngene))
           if (!is.null(genenms)) {
             names(t) <- genenms
           }
@@ -710,19 +717,19 @@ High2 <- R6::R6Class(
         if (param %in% c("varofcond")) {
           ## when param is vector of len of ncond
           return(invisible(
-            self$high2fit$draws(str_glue_vec(param, self$ncond))
+            high2fit$draws(str_glue_vec(param, self$ncond))
           ))
         }
         if (param %in% c("varofind", "centerofind")) {
           ## when param is vector of len of nind
           return(invisible(
-            self$high2fit$draws(str_glue_vec(param, self$nind))
+            high2fit$draws(str_glue_vec(param, self$nind))
           ))
         }
         if (param %in% c("mucond")) {
           ## when param is a matrix of ngene by ncond
           check_ngene()
-          t <- self$high2fit$draws(
+          t <- high2fit$draws(
             str_glue_mat_rowise(param, ngene, self$ncond)
           )
           return(invisible(split_matrix_col(
@@ -733,7 +740,7 @@ High2 <- R6::R6Class(
         if (param %in% c("muind")) {
           ## when param is a matrix of ngene by nind
           check_ngene()
-          t <- self$high2fit$draws(
+          t <- high2fit$draws(
             str_glue_mat_rowise(param, ngene, self$nind)
           )
           return(invisible(split_matrix_col(
@@ -749,11 +756,13 @@ High2 <- R6::R6Class(
     }, ## end of extract draws
     
     extract_draws_all = function(ngene = NULL,
-                                 genenms = NULL) {
+                                 genenms = NULL,
+                                 method = "vi") {
       est_params <- lapply(self$all_params_nms, function(nm) {
         self$extract_draws(nm,
           ngene = ngene,
-          genenms = genenms
+          genenms = genenms,
+          method = method
         )
       })
       names(est_params) <- self$all_params_nms
@@ -824,7 +833,45 @@ High2 <- R6::R6Class(
         rownames(result) <- dimnames(mucond)[[2]]
       }
       return(invisible(result))
-    },
+    }, ## end of get_ranking_statistics
+    
+    get_opt_ranking_statistic = function(mucond, two_hot_vec) {
+      ## mucond: nsample by ngene by ncond
+      ## two_hot_vec: like (1, -1) or (0, 0, -1, 0, 1, 0)
+      ## - i.e., the two conditions we want compare
+      ## - one is positive, and the other one is negative
+      ## return:
+      ## - a matrix: ngene by 1 with colnames
+      if (sum(two_hot_vec) > 1) {
+        stop("set 1 and -1 for two conditions.")
+      }
+      if (length(two_hot_vec) != self$ncond) {
+        stop(
+          "length of two_hot_vec ",
+          length(two_hot_vec), " is not equals to ncond ",
+          self$ncond
+        )
+      }
+      ## 3-d array cannot directly mutiply a vector in matrix-multiply way
+      ## so we use ours.
+      ## r: nsample by ngene
+      n <- dim(mucond)[1]
+      r <- t(vapply(1:n, function(i) {
+        mucond[i, , ] %*% two_hot_vec
+      }, FUN.VALUE = rep(0.0, dim(mucond)[2])))
+
+      ## one measure
+      abs_colmean <- abs(colMeans(r))
+
+      result <- cbind(
+        abs_m = abs_colmean
+      )
+      if (!is.null(dimnames(mucond)[[2]])) {
+        rownames(result) <- dimnames(mucond)[[2]]
+      }
+      return(invisible(result))
+    }, ## end of get_opt_ranking_statistic
+
 
     get_auc = function(ranking_statistic, c1, c2) {
       ## ranking_statistic: a vector, ngene by 1
@@ -905,6 +952,23 @@ test <- function() {
   
   ## optimization
   model$run_opt(data = data, list_wrap_ip = list(init_params$ip))
+  est_params <- model$extract_draws_all(
+    ngene = 10,
+    genenms = rownames(pbmc$y2c[1:10, ]),
+    method = "opt"
+  )
+  str(est_params)
+
+  mucond <- model$extract_draws(
+    param = "mucond", ngene = 10,
+    genenms = rownames(pbmc$y2c[1:10, ]),
+    method = "opt"
+  )
+  rankings <- model$get_ranking_statistics(
+    mucond = mucond,
+    two_hot_vec = c(1, -1)
+  )
+  str(rankings)
 }
 
 ## test()

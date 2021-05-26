@@ -162,7 +162,7 @@ pseudobulk_deseq2 <- function(cnt_gbc,
   uconds <- myconds[as.character(ubatches)]
 
   coldf <- data.frame(ubatches, uconds)
-  exp_design <- ~as.factor(uconds)
+  exp_design <- ~ as.factor(uconds)
 
   dataset <- DESeq2::DESeqDataSetFromMatrix(
     countData = mypseudobulk,
@@ -379,10 +379,10 @@ get_symsim_simu <- function(ncell_per_ind = 300, nind_per_cond = 3, brn_len = 0.
   } ## end of while
 
   if ((ntry_now == ntry) && (ndiffg < ndg_threshold)) {
-    stop(str_glue("Simulation failed:" ,
-                  "ndiffg is {ndiffg}",
-                  "less than threshold {ndg_threshold}",
-                  "after try {ntry} times."))
+    stop(str_glue("Simulation failed:",
+      "ndiffg is {ndiffg}",
+      "less than threshold {ndg_threshold}",
+      "after try {ntry} times."))
   }
   r <- list(phyla = phyla, symsim = symsim, dea = dea,
     diffg = diffg, nondiffg = nondiffg,
@@ -454,7 +454,7 @@ get_symsim_by_sampling <- function(simubulk,
     r <- sample(x = cell_index, size = ncell_per_ind, replace = FALSE)
     return(invisible(r))
   }))
-  
+
   r <- list(phyla = simubulk$phyla,
     symsim = list(true = NULL, umi = NULL),
     dea = simubulk$dea,
@@ -519,7 +519,8 @@ run_mssc <- function(model, symsim_umi, mssc_meta, save_result = TRUE,
   ## - model state will be updated
   ## - save the results into rds file (save_path).
   ## return
-  ## - ranking statistics
+  ## - a list of vi ranking statistics (ngene by 3 matrix)
+  ##   and opt ranking statistics (ngene by 1 matrix)
 
   ## data from symsim
   y2c <- round(symsim_umi)
@@ -534,25 +535,40 @@ run_mssc <- function(model, symsim_umi, mssc_meta, save_result = TRUE,
   model_data <- model$to_model_data(cnt = y2c,
     s = s, cond = cond, ind = ind, hp = init_params$hp)
   model$run(data = model_data, list_wrap_ip = list(init_params$ip))
+  model$run_opt(data = model_data, list_wrap_ip = list(init_params$ip))
 
   ## get results
   ## Mannually get the samples for all the params
   ## the model, in principle, will only save the results
   ## in a temporary file since it uses cmdstan.
-  est_params <- model$extract_draws_all(
-    ngene = nrow(y2c), genenms = seq_len(nrow(y2c)))
+  vi_est_params <- model$extract_draws_all(
+    ngene = nrow(y2c), genenms = seq_len(nrow(y2c)), method = "vi")
+  opt_est_params <- model$extract_draws_all(
+    ngene = nrow(y2c), genenms = seq_len(nrow(y2c)), method = "opt"
+  )
 
   ## mucond: nsample by ngene
-  mucond <- model$extract_draws(
-    param = "mucond", ngene = nrow(y2c), genenms = seq_len(nrow(y2c)))
+  vi_mucond <- model$extract_draws(
+    param = "mucond", ngene = nrow(y2c), genenms = seq_len(nrow(y2c)),
+    method = "vi")
+  opt_mucond <- model$extract_draws(
+    param = "mucond", ngene = nrow(y2c), genenms = seq_len(nrow(y2c)),
+    method = "opt")
   ## three rankings in order: t, bf, m
   ## ngene by 3
-  r <- model$get_ranking_statistics(
-    mucond = mucond, two_hot_vec = c(1, -1))
+  vi_r <- model$get_ranking_statistics(
+    mucond = vi_mucond, two_hot_vec = c(1, -1))
+  opt_r <- model$get_opt_ranking_statistic(
+    mucond = opt_mucond, two_hot_vec = c(1, -1)
+  )
+  r <- list(vi_r = vi_r, opt_r = opt_r)
   if (save_result) {
-    ## TODO: check loading the results
+    ## NOTE: check loading the results
     ## warning at opt:argparse
-    saveRDS(object = list(est_params = est_params, r = r, model = model), file = save_path)
+    saveRDS(object = list(vi_est_params = vi_est_params,
+      opt_est_params = opt_est_params,
+      r = r, model = model),
+    file = save_path)
   }
   return(invisible(r))
 }
@@ -622,7 +638,7 @@ main <- function(nind_per_cond,
 
   ## - declare the result
   aucs <- set_result_array(rpt = rpt, ncells = ncells,
-    methods = c("mssc_2-0", "pseudo_deseq2_no_inds",
+    methods = c("mssc_vi", "mssc_opt", "pseudo_deseq2_no_inds",
       "wilcox", "t"))
 
   ## - start experiment
@@ -659,7 +675,7 @@ main <- function(nind_per_cond,
           mybatches = mssc_meta$ind,
           myconds = factor(mssc_meta$cond)
         )
-        
+
         ## de analysis with t-test
         logtpm <- get_logtpm(cnt = mysimu$symsim$umi$counts, scale = 10000)
         r_t <- apply(logtpm, 1, zhu_test, group = mssc_meta$cond, test = "t")
@@ -668,7 +684,9 @@ main <- function(nind_per_cond,
         r_wilcox <- apply(logtpm, 1, zhu_test, group = mssc_meta$cond, test = "wilcox")
         r_wilcox_adjp <- p.adjust(r_wilcox, method = "fdr")
 
-        auc_mssc20 <- mssc_20$get_auc(r_mssc20, c1 = diffg, c2 = nondiffg)[3]
+        auc_mssc20_vi <- mssc_20$get_auc(r_mssc20$vi_r, c1 = diffg, c2 = nondiffg)[3]
+        auc_mssc20_opt <- mssc_20$get_auc(r_mssc20$opt_r, c1 = diffg, c2 = nondiffg)
+
         auc_pseudo_deseq2_no_inds <- calc_auc(
           deseq2_res = r_pseudo_deseq2_no_inds, degs = diffg, ndegs = nondiffg)$auc
         auc_t <- caTools::colAUC(
@@ -678,7 +696,7 @@ main <- function(nind_per_cond,
           X = r_wilcox_adjp,
           y = (seq_along(mysimu$dea$logFC_theoretical) %in% diffg))
         ## save result
-        auci[, j] <- c(auc_mssc20, auc_pseudo_deseq2_no_inds,
+        auci[, j] <- c(auc_mssc20_vi, auc_mssc20_opt, auc_pseudo_deseq2_no_inds,
           auc_t, auc_wilcox)
       },
       error = function(cond) {
@@ -754,8 +772,8 @@ args <- parse_args(OptionParser(option_list = option_list))
 
 test <- function() {
   main(nind_per_cond = 5, brn_len = 0.5, bimod = 1, sigma = 0.6,
-       ncells = c(30, 50, 80), capt_alpha = 0.2,
-       ngene = 200, rpt = 1, save_mssc_model = FALSE, logfc_threshold = 0.8)
+    ncells = c(30,50), capt_alpha = 0.2,
+    ngene = 200, rpt = 1, save_mssc_model = FALSE, logfc_threshold = 0.8)
 }
 
 test()
