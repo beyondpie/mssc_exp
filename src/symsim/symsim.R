@@ -447,7 +447,9 @@ get_symsim_by_sampling <- function(simubulk,
     cell_index <- which(ind == i)
     ncell <- length(cell_index)
     if (ncell_per_ind >= ncell) {
-      invisible(cell_index)
+      ## when ncell_per_ind is larger than ncell, we directly use
+      ## all the cells for the individual
+      return(invisible(cell_index))
     }
     r <- sample(x = cell_index, size = ncell_per_ind, replace = FALSE)
     return(invisible(r))
@@ -529,9 +531,9 @@ run_mssc <- function(model, symsim_umi, mssc_meta, save_result = TRUE,
   ## model inference
   init_params <- model$init_params(
     cnt = y2c, s = s, cond = cond, ind = ind)
-  data <- model$to_model_data(cnt = y2c,
+  model_data <- model$to_model_data(cnt = y2c,
     s = s, cond = cond, ind = ind, hp = init_params$hp)
-  model$run(data = data, list_wrap_ip = list(init_params$ip))
+  model$run(data = model_data, list_wrap_ip = list(init_params$ip))
 
   ## get results
   ## Mannually get the samples for all the params
@@ -591,8 +593,8 @@ main <- function(nind_per_cond,
     }
   }
 
-  nind_all <- nind_per_cond * 2
   ## - simulate datasets
+  nind_all <- nind_per_cond * 2
   symsim_prefix <- str_glue(
     "{ngene}gene", "{nind_all}ind", "{brn_len}w", "{bimod}bimod",
     "{sigma}sigma", "{capt_alpha}alpha", .sep = "_")
@@ -615,9 +617,7 @@ main <- function(nind_per_cond,
   message(str_glue("SymSim DE analysis under logFC {logfc_threshold}:",
     "{length(diffg)} diffg and {length(nondiffg)} nondiffg",
     .sep = "\n"))
-
   ## - load mssc model
-  nind_all <- nind_per_cond * 2
   mssc_20 <- load_mssc(nind = nind_all, mssc_version = "mssc_2-0")
 
   ## - declare the result
@@ -632,7 +632,7 @@ main <- function(nind_per_cond,
     auci <- matrix(NA, nrow = dim(aucs)[1], ncol = dim(aucs)[2])
     rownames(auci) <- rownames(aucs)
     for (j in seq_along(ncells)) {
-      message(str_glue("when ncell per individual is {j}:"))
+      message(str_glue("when ncell per individual is {ncells[j]}:"))
       ncell <- ncells[j]
       ## simulate data
       mysimu <- get_symsim_by_sampling(simubulk, ncell_per_ind = ncell, seed = i)
@@ -732,26 +732,34 @@ args <- parse_args(OptionParser(option_list = option_list))
 ##   logfc_threshold = 0.8)
 
 ## * test
-nind_per_cond <- args$nind_per_cond
-brn_len <- args$brn_len
-bimod <- args$bimod
-sigma <- args$sigma
-ncells <- c(30, 50, 80, 100)
-capt_alpha <- 0.2
-ngene <- args$ngene
-rpt <- 1
-save_mssc_model <- TRUE
-logfc_threshold <- 0.8
+## nind_per_cond <- args$nind_per_cond
+## brn_len <- args$brn_len
+## bimod <- args$bimod
+## sigma <- args$sigma
+## ncells <- c(200,300)
+## capt_alpha <- 0.2
+## ngene <- args$ngene
+## rpt <- 1
+## save_mssc_model <- TRUE
+## logfc_threshold <- 0.8
 
-main(
-  nind_per_cond = nind_per_cond,
-  brn_len = brn_len,
-  bimod = bimod,
-  sigma = sigma,
-  ncells = ncells,
-  capt_alpha = 0.2,
-  ngene = ngene,
-  rpt = 1,
-  save_mssc_model = save_mssc_model,
-  logfc_threshold = logfc_threshold
-)
+## main(
+##   nind_per_cond = nind_per_cond,
+##   brn_len = brn_len,
+##   bimod = bimod,
+##   sigma = sigma,
+##   ncells = ncells,
+##   capt_alpha = 0.2,
+##   ngene = ngene,
+##   rpt = 1,
+##   save_mssc_model = save_mssc_model,
+##   logfc_threshold = logfc_threshold
+## )
+
+test <- function() {
+  main(nind_per_cond = 5, brn_len = 0.5, bimod = 1, sigma = 0.6,
+       ncells = c(300), capt_alpha = 0.2,
+       ngene = 200, rpt = 1, save_mssc_model = FALSE, logfc_threshold = 0.8)
+}
+
+test()

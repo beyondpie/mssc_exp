@@ -224,33 +224,46 @@ Genewisenbfit <- R6::R6Class(
       ## state of optimization
       s1 <- FALSE
       if (check_y_are_all_zeros(y)) {
+        ## if y are all zeros, then we use the default ones.
+        ## TODO: maybe we can set muind as the mean of muind from our model,
+        ## which can be directly estimated by a pure non-mucond effect model.
+        ## for example, we can use random effect model?
         return(invisible(result))
       }
       ## ** init and opt mu and r
       init_mur <- self$init_snb(y, s)
-      capture.output(opt <- self$snb$optimize(
-        data = list(
-          n = length(y), s = s, y = y,
-          hpg = c(self$gamma_alpha, self$gamma_beta)
-        ),
-        seed = self$seed,
-        refresh = self$opt_refresh,
-        iter = self$opt_iter,
-        init = list(init_mur),
-        algorithm = "lbfgs"
-      ))
+
+      ## NOTE: comment the initialization based on
+      ## optimization of scaled negative binomial model,
+      ## which usually fails based on the simulation,
+      ## and the init_snb function makes sense already.
+      
+      ## capture.output(opt <- self$snb$optimize(
+      ##   data = list(
+      ##     n = length(y), s = s, y = y,
+      ##     hpg = c(self$gamma_alpha, self$gamma_beta)
+      ##   ),
+      ##   seed = self$seed,
+      ##   refresh = self$opt_refresh,
+      ##   iter = self$opt_iter,
+      ##   init = list(init_mur),
+      ##   algorithm = "lbfgs"
+      ## ))
+      
       ## ** update mu and r
-      if (does_fit_well(opt)) {
-        est_mur <- opt$mle()
-        result$mu <- est_mur["mu"]
-        ## r might be big due to fitting issue.
-        est_r <- est_mur["r"]
-        result$r <- ifelse(est_r < self$big_r, est_r, self$r)
-        s1 <- ifelse(est_r < self$big_r, TRUE, FALSE)
-      } else {
-        result$mu <- init_mur$mu
-        result$r <- init_mur$r
-      }
+      ## if (does_fit_well(opt)) {
+      ##   est_mur <- opt$mle()
+      ##   result$mu <- est_mur["mu"]
+      ##   ## r might be big due to fitting issue.
+      ##   est_r <- est_mur["r"]
+      ##   result$r <- ifelse(est_r < self$big_r, est_r, self$r)
+      ##   s1 <- ifelse(est_r < self$big_r, TRUE, FALSE)
+      ## } else {
+      ##   result$mu <- init_mur$mu
+      ##   result$r <- init_mur$r
+      ## }
+      result$mu <- init_mur$mu
+      result$r <- init_mur$r
       ## ** set mucond
       result$mucond <- vapply(
         1:ncond, function(i) {
@@ -494,7 +507,8 @@ High2 <- R6::R6Class(
 
       ### r in negative binomial
       r <- init_mgsnb$mgsnb[, 2]
-      ### log of r level
+      ### NOTE: log of r level
+      #### Should change the name of r to logr
       centerofr <- init_mgsnb$logr[1]
       varofr <- init_mgsnb$logr[2]
       raw_r <- (log(r) - centerofr) / sqrt(varofr)
@@ -893,4 +907,5 @@ test <- function() {
   ## optimization
   model$run_opt(data = data, list_wrap_ip = list(init_params$ip))
 }
-## test()
+
+test()

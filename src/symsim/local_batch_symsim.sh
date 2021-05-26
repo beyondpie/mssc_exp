@@ -12,4 +12,4 @@ Rscript symsim.R \
         --brn_len ${brnlen} \
         --bimod ${bimod} \
         --sigma ${sigma} \
-        > symsim_${nindpcond}subpop_${brnlen}brnlen_${bimod}bimod_0.2alpha_{ngene}gene.log 2>&1
+        > symsim_${nindpcond}subpop_${brnlen}brnlen_${bimod}bimod_0.2alpha_${ngene}gene.log 2>&1
