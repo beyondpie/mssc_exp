@@ -496,8 +496,8 @@ load_mssc <- function(nind = 10, mssc_version = "mssc_2-0",
   ## return:
   ## - a mssc model
   mssc_path <- here::here("src", "mssc")
-  model <- modules::import_(mssc_version)
-  invisible(model$High2$new(
+  module <- modules::import_(mssc_version)
+  invisible(module$High2$new(
     stan_snb_path = file.path(mssc_path, "stan", "snb.stan"),
     stan_high2_path = file.path(mssc_path, "stan",
       paste0(mssc_version, ".stan")),

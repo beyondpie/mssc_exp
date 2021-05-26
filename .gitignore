@@ -110,3 +110,4 @@ vignettes/*.pdf
 src/archive/modelcheck/high2/stan/*
 /src/symsim/results_simu_as_batch_effect/
 /src/symsim/symsim_202101300028/
+src/mssc/stan/snb
