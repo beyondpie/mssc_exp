@@ -623,8 +623,6 @@ main <- function(nind_per_cond,
   ## - declare the result
   aucs <- set_result_array(rpt = rpt, ncells = ncells,
     methods = c("mssc_2-0", "pseudo_deseq2_no_inds",
-      "pseudo_deseq2_with_inds",
-      "cellevel_deseq2",
       "wilcox", "t"))
 
   ## - start experiment
@@ -681,7 +679,6 @@ main <- function(nind_per_cond,
           y = (seq_along(mysimu$dea$logFC_theoretical) %in% diffg))
         ## save result
         auci[, j] <- c(auc_mssc20, auc_pseudo_deseq2_no_inds,
-          auc_cellevel_deseq2,
           auc_t, auc_wilcox)
       },
       error = function(cond) {
@@ -757,7 +754,7 @@ args <- parse_args(OptionParser(option_list = option_list))
 
 test <- function() {
   main(nind_per_cond = 5, brn_len = 0.5, bimod = 1, sigma = 0.6,
-       ncells = c(50, 100), capt_alpha = 0.2,
+       ncells = c(30, 50, 80), capt_alpha = 0.2,
        ngene = 200, rpt = 1, save_mssc_model = FALSE, logfc_threshold = 0.8)
 }
 
