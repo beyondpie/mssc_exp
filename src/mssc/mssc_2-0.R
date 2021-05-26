@@ -897,12 +897,11 @@ test <- function() {
   
   psis <- model$psis()
   print(psis$psis)
-  psis_rankings <- model$get_psis_ranking_statistics(
+  rankings <- model$get_ranking_statistics(
     mucond = mucond,
-    two_hot_vec = c(1, -1),
-    normweights = psis$normweights
+    two_hot_vec = c(1, -1)
   )
-  str(psis_rankings)
+  str(rankings)
   
   ## optimization
   model$run_opt(data = data, list_wrap_ip = list(init_params$ip))
