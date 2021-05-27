@@ -924,18 +924,19 @@ High2 <- R6::R6Class(
           muind = muind)
       ))
     }, ## end of init_glm_params
-    run_glm_opt = function(data, lisp_wrap_ip = NULL,
+    run_glm_opt = function(data, list_wrap_ip = NULL,
                            threads = NULL, refresh  = 10,
                            max_iter = 5000,
                            opt_method = "lbfgs",
                            init_alpha = 0.001,
                            tol_obj = NULL,
                            tol_rel_obj = NULL,
+                           tol_grad = NULL,
                            tol_rel_grad = NULL,
                            tol_param = NULL,
                            history_size = 10) {
       ## similar to run_opt
-      self$glmoptfit <- self$glmodel$opt(
+      self$glmoptfit <- self$glmodel$optimize(
         data = data,
         init = list_wrap_ip,
         seed = self$seed,
@@ -1009,7 +1010,7 @@ High2 <- R6::R6Class(
       })
       names(est_params) <- self$all_params_glm
       return(invisible(est_params))
-    }, ## end of extract_draws_all_from_glm
+    } ## end of extract_draws_all_from_glm
   ) ## end of public field
 ) ## end of class high2
 
@@ -1024,6 +1025,7 @@ test <- function() {
   model <- High2$new(
     stan_snb_path = here::here("src", "mssc", "stan", "snb.stan"),
     stan_high2_path = here::here("src", "mssc", "stan", "mssc_2-0.stan"),
+    stan_glm_path = here::here("src", "mssc", "stan", "glm.stan"),
     nind = nind,
     tol_rel_obj = 0.0001,
     adapt_engaged = FALSE
@@ -1090,6 +1092,23 @@ test <- function() {
     two_hot_vec = c(1, -1)
   )
   str(rankings)
+
+  ## test glm
+  init_params_of_glm <- model$init_glm_params(cnt = pbmc$y2c[1:10,],
+                                             s = pbmc$s,
+                                             cond = pbmc$cond,
+                                             ind = pbmc$ind)
+  model$run_glm_opt(data = data, list_wrap_ip = list(init_params_of_glm))
+  est_params_of_glm <- model$extract_draws_all_from_glm
+  mucond_of_glm <- model$extract_draws_from_glm(
+    param = "mucond", ngene = 10,
+    genenms = rownames(pbmc$y2c[1:10, ])
+  )
+  ranking_from_glm <- model$get_opt_ranking_statistic(
+    mucond = mucond_of_glm,
+    two_hot_vec = c(1, -1)
+  )
+  str(ranking_from_glm)
 }
 
 ## test()

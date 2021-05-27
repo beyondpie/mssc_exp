@@ -35,7 +35,7 @@ parameters {
 
 model {
   matrix[ngene, ncell] lambda = logs + rep_matrix(mu, ncell) + mucond[, cond] + muind[, ind];
-  matrix[ngene, ncell] nb_rr = rep_matrix(nb_r, ncell)
+  matrix[ngene, ncell] nb_rr = rep_matrix(nb_r, ncell);
   // to_vector is column-major order
   // to_vector(lambda) in order: g1_c1, g2_c1. g3_c1, ..., g1_c2, g2_c2, ...
   y1d ~ neg_binomial_2_log(to_vector(lambda), to_vector(nb_rr));
