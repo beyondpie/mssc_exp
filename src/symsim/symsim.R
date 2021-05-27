@@ -500,7 +500,8 @@ load_mssc <- function(nind = 10, mssc_version = "mssc_2-0",
   invisible(module$High2$new(
     stan_snb_path = file.path(mssc_path, "stan", "snb.stan"),
     stan_high2_path = file.path(mssc_path, "stan",
-      paste0(mssc_version, ".stan")),
+                                paste0(mssc_version, ".stan")),
+    stan_glm_path = file.path(mssc_path, "stan", "glm.stan"),
     nind = nind,
     tol_rel_obj = tol_rel_obj,
     algorithm = "meanfield",
@@ -536,32 +537,61 @@ run_mssc <- function(model, symsim_umi, mssc_meta, save_result = TRUE,
     s = s, cond = cond, ind = ind, hp = init_params$hp)
   model$run(data = model_data, list_wrap_ip = list(init_params$ip))
   model$run_opt(data = model_data, list_wrap_ip = list(init_params$ip))
+  init_params_of_glm <- model$init_glm_params(
+    cnt = y2c, s = s, cond = cond, ind = ind
+  )
+  model$run_glm_opt(data = data, list_wrap_ip = list(init_params_of_glm))
+
+  ## get inference status
+  mssc_vifit_state <- model$high2fit$return_codes()
+  mssc_optfit_state <- model$high2optfit$return_codes()
+  glmfit_state <- model$glmoptfit$return_codes()
 
   ## get results
   ## Mannually get the samples for all the params
   ## the model, in principle, will only save the results
   ## in a temporary file since it uses cmdstan.
-  vi_est_params <- model$extract_draws_all(
-    ngene = nrow(y2c), genenms = seq_len(nrow(y2c)), method = "vi")
-  opt_est_params <- model$extract_draws_all(
-    ngene = nrow(y2c), genenms = seq_len(nrow(y2c)), method = "opt"
-  )
-
-  ## mucond: nsample by ngene
-  vi_mucond <- model$extract_draws(
-    param = "mucond", ngene = nrow(y2c), genenms = seq_len(nrow(y2c)),
-    method = "vi")
-  opt_mucond <- model$extract_draws(
-    param = "mucond", ngene = nrow(y2c), genenms = seq_len(nrow(y2c)),
-    method = "opt")
-  ## three rankings in order: t, bf, m
-  ## ngene by 3
-  vi_r <- model$get_ranking_statistics(
-    mucond = vi_mucond, two_hot_vec = c(1, -1))
-  opt_r <- model$get_opt_ranking_statistic(
-    mucond = opt_mucond, two_hot_vec = c(1, -1)
-  )
-  r <- list(vi_r = vi_r, opt_r = opt_r)
+  if (mssc_vifit_state != 0) {
+    warning(str_glue("mssc VI fit failed with codes: {mssc_vifit_state}"))
+    vi_est_params <- NULL
+    auc_vi <- -1
+  } else {
+    vi_est_params <- model$extract_draws_all(
+      ngene = nrow(y2c), genenms = seq_len(nrow(y2c)), method = "vi")
+    vi_mucond <- model$extract_draws(
+      param = "mucond", ngene = nrow(y2c), genenms = seq_len(nrow(y2c)),
+      method = "vi")
+    ## three rankings in order: t, bf, m, we use the third
+    vi_r <- model$get_ranking_statistics(
+      mucond = vi_mucond, two_hot_vec = c(1, -1))
+    auc_vi <- mssc_20$get_auc(vi_r, c1 = diffg, c2 = nondiffg)[3]
+  }
+  if (mssc_optfit_state != 0) {
+    warning(str_glue("mssc OPT fit failed with codes: {mssc_optfit_state}"))
+    opt_est_params <- NULL
+    auc_opt <- -1
+  } else {
+    opt_est_params <- model$extract_draws_all(
+      ngene = nrow(y2c), genenms = seq_len(nrow(y2c)), method = "opt"
+    )
+    opt_mucond <- model$extract_draws(
+      param = "mucond", ngene = nrow(y2c), genenms = seq_len(nrow(y2c)),
+      method = "opt")
+    opt_r <- model$get_opt_ranking_statistic(
+      mucond = opt_mucond, two_hot_vec = c(1, -1)
+    )
+    auc_opt <- mssc_20$get_auc(opt_r, c1 = diffg, c2 = nondiffg)
+  }
+  if (glmfit_state != 0) {
+    warning(str_glue("GLM OPT fit failed with codes: {glmfit_state}"))
+    auc_glm <- -1
+  } else {
+    glm_mucond <- model$extract_draws_from_glm(param = "mucond", ngene = nrow(y2c),
+                                               genenms = seq_len(nrow(y2c)))
+    glm_r <- model$get_opt_ranking_statistic(mucond = glm_mucond, two_hot_vec = c(1, -1))
+    auc_glm <- mssc_20$get_auc(ranking_statistics = glm_r, c1 = diffg, c2 = nondiffg)
+  }
+  r <- list(auc_vi = auc_vi, auc_opt = auc_opt, auc_glm = auc_glm)
   if (save_result) {
     ## NOTE: check loading the results
     ## warning at opt:argparse
@@ -570,7 +600,7 @@ run_mssc <- function(model, symsim_umi, mssc_meta, save_result = TRUE,
       r = r, model = model),
     file = save_path)
   }
-  return(invisible(r))
+  return(inivisible(r))
 }
 
 set_result_array <- function(rpt = 5, ncells = c(20, 40, 80),
@@ -638,7 +668,7 @@ main <- function(nind_per_cond,
 
   ## - declare the result
   aucs <- set_result_array(rpt = rpt, ncells = ncells,
-    methods = c("mssc_vi", "mssc_opt", "pseudo_deseq2_no_inds",
+    methods = c("mssc_vi", "mssc_opt", "glm","pseudo_deseq2_no_inds",
       "wilcox", "t"))
 
   ## - start experiment
@@ -684,9 +714,6 @@ main <- function(nind_per_cond,
         r_wilcox <- apply(logtpm, 1, zhu_test, group = mssc_meta$cond, test = "wilcox")
         r_wilcox_adjp <- p.adjust(r_wilcox, method = "fdr")
 
-        auc_mssc20_vi <- mssc_20$get_auc(r_mssc20$vi_r, c1 = diffg, c2 = nondiffg)[3]
-        auc_mssc20_opt <- mssc_20$get_auc(r_mssc20$opt_r, c1 = diffg, c2 = nondiffg)
-
         auc_pseudo_deseq2_no_inds <- calc_auc(
           deseq2_res = r_pseudo_deseq2_no_inds, degs = diffg, ndegs = nondiffg)$auc
         auc_t <- caTools::colAUC(
@@ -696,7 +723,8 @@ main <- function(nind_per_cond,
           X = r_wilcox_adjp,
           y = (seq_along(mysimu$dea$logFC_theoretical) %in% diffg))
         ## save result
-        auci[, j] <- c(auc_mssc20_vi, auc_mssc20_opt, auc_pseudo_deseq2_no_inds,
+        auci[, j] <- c(r_mssc20$auc_vi, r_mssc20$auc_opt, r_mssc20$auc_glm,
+                       auc_mssc20_opt, auc_pseudo_deseq2_no_inds,
           auc_t, auc_wilcox)
       },
       error = function(cond) {
