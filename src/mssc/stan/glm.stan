@@ -27,11 +27,14 @@ transformed data {
 
 parameters {
   vector[ngene] mu;
-  vector[ngene] nb_r;
+  vector[ngene] r;
   matrix[ngene, ncond] mucond;
   matrix[ngene, nind] muind;
 }
 
+transformed parameters {
+  vector[ngene] nb_r = exp(r);
+}
 
 model {
   matrix[ngene, ncell] lambda = logs + rep_matrix(mu, ncell) + mucond[, cond] + muind[, ind];

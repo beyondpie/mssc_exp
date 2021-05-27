@@ -399,6 +399,7 @@ Genewisenbfit <- R6::R6Class(
       return(invisible(list(
         mgsnb = init_mgsnb,
         mu = init_varofmu,
+        ## NOTE: logr is not log of r.
         logr = init_varofr,
         cond = init_varofcond,
         ind = init_varofind
@@ -907,8 +908,9 @@ High2 <- R6::R6Class(
         cond = cond, ind = ind
       )
       mu <- init_mgsnb$mgsnb[, 1]
-      ### r in negative binomial
+      ### nb_r in negative binomial
       nb_r <- init_mgsnb$mgsnb[, 2]
+      log_of_r <- log(nb_r)
       ### ngene by ncond
       mucond <- init_mgsnb$mgsnb[, 3:(2 + self$ncond)]
       ### ngene by nind
@@ -919,7 +921,7 @@ High2 <- R6::R6Class(
       return(invisible(
         list(
           mu = mu,
-          nb_r = nb_r,
+          r = log_of_r,
           mucond = mucond,
           muind = muind)
       ))
@@ -967,7 +969,7 @@ High2 <- R6::R6Class(
         }
       }
       tryCatch({
-        if (param %in% c("mu", "nb_r")) {
+        if (param %in% c("mu", "r","nb_r")) {
           check_ngene()
           t <- self$glmoptfit$draws(str_glue_vec(param, ngene))
           if (!is.null(genenms)) {
