@@ -600,7 +600,7 @@ run_mssc <- function(model, symsim_umi, mssc_meta, diffg, nondiffg, save_result 
       r = r, model = model),
     file = save_path)
   }
-  return(inivisible(r))
+  return(invisible(r))
 }
 
 set_result_array <- function(rpt = 5, ncells = c(20, 40, 80),
