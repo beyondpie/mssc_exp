@@ -540,7 +540,7 @@ run_mssc <- function(model, symsim_umi, mssc_meta, diffg, nondiffg, save_result 
   init_params_of_glm <- model$init_glm_params(
     cnt = y2c, s = s, cond = cond, ind = ind
   )
-  model$run_glm_opt(data = data, list_wrap_ip = list(init_params_of_glm))
+  model$run_glm_opt(data = model_data, list_wrap_ip = list(init_params_of_glm))
 
   ## get inference status
   mssc_vifit_state <- model$high2fit$return_codes()
@@ -589,7 +589,7 @@ run_mssc <- function(model, symsim_umi, mssc_meta, diffg, nondiffg, save_result 
     glm_mucond <- model$extract_draws_from_glm(param = "mucond", ngene = nrow(y2c),
       genenms = seq_len(nrow(y2c)))
     glm_r <- model$get_opt_ranking_statistic(mucond = glm_mucond, two_hot_vec = c(1, -1))
-    auc_glm <- model$get_auc(ranking_statistics = glm_r, c1 = diffg, c2 = nondiffg)
+    auc_glm <- model$get_auc(ranking_statistic = glm_r, c1 = diffg, c2 = nondiffg)
   }
   r <- list(auc_vi = auc_vi, auc_opt = auc_opt, auc_glm = auc_glm)
   if (save_result) {
