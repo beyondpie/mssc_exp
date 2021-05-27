@@ -500,7 +500,7 @@ load_mssc <- function(nind = 10, mssc_version = "mssc_2-0",
   invisible(module$High2$new(
     stan_snb_path = file.path(mssc_path, "stan", "snb.stan"),
     stan_high2_path = file.path(mssc_path, "stan",
-                                paste0(mssc_version, ".stan")),
+      paste0(mssc_version, ".stan")),
     stan_glm_path = file.path(mssc_path, "stan", "glm.stan"),
     nind = nind,
     tol_rel_obj = tol_rel_obj,
@@ -513,7 +513,7 @@ load_mssc <- function(nind = 10, mssc_version = "mssc_2-0",
   ))
 }
 
-run_mssc <- function(model, symsim_umi, mssc_meta, save_result = TRUE,
+run_mssc <- function(model, symsim_umi, mssc_meta, diffg, nondiffg, save_result = TRUE,
                      save_path = NULL) {
   ## mssc analysis
   ## side effect
@@ -564,7 +564,7 @@ run_mssc <- function(model, symsim_umi, mssc_meta, save_result = TRUE,
     ## three rankings in order: t, bf, m, we use the third
     vi_r <- model$get_ranking_statistics(
       mucond = vi_mucond, two_hot_vec = c(1, -1))
-    auc_vi <- mssc_20$get_auc(vi_r, c1 = diffg, c2 = nondiffg)[3]
+    auc_vi <- model$get_auc(vi_r, c1 = diffg, c2 = nondiffg)[3]
   }
   if (mssc_optfit_state != 0) {
     warning(str_glue("mssc OPT fit failed with codes: {mssc_optfit_state}"))
@@ -580,16 +580,16 @@ run_mssc <- function(model, symsim_umi, mssc_meta, save_result = TRUE,
     opt_r <- model$get_opt_ranking_statistic(
       mucond = opt_mucond, two_hot_vec = c(1, -1)
     )
-    auc_opt <- mssc_20$get_auc(opt_r, c1 = diffg, c2 = nondiffg)
+    auc_opt <- model$get_auc(opt_r, c1 = diffg, c2 = nondiffg)
   }
   if (glmfit_state != 0) {
     warning(str_glue("GLM OPT fit failed with codes: {glmfit_state}"))
     auc_glm <- -1
   } else {
     glm_mucond <- model$extract_draws_from_glm(param = "mucond", ngene = nrow(y2c),
-                                               genenms = seq_len(nrow(y2c)))
+      genenms = seq_len(nrow(y2c)))
     glm_r <- model$get_opt_ranking_statistic(mucond = glm_mucond, two_hot_vec = c(1, -1))
-    auc_glm <- mssc_20$get_auc(ranking_statistics = glm_r, c1 = diffg, c2 = nondiffg)
+    auc_glm <- model$get_auc(ranking_statistics = glm_r, c1 = diffg, c2 = nondiffg)
   }
   r <- list(auc_vi = auc_vi, auc_opt = auc_opt, auc_glm = auc_glm)
   if (save_result) {
@@ -668,7 +668,7 @@ main <- function(nind_per_cond,
 
   ## - declare the result
   aucs <- set_result_array(rpt = rpt, ncells = ncells,
-    methods = c("mssc_vi", "mssc_opt", "glm","pseudo_deseq2_no_inds",
+    methods = c("mssc_vi", "mssc_opt", "glm", "pseudo_deseq2_no_inds",
       "wilcox", "t"))
 
   ## - start experiment
@@ -691,6 +691,8 @@ main <- function(nind_per_cond,
           model = mssc_20,
           symsim_umi = mysimu$symsim$umi$counts,
           mssc_meta = mssc_meta,
+          diffg = diffg,
+          nondiffg = nondiffg,
           save_result = save_mssc_model,
           save_path = file.path(mssc_v2_dir, str_glue("mssc2_{symsim_prefix_per_rpt}.rds"))
         )
@@ -724,7 +726,7 @@ main <- function(nind_per_cond,
           y = (seq_along(mysimu$dea$logFC_theoretical) %in% diffg))
         ## save result
         auci[, j] <- c(r_mssc20$auc_vi, r_mssc20$auc_opt, r_mssc20$auc_glm,
-                       auc_mssc20_opt, auc_pseudo_deseq2_no_inds,
+          auc_mssc20_opt, auc_pseudo_deseq2_no_inds,
           auc_t, auc_wilcox)
       },
       error = function(cond) {
@@ -800,7 +802,7 @@ args <- parse_args(OptionParser(option_list = option_list))
 
 test <- function() {
   main(nind_per_cond = 5, brn_len = 0.5, bimod = 1, sigma = 0.6,
-    ncells = c(30,50), capt_alpha = 0.2,
+    ncells = c(30, 50), capt_alpha = 0.2,
     ngene = 200, rpt = 1, save_mssc_model = FALSE, logfc_threshold = 0.8)
 }
 
