@@ -47,7 +47,7 @@ init_stan_model <- function(model_path,
   ## - use_thread: when stan script uses reduce_sum or map_rect
   ##   set this to be TRUE
   ##   - when running, remember to export STAN_NUM_THREADS=4
-  ## - use_mpi: used when stan script uses map_rect 
+  ## - use_mpi: used when stan script uses map_rect
   ## - use_opencl: enable the OpenCL backend by setting
   ##   STAN_OPENCL=true when compiling
   ##   https://mc-stan.org/docs/2_26/cmdstan-guide/parallelization.html
@@ -64,7 +64,7 @@ init_stan_model <- function(model_path,
 
   ## BUG: set use_xxx = NULL when we don't want to use them.
   ##      setting them FALSE will be equal to setting them TRUE
-  
+
   if (file.exists(model_path)) {
     ## TODO: cmdstanr have output message like
     ## "Model executable is up to date"
@@ -75,8 +75,8 @@ init_stan_model <- function(model_path,
       pedantic = TRUE,
       ## FIXME: when use_thread = FALSE, compling procedures still uses thread
       cpp_options = list(stan_threads = use_thread,
-                         stan_map = use_mpi,
-                         stan_opencl = use_opencl),
+        stan_map = use_mpi,
+        stan_opencl = use_opencl),
       stanc_options = list(),
       force_recompile = FALSE
     )))
@@ -154,6 +154,8 @@ split_matrix_col <- function(mat, second_dim, second_dim_nms = NULL) {
 }
 
 ## * Genewisenbfit: initialize the parameters
+## NOTE: Genewisenbfit does not depend on snb.stan script any more.
+## We remove the fitting of scaled negative binomial.
 Genewisenbfit <- R6::R6Class(
   classname = "Genewisenbfit", public = list(
     ## stan models for fitting
@@ -237,7 +239,7 @@ Genewisenbfit <- R6::R6Class(
       ## optimization of scaled negative binomial model,
       ## which usually fails based on the simulation,
       ## and the init_snb function makes sense already.
-      
+
       ## capture.output(opt <- self$snb$optimize(
       ##   data = list(
       ##     n = length(y), s = s, y = y,
@@ -249,7 +251,7 @@ Genewisenbfit <- R6::R6Class(
       ##   init = list(init_mur),
       ##   algorithm = "lbfgs"
       ## ))
-      
+
       ## ** update mu and r
       ## if (does_fit_well(opt)) {
       ##   est_mur <- opt$mle()
@@ -434,6 +436,12 @@ High2 <- R6::R6Class(
       "varofr", "r", "varofcond", "mucond",
       "tau2", "centerofind", "varofind", "muind"
     ),
+    ## glm model
+    glmodel = NULL,
+    glmoptfit = NULL,
+    all_params_glm = c(
+      "mu", "nb_r", "mucond", "muind"
+    ),
     initialize = function( ## gwsnb parameters
                           stan_snb_path,
                           gamma_alpha = 0.05,
@@ -457,7 +465,10 @@ High2 <- R6::R6Class(
                           tol_rel_obj = 0.0001,
                           adapt_iter = 200,
                           adapt_engaged = FALSE,
-                          eta = 0.1) {
+                          eta = 0.1,
+                          ## glm related parameters
+                          stan_glm_path = ""
+    ) {
       ## initiolize class members
       self$gwsnb <- Genewisenbfit$new(
         stan_snb_path = stan_snb_path,
@@ -483,6 +494,7 @@ High2 <- R6::R6Class(
       self$eta <- eta
       self$nind <- nind
       self$ncond <- ncond
+      self$glmodel <- init_stan_model(model_path = stan_glm_path)
     },
 
     init_params = function(cnt, s, cond, ind) {
@@ -554,7 +566,7 @@ High2 <- R6::R6Class(
         )
       ))
     },
-    
+
     to_model_data = function(cnt, ind, cond, s, hp) {
       ## given the basic data, we translate it into
       ## what hbnb needs.
@@ -567,7 +579,7 @@ High2 <- R6::R6Class(
         ind = ind, y = t(cnt)
       ), hp))
     },
-    
+
     run = function(data, list_wrap_ip = NULL) {
       ## set the result of high2 to high2fit
       ## adapt_iter: 5 (default in cmdstan) * adapt_iter we set
@@ -631,7 +643,7 @@ High2 <- R6::R6Class(
       ##     must smaller than the dim of parameters
       ##     When lbfgs performs poorly but bfgs performs well, consider to increase
       ##     history_size.
-      
+
       self$high2optfit <- self$high2$optimize(
         data = data,
         init = list_wrap_ip,
@@ -681,7 +693,7 @@ High2 <- R6::R6Class(
       ## extract draws from model given the param name
       ## after getting the fit
       ## this depends on cmdstanr method, but mofidy the names we need
-      if(method == "vi") {
+      if (method == "vi") {
         high2fit <- self$high2fit
       }
       else {
@@ -754,7 +766,7 @@ High2 <- R6::R6Class(
         return(invisible(NA))
       }) ## end of try-catch
     }, ## end of extract draws
-    
+
     extract_draws_all = function(ngene = NULL,
                                  genenms = NULL,
                                  method = "vi") {
@@ -768,7 +780,7 @@ High2 <- R6::R6Class(
       names(est_params) <- self$all_params_nms
       invisible(est_params)
     }, ## end of extract_draws_all
-    
+
     get_ranking_statistics = function(mucond, two_hot_vec) {
       ## mucond: nsample by ngene by ncond
       ## two_hot_vec: like (1, -1) or (0, 0, -1, 0, 1, 0)
@@ -834,7 +846,7 @@ High2 <- R6::R6Class(
       }
       return(invisible(result))
     }, ## end of get_ranking_statistics
-    
+
     get_opt_ranking_statistic = function(mucond, two_hot_vec) {
       ## mucond: nsample by ngene by ncond
       ## two_hot_vec: like (1, -1) or (0, 0, -1, 0, 1, 0)
@@ -872,7 +884,6 @@ High2 <- R6::R6Class(
       return(invisible(result))
     }, ## end of get_opt_ranking_statistic
 
-
     get_auc = function(ranking_statistic, c1, c2) {
       ## ranking_statistic: a vector, ngene by 1
       ## c1: index of gene for condition one
@@ -888,7 +899,117 @@ High2 <- R6::R6Class(
         t[c(c1, c2), ],
         true_class
       )))
-    } ## end of get_auc method
+    }, ## end of get_auc method
+
+    init_glm_params = function(cnt, s, cond, ind) {
+      init_mgsnb <- self$gwsnb$fit_mgsnb(
+        cnt = cnt, s = s,
+        cond = cond, ind = ind
+      )
+      mu <- init_mgsnb$mgsnb[, 1]
+      ### r in negative binomial
+      nb_r <- init_mgsnb$mgsnb[, 2]
+      ### ngene by ncond
+      mucond <- init_mgsnb$mgsnb[, 3:(2 + self$ncond)]
+      ### ngene by nind
+      ## TODO: muind estimated by the genes from DESEQ2.
+      muind <- init_mgsnb$mgsnb[, (2 + self$ncond + 1):
+      (2 + self$ncond + self$nind)]
+      ngene <- nrow(cnt)
+      return(invisible(
+        list(
+          mu = mu,
+          nb_r = nb_r,
+          mucond = mucond,
+          muind = muind)
+      ))
+    }, ## end of init_glm_params
+    run_glm_opt = function(data, lisp_wrap_ip = NULL,
+                           threads = NULL, refresh  = 10,
+                           max_iter = 5000,
+                           opt_method = "lbfgs",
+                           init_alpha = 0.001,
+                           tol_obj = NULL,
+                           tol_rel_obj = NULL,
+                           tol_rel_grad = NULL,
+                           tol_param = NULL,
+                           history_size = 10) {
+      ## similar to run_opt
+      self$glmoptfit <- self$glmodel$opt(
+        data = data,
+        init = list_wrap_ip,
+        seed = self$seed,
+        refresh = refresh,
+        save_latent_dynamics = FALSE,
+        output_dir = NULL,
+        sig_figs = NULL,
+        threads = threads,
+        algorithm = opt_method,
+        init_alpha = init_alpha,
+        iter = max_iter,
+        tol_obj = tol_obj,
+        tol_rel_obj = tol_rel_obj,
+        tol_grad = tol_grad,
+        tol_rel_grad = tol_rel_grad,
+        tol_param = tol_param,
+        history_size = history_size)
+    }, ## end of run_glm_opt
+    extract_draws_from_glm = function(param, ngene = NULL, genenms = NULL) {
+      if (is.null(self$glmoptfit)) {
+        warning("GLM has not been run.")
+        return(invisible(NA))
+      }
+      check_ngene <- function() {
+        if (is.null(ngene)) {
+          warning("num of gene is not know, plz set it.")
+          return(invisible(NA))
+        }
+      }
+      tryCatch({
+        if (param %in% c("mu", "nb_r")) {
+          check_ngene()
+          t <- self$glmoptfit$draws(str_glue_vec(param, ngene))
+          if (!is.null(genenms)) {
+            names(t) <- genenms
+          }
+          return(invisible(t))
+        }
+        if (param %in% c("mucond")) {
+          ## when param is a matrix of ngene by ncond
+          check_ngene()
+          t <- self$glmoptfit$draws(
+            str_glue_mat_rowise(param, ngene, self$ncond)
+          )
+          return(invisible(split_matrix_col(
+            mat = t, second_dim = ngene,
+            second_dim_nms = genenms
+          )))
+        }
+        if (param %in% c("muind")) {
+          ## when param is a matrix of ngene by nind
+          check_ngene()
+          t <- self$glmoptfit$draws(
+            str_glue_mat_rowise(param, ngene, self$nind)
+          )
+          return(invisible(split_matrix_col(
+            mat = t, second_dim = ngene,
+            second_dim_nms = genenms
+          )))
+        }
+      }, ## end of try block
+      error = function(e) {
+        warning(e)
+        return(invisible(NA))
+      }) ## end of try-catch
+    }, ## end of extract_draws_from_glm
+    extract_draws_all_from_glm = function(ngene = NULL,
+                                          genenms = NULL) {
+      est_params <- lapply(self$all_params_glm, function(nm) {
+        self$extract_draws_from_glm(param = nm, ngene = ngene, genenms = genenms)
+      })
+      names(est_params) <- self$all_params_glm
+      return(invisible(est_params))
+    }, ## end of extract_draws_all_from_glm
   ) ## end of public field
 ) ## end of class high2
 
@@ -914,7 +1035,7 @@ test <- function() {
     cond = pbmc$cond,
     ind = pbmc$ind
   )
-  
+
   data <- model$to_model_data(
     cnt = pbmc$y2c[1:10, ],
     s = pbmc$s,
@@ -922,7 +1043,7 @@ test <- function() {
     ind = pbmc$ind,
     hp = init_params$hp
   )
-  
+
   ## variational inference
   model$run(data = data, list_wrap_ip = list(init_params$ip))
 
@@ -941,7 +1062,7 @@ test <- function() {
     two_hot_vec = c(1, -1)
   )
   str(rankings)
-  
+
   psis <- model$psis()
   print(psis$psis)
   rankings <- model$get_ranking_statistics(
@@ -949,7 +1070,7 @@ test <- function() {
     two_hot_vec = c(1, -1)
   )
   str(rankings)
-  
+
   ## optimization
   model$run_opt(data = data, list_wrap_ip = list(init_params$ip))
   est_params <- model$extract_draws_all(
