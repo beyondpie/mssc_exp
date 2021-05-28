@@ -24,5 +24,5 @@ Rscript symsim.R  \
         --sigma ${4} \
         --capt_alpha ${5} \
         --ngene ${6} \
-        > mssc_symsimv2_${1}subpop_${2}brnlen_${3}bimod_${4}sigma_${5}alpha_${6}gene.log 2>&1
+        > symsim_${1}subpop_${2}brnlen_${3}bimod_${4}sigma_${5}alpha_${6}gene.log 2>&1
         

@@ -1,14 +1,9 @@
-
-symsimv2 := sbatch_indeffv2.sh
-
+symsimv2 := sbatch_symsim.sh
 nrpt := 3
-ngene := 100
-ratio_ind2cond := 0.3
-scale_in_diffg := 1
-scale_in_nondiffg := 1
+ngene := 200
 
-brn_lens := 0.5 0.8 1.0 1.5
-bimods := 0 0.5 1
+brn_lens := 0.5 1.0 1.5
+bimods := 0 1
 sigmas := 0.4 0.6
 capt_alphas:= 0.05 0.1 0.15 0.2
 
