@@ -770,8 +770,8 @@ main(
   sigma = args$sigma,
   ncells = c(30, 50, 80, 120, 160, 240, 300),
   ngene = args$ngene,
-  capt_alpha = 0.2,
-  rpt = 5,
+  capt_alpha = args$capt_alpha,
+  rpt = 3,
   save_mssc_model = FALSE,
   logfc_threshold = 0.8)
 

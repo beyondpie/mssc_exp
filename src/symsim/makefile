@@ -3,10 +3,10 @@ symsimv2_test := sbatch_symsim_test.sh
 nrpt := 3
 ngene := 200
 
-brn_lens := 0.5 1.0 1.5
+brn_lens := 0.5 1.5
 bimods := 0 1
 sigmas := 0.4 0.6
-capt_alphas:= 0.05 0.1 0.15 0.2
+capt_alphas:= 0.1 0.2
 
 3ind_symsim_v2: ${symsimv2}
 	for brn_len in ${brn_lens}; do \
