@@ -1,4 +1,5 @@
 symsimv2 := sbatch_symsim.sh
+symsimv2_test := sbatch_symsim_test.sh
 nrpt := 3
 ngene := 200
 
@@ -6,13 +7,6 @@ brn_lens := 0.5 1.0 1.5
 bimods := 0 1
 sigmas := 0.4 0.6
 capt_alphas:= 0.05 0.1 0.15 0.2
-
-## test
-# brn_lens := 0.5
-# bimods := 0
-# sigmas := 0.4
-# capt_alphas:= 0.05
-
 
 3ind_symsim_v2: ${symsimv2}
 	for brn_len in ${brn_lens}; do \
@@ -46,6 +40,9 @@ capt_alphas:= 0.05 0.1 0.15 0.2
       done; \
     done; \
   done
+
+test: ${symsimv2_test}
+	sbatch $< 3 0.5 0 0.4 0.2 100
 
 clean:
 	-rm *.err
