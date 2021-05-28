@@ -339,7 +339,7 @@ set_mssc_meta <- function(symsim_umi, phyla) {
 
 get_symsim_simu <- function(ncell_per_ind = 300, nind_per_cond = 3, brn_len = 0.5,
                             bimod = 0, sigma = 0.6, capt_alpha = 0.2, ngene = 200,
-                            seed = 1, logfc_threshold = 0.8, ndg_threshold = 10, ntry = 10,
+                            seed = 1, logfc_threshold = 0.8, ndg_threshold = 5, ntry = 5,
                             save_data = TRUE, save_data_path = "symsim.rds",
                             save_figure = FALSE, save_fig_path = "symsim.pdf",
                             fig_width = 20, fig_height = 10,
@@ -648,7 +648,7 @@ main <- function(nind_per_cond,
   simubulk <- get_symsim_simu(ncell_per_ind = 300, nind_per_cond = nind_per_cond,
     brn_len = brn_len, bimod = bimod, sigma = sigma,
     capt_alpha = capt_alpha, ngene = ngene,
-    seed = 1, logfc_threshold = logfc_threshold, ndg_threshold = 10,
+    seed = 1, logfc_threshold = logfc_threshold, ndg_threshold = 5,
     ntry = 10, save_data = TRUE,
     save_data_path = file.path(simu_data_dir,
       paste0(symsim_prefix, ".rds")),
@@ -726,7 +726,7 @@ main <- function(nind_per_cond,
           y = (seq_along(mysimu$dea$logFC_theoretical) %in% diffg))
         ## save result
         auci[, j] <- c(r_mssc20$auc_vi, r_mssc20$auc_opt, r_mssc20$auc_glm,
-          auc_mssc20_opt, auc_pseudo_deseq2_no_inds,
+          auc_pseudo_deseq2_no_inds,
           auc_t, auc_wilcox)
       },
       error = function(cond) {
@@ -763,47 +763,23 @@ option_list <- list(
 )
 args <- parse_args(OptionParser(option_list = option_list))
 
-## main(
-##   nind_per_cond = args$nind_per_cond,
-##   brn_len = args$brn_len,
-##   bimod = args$bimod,
-##   sigma = args$sigma,
-##   ncells = c(30, 50, 80, 120, 160, 240, 300),
-##   ngene = args$ngene,
-##   capt_alpha = 0.2,
-##   rpt = 5,
-##   save_mssc_model = FALSE,
-##   logfc_threshold = 0.8)
+main(
+  nind_per_cond = args$nind_per_cond,
+  brn_len = args$brn_len,
+  bimod = args$bimod,
+  sigma = args$sigma,
+  ncells = c(30, 50, 80, 120, 160, 240, 300),
+  ngene = args$ngene,
+  capt_alpha = 0.2,
+  rpt = 5,
+  save_mssc_model = FALSE,
+  logfc_threshold = 0.8)
 
 ## * test
-## nind_per_cond <- args$nind_per_cond
-## brn_len <- args$brn_len
-## bimod <- args$bimod
-## sigma <- args$sigma
-## ncells <- c(200,300)
-## capt_alpha <- 0.2
-## ngene <- args$ngene
-## rpt <- 1
-## save_mssc_model <- TRUE
-## logfc_threshold <- 0.8
+## test <- function() {
+##   main(nind_per_cond = 5, brn_len = 0.5, bimod = 1, sigma = 0.6,
+##     ncells = c(30, 50), capt_alpha = 0.2,
+##     ngene = 200, rpt = 1, save_mssc_model = FALSE, logfc_threshold = 0.8)
+## }
 
-## main(
-##   nind_per_cond = nind_per_cond,
-##   brn_len = brn_len,
-##   bimod = bimod,
-##   sigma = sigma,
-##   ncells = ncells,
-##   capt_alpha = 0.2,
-##   ngene = ngene,
-##   rpt = 1,
-##   save_mssc_model = save_mssc_model,
-##   logfc_threshold = logfc_threshold
-## )
-
-test <- function() {
-  main(nind_per_cond = 5, brn_len = 0.5, bimod = 1, sigma = 0.6,
-    ncells = c(30, 50), capt_alpha = 0.2,
-    ngene = 200, rpt = 1, save_mssc_model = FALSE, logfc_threshold = 0.8)
-}
-
-test()
+## test()
