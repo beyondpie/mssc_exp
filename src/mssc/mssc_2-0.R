@@ -1019,10 +1019,7 @@ High2 <- R6::R6Class(
 
 ## * test
 test <- function() {
-  pbmc <- readRDS(here::here(
-    "src", "archive", "modelcheck",
-    "snb_pool_ref_pbmc.rds"
-  ))
+  pbmc <- readRDS("snb_pool_ref_pbmc.rds")
   nind <- max(pbmc$ind)
   model <- High2$new(
     stan_snb_path = here::here("src", "mssc", "stan", "snb.stan"),
