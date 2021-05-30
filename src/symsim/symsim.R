@@ -189,7 +189,7 @@ calc_auc <- function(deseq2_res, degs, ndegs,
 
 ## * help functions
 get_logtpm <- function(cnt, scale = 10000) {
-  tpm <- scale(cnt, center = F, scale = colSums(cnt)) * scale
+  tpm <- scale(cnt, center = FALSE, scale = colSums(cnt)) * scale
   return(invisible(log(tpm + 1)))
 }
 
