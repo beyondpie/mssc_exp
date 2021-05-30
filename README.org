@@ -1,8 +1,144 @@
 * Difficult: differential gene analysis across multiple scRNAseq datasets
-** Project document:
+** How to use MSSC
+*** The source codes
+Current MSSC is written in R and STAN scripts. The source codes can be found at
+*src/mssc*:
+
+- The R script named *mssc_2-0.R* is about loading the data, initializing the
+  parameters, calling the STAN scripts to do the optimization, and
+  finally analyzing the results.
+  
+- Under the subdirectory of *STAN*, three STAN scripts are included.
+  - *snb.stan* (deprecated): used to estimate parameters of scaled Negative Binomial
+    distribution.
+  - *glm.stan*: generalized linear model (not related with MSSC), but
+    used for comparision.
+  - *mssc_2-0.stan*: the core of MSSC written in STAN scripts.
+
+- Demo data named /snb_pool_ref_pbmc.rds/ is used in the /test/
+  function of the R script.
+
+*** The logic of running mssc
+- The core idea is to use the R package /cmdstanr/, which is an R
+  interface that allows us to load data in R, run the STAN scripts,
+  and fetch the results from STAN.
+
+- STAN scripts are compiled into the runnable programs directly under
+  the subdirectory of *STAN* through /cmdstan/, which is called by
+  /cmdstanr/. /cmdstan/ can be directly installed by /cmdstanr/
+  by ~library(cmdstanr); install_cmdstan()~.
+
+- NOTE:
+  - STAN is written in C++, and the script is finally compiled by C++
+    compilers, like g++ or clang.
+  - Any modification in the STAN script may lead /cmdstan/ to
+    re-compile the script, and generate the updated runnable programs.
+  - MSSC will automatically compile the STAN scripts. You don't need
+    to pay attention on this.
+    
+*** Dependencies
+- R package /cmdstanr/ by ~install.packages("cmdstanr", repos =
+  c("https://mc-stan.org/r-packages/", getOption("repos")))~, which is
+  the R interface for /cmdstan/.
+- /cmdstan/ by ~library(cmdstanr); install_cmdstan()~, which is used
+  to compile and run
+  STAN scripts.
+- R package /R6/ by ~install.packages("R6")~
+  - MSSC is written as an R6 class.
+- Other R packages:
+  - /caTools/ by ~install.packages("caTools")~, which is used to get
+    AUC values in the MSSC R script.
+  - /here/ by ~install.packages("here")~, which is used to locate the
+    root of the project without needing to insert the absolute path.
+  - /modules/ by ~install.packages("modules")~, which is used to load
+    functions from other scripts (not packages). Since MSSC is not an
+    R package now, I prefer to use this (like ~import~ in Python) to
+    load mssc into other scripts:
+#+BEGIN_SRC r
+  ## Modify the variable import.path to include the directory of mssc.
+  mssc_path <- here::here("src", "mssc")
+  options("import.path" = list(mssc_path))
+  ## load the mssc_2.0.R file as a module (the suffix ".R" is not needed).
+  module <- modules::import_("mssc_2-0")
+  ## then initialize the mssc class
+  model <- module$High2$new(
+    stan_snb_path = file.path(mssc_path, "stan", "snb.stan"),
+    stan_high2_path = file.path(mssc_path, "stan",
+      paste0(mssc_version, ".stan")),
+    stan_glm_path = file.path(mssc_path, "stan", "glm.stan"),
+    ## mssc depends on the number of individuals per condition
+    nind = 3,
+    tol_rel_obj = 1e-06,
+    algorithm = "meanfield",
+    adapt_engaged = FALSE,
+    eta = 0.1,
+    num_iter = 20000,
+    output_samples = 1000
+  )
+#+END_SRC
+  - /loo/ by ~install.packages("loo")~, which is used the psis function for
+    importance sampling (deprecated).
+  - /posterior/ by ~install.packages("posterior", repos =
+    c("https://mc-stan.org/r-packages/", getOption("repos")))~, 
+    which is used to analyze the results and draw figures after
+    we run the STAN script. But now is deprecated.
+
+*** How to run mssc
+MSSC model can be initialized by the codes introduced above. Then we
+can run mssc as followed:
+#+BEGIN_SRC r
+  ## mssc need five data:
+  ## - cnt: a gene-by-cell matrix of counts (each row a gene, each column a cell)
+  ## - ind: a vector, length of number of cells, which records
+  ##        the individual index (start from 1) for each cell.
+  ## - cond: a vector, length of number of cells, which records
+  ##        the condition  (index by 1 and 2).
+  ## - s: a vector, lenght of number of cells, which records the scaling
+  ##      factor for each cell. Usually, s can be set as colSums(cnt) / median(colSums(cnt))
+
+  ## 1. loading mssc (introduced above) by the package modules
+  ## 2. initial the parameters in mssc
+  init_params <- model$init_params(
+     cnt = cnt, s = s, cond = cond, ind = ind
+    )
+    ## 3. organize the model_data
+    model_data <- model$to_model_data(cnt = cnt, s = s, cond = cond,
+      ind = ind, hp = init_params$hp
+    )
+    ## 4. run variational inference
+    model$run(data = model_data, list_wrap_ip = list(init_params$ip))
+    ## 5. run MAP
+    model$run_opt(data = model_data, list_wrap_ip = list(init_params$ip))
+    ## 6. run GLM
+    init_params_of_glm <- model$init_glm_params(cnt = cnt, s = s, cond = cond, ind = ind)
+    model$run_glm_opt(data = model_data, list_wrap_ip = list(init_params_of_glm))
+    ## 7. get estimated conditional effects named "mucond" in the mssc_2-0 STAN script.
+    vi_mucond <- model$extract_draws(param = "mucond", ngene = nrow(cnt),
+                                     genenms = seq_len(nrow(cnt)), method = "vi")
+    opt_mucond <- model$extract_draws(param = "mucond", ngene = nrow(cnt),
+                                     genenms = seq_len(nrow(cnt)), method = "opt")
+    glm_mucond <- model$extract_draws_from_glm(param = "mucond", ngene = nrow(cnt),
+        genenms = seq_len(nrow(cnt)))
+    ## 8. get the AUCs
+    ## - we need to know the diffrentially expressed gene list (diffg, index of genes),
+    ##   and the non-differentially expressed gene list (nondiffg, index of genes)
+    ## - the gene index start from 1.
+    vi_auc <- model$get_auc(
+             ## for vi, we have three statistics, we use the last one, which is
+             ## just the delta of the means in two conditions.
+             model$get_ranking_statistics(mucond = vi_mucond, two_hot_vec = c(1, -1))[3],
+             c1 = diffg, c2 = nondiffg)
+    opt_auc <- model$get_auc(model$get_opt_ranking_statistic(mucond = opt_mucond,
+              two_hot_vec = c(1, -1)), c1 = diffg, c2 = nondiffg)
+    glm_auc <- model$get_auc(model$get_opt_ranking_statistic(mucond = glm_mucond,
+              two_hot_vec = c(1, -1)), c1 = diffg, c2 = nondiffg)
+#+END_SRC
+
+** Supplementaries
+- mssc document:
    - Overleaf
      https://www.overleaf.com/project/5ee29d0cb1cef1000176047d
-** Project presentation:
+- mssc presentation:
    - Overleaf
      https://www.overleaf.com/project/5e93204f3a9e4a0001e23770
     
