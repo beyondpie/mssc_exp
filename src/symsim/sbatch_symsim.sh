@@ -1,12 +1,12 @@
 #!/bin/bash
 
-#SBATCH -c 4
-#SBATCH --mem=10000
+#SBATCH -c 2
+#SBATCH --mem=5000
 #SBATCH -N 1
-#SBATCH -t 24:00:00
+#SBATCH -t 10:00:00
 #SBATCH -p shared
 #SBATCH --verbose
-#SBATCH -J v2symsim
+#SBATCH -J optsymsim
 #SBATCH -o %x_%j_%N.out
 #SBATCH -e %x_%j_%N.err
 #SBATCH --mail-type=ALL

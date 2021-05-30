@@ -534,8 +534,9 @@ run_mssc <- function(model, symsim_umi, mssc_meta, diffg, nondiffg, save_result 
   init_params <- model$init_params(
     cnt = y2c, s = s, cond = cond, ind = ind)
   model_data <- model$to_model_data(cnt = y2c,
-    s = s, cond = cond, ind = ind, hp = init_params$hp)
-  model$run(data = model_data, list_wrap_ip = list(init_params$ip))
+                                    s = s, cond = cond, ind = ind, hp = init_params$hp)
+  ## NOTE: NOT RUNNING VI
+  ## model$run(data = model_data, list_wrap_ip = list(init_params$ip))
   model$run_opt(data = model_data, list_wrap_ip = list(init_params$ip))
   init_params_of_glm <- model$init_glm_params(
     cnt = y2c, s = s, cond = cond, ind = ind
@@ -543,7 +544,8 @@ run_mssc <- function(model, symsim_umi, mssc_meta, diffg, nondiffg, save_result 
   model$run_glm_opt(data = model_data, list_wrap_ip = list(init_params_of_glm))
 
   ## get inference status
-  mssc_vifit_state <- model$high2fit$return_codes()
+  ## mssc_vifit_state <- model$high2fit$return_codes()
+  mssc_vifit_state <- 1
   mssc_optfit_state <- model$high2optfit$return_codes()
   glmfit_state <- model$glmoptfit$return_codes()
 
