@@ -627,10 +627,15 @@ main <- function(nind_per_cond,
   ## argument:
   ## - ncells: vector of ncell_per_ind
   ## set local path to save results
+
+  ## result_dir <- here::here(
+  ##   "src", "symsim",
+  ##   ## use year-month-day to deside the dir
+  ##   paste0("symsim_", format(Sys.time(), format = "%Y%m%d")))
   result_dir <- here::here(
-    "src", "symsim",
-    ## use year-month-day to deside the dir
-    paste0("symsim_", format(Sys.time(), format = "%Y%m%d")))
+    "src", "symsim", "OPT_symsim"
+  )
+  
   simu_data_dir <- file.path(result_dir, "simu_data")
   dea_dir <- file.path(result_dir, "dea")
   mssc_v2_dir <- file.path(result_dir, "mssc_v2")

@@ -83,19 +83,20 @@ scatter_plot <- function(r, nind = 3, expnm = NULL,
 
 
 ## Result
+methods <- c("mssc_VI", "mssc_MAP", "GLM", "Deseq2", "Wilcox", "t")
+ngene <- 200
+ncell <- 300
+brn_len <- 0.5
+bimod <- 1
+
+## when nind_per_cond is 3
+nind_per_cond <- 3
 ## - 200gene_6ind_0.5w_1bimod_0.4sigma_0.2alpha
 ## - 200gene_6ind_0.5w_1bimod_0.4sigma_0.1alpha
 ## - 200gene_6ind_0.5w_1bimod_0.6sigma_0.2alpha
 
-methods <- c("mssc_VI", "mssc_MAP", "GLM", "Deseq2", "Wilcox", "t")
-ngene <- 200
-ncell <- 300
-nind_per_cond <- 3
-brn_len <- 0.5
-bimod <- 1
-sigma <- 0.4
-
 ### when alpha is 0.2
+sigma <- 0.4
 alpha <- 0.2
 r <- load_symsim_result(nind_per_cond = nind_per_cond, brn_len = brn_len,
                         bimod = bimod, sigma = sigma, alpha = alpha)
@@ -121,7 +122,7 @@ expnm <- str_glue(
   "{sigma}sigma", "{alpha}alpha", .sep = "_")
 p <- scatter_plot(r = r_mean, nind = 3, expnm = expnm, save_fig = TRUE)
 
-## when sigma is 0.6
+### when sigma is 0.6, alpha = 0.2
 alpha <- 0.2
 sigma <- 0.6
 r <- load_symsim_result(nind_per_cond = nind_per_cond, brn_len = brn_len,
@@ -134,4 +135,86 @@ expnm <- str_glue(
   "{ncell}cell", "{brn_len}w", "{bimod}bimod",
   "{sigma}sigma", "{alpha}alpha", .sep = "_")
 p <- scatter_plot(r = r_mean, nind = 3, expnm = expnm, save_fig = TRUE)
+### when sigma is 0.6, alpha = 0.1
+nind_per_cond <- 3
+alpha <- 0.1
+sigma <- 0.6
+r <- load_symsim_result(nind_per_cond = nind_per_cond, brn_len = brn_len,
+                        bimod = bimod, sigma = sigma, alpha = alpha)
+r_mean <- f_across_rpt(r, f = mean)
+rownames(r_mean) <- methods
+nind_all <- nind_per_cond * 2
+expnm <- str_glue(
+  "{ngene}gene", "{nind_all}ind",
+  "{ncell}cell", "{brn_len}w", "{bimod}bimod",
+  "{sigma}sigma", "{alpha}alpha", .sep = "_")
+p <- scatter_plot(r = r_mean, nind = nind_per_cond, expnm = expnm, save_fig = TRUE)
+
+
+## when nind_per_cond is 5
+nind_per_cond <- 5
+### sigma = 0.4; alpha = 0.1
+alpha <- 0.1
+sigma <- 0.4
+r <- load_symsim_result(nind_per_cond = nind_per_cond, brn_len = brn_len,
+                        bimod = bimod, sigma = sigma, alpha = alpha)
+r_mean <- f_across_rpt(r, f = mean)
+rownames(r_mean) <- methods
+nind_all <- nind_per_cond * 2
+expnm <- str_glue(
+  "{ngene}gene", "{nind_all}ind",
+  "{ncell}cell", "{brn_len}w", "{bimod}bimod",
+  "{sigma}sigma", "{alpha}alpha", .sep = "_")
+p <- scatter_plot(r = r_mean, nind = nind_per_cond, expnm = expnm, save_fig = TRUE)
+
+### sigma = 0.4; alpha = 0.2
+alpha <- 0.2
+sigma <- 0.4
+r <- load_symsim_result(nind_per_cond = nind_per_cond, brn_len = brn_len,
+                        bimod = bimod, sigma = sigma, alpha = alpha)
+r_mean <- f_across_rpt(r, f = mean)
+rownames(r_mean) <- methods
+nind_all <- nind_per_cond * 2
+expnm <- str_glue(
+  "{ngene}gene", "{nind_all}ind",
+  "{ncell}cell", "{brn_len}w", "{bimod}bimod",
+  "{sigma}sigma", "{alpha}alpha", .sep = "_")
+p <- scatter_plot(r = r_mean, nind = nind_per_cond, expnm = expnm, save_fig = TRUE)
+
+### sigma = 0.6; alpha = 0.1
+nind_per_cond <- 5
+sigma <- 0.6
+alpha <- 0.1
+
+r <- load_symsim_result(nind_per_cond = nind_per_cond, brn_len = brn_len,
+                        bimod = bimod, sigma = sigma, alpha = alpha)
+r_mean <- f_across_rpt(r, f = mean)
+rownames(r_mean) <- methods
+nind_all <- nind_per_cond * 2
+expnm <- str_glue(
+  "{ngene}gene", "{nind_all}ind",
+  "{ncell}cell", "{brn_len}w", "{bimod}bimod",
+  "{sigma}sigma", "{alpha}alpha", .sep = "_")
+p <- scatter_plot(r = r_mean, nind = nind_per_cond, expnm = expnm, save_fig = TRUE)
+
+### sigma = 0.6; alpha = 0.2
+nind_per_cond <- 5
+sigma <- 0.6
+alpha <- 0.2
+
+r <- load_symsim_result(nind_per_cond = nind_per_cond, brn_len = brn_len,
+                        bimod = bimod, sigma = sigma, alpha = alpha)
+r_mean <- f_across_rpt(r, f = mean)
+rownames(r_mean) <- methods
+nind_all <- nind_per_cond * 2
+expnm <- str_glue(
+  "{ngene}gene", "{nind_all}ind",
+  "{ncell}cell", "{brn_len}w", "{bimod}bimod",
+  "{sigma}sigma", "{alpha}alpha", .sep = "_")
+p <- scatter_plot(r = r_mean, nind = nind_per_cond, expnm = expnm, save_fig = TRUE)
+
+
+
+
+
 
