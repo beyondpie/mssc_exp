@@ -101,37 +101,37 @@ can run mssc as followed:
   init_params <- model$init_params(
      cnt = cnt, s = s, cond = cond, ind = ind
     )
-    ## 3. organize the model_data
-    model_data <- model$to_model_data(cnt = cnt, s = s, cond = cond,
-      ind = ind, hp = init_params$hp
-    )
-    ## 4. run variational inference
-    model$run(data = model_data, list_wrap_ip = list(init_params$ip))
-    ## 5. run MAP
-    model$run_opt(data = model_data, list_wrap_ip = list(init_params$ip))
-    ## 6. run GLM
-    init_params_of_glm <- model$init_glm_params(cnt = cnt, s = s, cond = cond, ind = ind)
-    model$run_glm_opt(data = model_data, list_wrap_ip = list(init_params_of_glm))
-    ## 7. get estimated conditional effects named "mucond" in the mssc_2-0 STAN script.
-    vi_mucond <- model$extract_draws(param = "mucond", ngene = nrow(cnt),
-                                     genenms = seq_len(nrow(cnt)), method = "vi")
-    opt_mucond <- model$extract_draws(param = "mucond", ngene = nrow(cnt),
-                                     genenms = seq_len(nrow(cnt)), method = "opt")
-    glm_mucond <- model$extract_draws_from_glm(param = "mucond", ngene = nrow(cnt),
-        genenms = seq_len(nrow(cnt)))
-    ## 8. get the AUCs
-    ## - we need to know the diffrentially expressed gene list (diffg, index of genes),
-    ##   and the non-differentially expressed gene list (nondiffg, index of genes)
-    ## - the gene index start from 1.
-    vi_auc <- model$get_auc(
-             ## for vi, we have three statistics, we use the last one, which is
-             ## just the delta of the means in two conditions.
-             model$get_ranking_statistics(mucond = vi_mucond, two_hot_vec = c(1, -1))[3],
-             c1 = diffg, c2 = nondiffg)
-    opt_auc <- model$get_auc(model$get_opt_ranking_statistic(mucond = opt_mucond,
-              two_hot_vec = c(1, -1)), c1 = diffg, c2 = nondiffg)
-    glm_auc <- model$get_auc(model$get_opt_ranking_statistic(mucond = glm_mucond,
-              two_hot_vec = c(1, -1)), c1 = diffg, c2 = nondiffg)
+  ## 3. organize the model_data
+  model_data <- model$to_model_data(cnt = cnt, s = s, cond = cond,
+    ind = ind, hp = init_params$hp
+  )
+  ## 4. run variational inference
+  model$run(data = model_data, list_wrap_ip = list(init_params$ip))
+  ## 5. run MAP
+  model$run_opt(data = model_data, list_wrap_ip = list(init_params$ip))
+  ## 6. run GLM
+  init_params_of_glm <- model$init_glm_params(cnt = cnt, s = s, cond = cond, ind = ind)
+  model$run_glm_opt(data = model_data, list_wrap_ip = list(init_params_of_glm))
+  ## 7. get estimated conditional effects named "mucond" in the mssc_2-0 STAN script.
+  vi_mucond <- model$extract_draws(param = "mucond", ngene = nrow(cnt),
+                                    genenms = seq_len(nrow(cnt)), method = "vi")
+  opt_mucond <- model$extract_draws(param = "mucond", ngene = nrow(cnt),
+                                    genenms = seq_len(nrow(cnt)), method = "opt")
+  glm_mucond <- model$extract_draws_from_glm(param = "mucond", ngene = nrow(cnt),
+      genenms = seq_len(nrow(cnt)))
+  ## 8. get the AUCs
+  ## - we need to know the diffrentially expressed gene list (diffg, index of genes),
+  ##   and the non-differentially expressed gene list (nondiffg, index of genes)
+  ## - the gene index start from 1.
+  vi_auc <- model$get_auc(
+            ## for vi, we have three statistics, we use the last one, which is
+            ## just the delta of the means in two conditions.
+            model$get_ranking_statistics(mucond = vi_mucond, two_hot_vec = c(1, -1))[3],
+            c1 = diffg, c2 = nondiffg)
+  opt_auc <- model$get_auc(model$get_opt_ranking_statistic(mucond = opt_mucond,
+            two_hot_vec = c(1, -1)), c1 = diffg, c2 = nondiffg)
+  glm_auc <- model$get_auc(model$get_opt_ranking_statistic(mucond = glm_mucond,
+            two_hot_vec = c(1, -1)), c1 = diffg, c2 = nondiffg)
 #+END_SRC
 
 ** Supplementaries
