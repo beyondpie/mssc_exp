@@ -50,10 +50,15 @@ Current MSSC is written in R and STAN scripts. The source codes can be found at
     AUC values in the MSSC R script.
   - /here/ by ~install.packages("here")~, which is used to locate the
     root of the project without needing to insert the absolute path.
-  - /modules/ by ~install.packages("modules")~, which is used to load
+  - /loo/ by ~install.packages("loo")~
+  - /modules/ by ~devtools::install_github('klmr/modules')~, which is used to load
     functions from other scripts (not packages). Since MSSC is not an
     R package now, I prefer to use this (like ~import~ in Python) to
-    load mssc into other scripts:
+    load mssc into other scripts. NOTE: there is another package named
+    "modules", which can be installed by
+    ~install.packages("modules")~, so please don't do this or you have
+    to remove the package ~remove.packages("modules")~, then reinstall
+    the package ~klmr/modules~, and then restart R.
 #+BEGIN_SRC r
   ## Modify the variable import.path to include the directory of mssc.
   mssc_path <- here::here("src", "mssc")
