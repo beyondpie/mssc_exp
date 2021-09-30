@@ -65,6 +65,7 @@ Current MSSC is written in R and STAN scripts. The source codes can be found at
   options("import.path" = list(mssc_path))
   ## load the mssc_2.0.R file as a module (the suffix ".R" is not needed).
   module <- modules::import_("mssc_2-0")
+  mssc_version="mssc_2-0"
   ## then initialize the mssc class
   model <- module$High2$new(
     stan_snb_path = file.path(mssc_path, "stan", "snb.stan"),
