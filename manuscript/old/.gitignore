@@ -1,0 +1,6 @@
+*.el
+*.log
+*.gz
+*.aux
+/.DS_Store
+main.pdf
