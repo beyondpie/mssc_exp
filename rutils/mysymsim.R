@@ -14,7 +14,7 @@ plotphylo <- function(mytree) {
 
 sim_symsim_true <- function(myseed = 0,
                             ncell = 2000, ngene = 300,
-                            hasgenemodule = F, minmodn = 50,
+                            hasgenemodule = F,
                             npop = 2,
                             nevf = 10, n_de_evf = 6,
                             sigma = 0.2, vary = "all") {
@@ -29,16 +29,17 @@ sim_symsim_true <- function(myseed = 0,
     myphyla <- SymSim::Phyla5()
   }
   gmodprop <- ifelse(hasgenemodule, minmodn * npop / ngene, 0.0)
-  SymSim::SimulateTrueCounts(randseed = myseed,
+  SymSim::SimulateTrueCounts(
+    randseed = myseed,
     ncells_total = ncell, ngenes = ngene,
     phyla = myphyla,
     min_popsize = min_popsize,
     i_minpop = 1, evf_type = "discrete",
     nevf = nevf, n_de_evf = n_de_evf,
     gene_module_prop = gmodprop,
-    min_module_size = minmodn,
     Sigma = sigma, vary = vary,
-    prop_hge = 0.0)
+    prop_hge = 0.0
+  )
 }
 
 
@@ -73,9 +74,10 @@ sim_symsim_obs <- function(protocol, symsimtrue) {
 }
 
 
-## consider case and control in setting for cells
-## case and control as two different cell populations.
-assign_batches_2pop <- function(symsimobs, nbatch) {
+assign_batches_2pop <- function(symsimobs, nbatch = 10) {
+  ## consider case and control in setting for cells
+  ## case and control as two different cell populations.
+
   left_max_batch <- floor(nbatch / 2)
   ncell <- ncol(symsimobs$counts)
   cellpops <- symsimobs$cell_meta$pop
@@ -99,10 +101,7 @@ assign_batches_2pop <- function(symsimobs, nbatch) {
 ## to different group of cells.
 add_batch_effect <- function(symsimobs, nbatch,
                              ongenes = seq_len(nrow(symsimobs$counts)),
-                             onbatches = c(1, 2, 5),
-                             batchids = assign_batch_for_cells(
-                               symsimobs, nbatch
-                             ),
+                             batchids,
                              batch_effect_size = rep(1.0, nbatch),
                              batch_factor_sd = 0.01,
                              gene_mean_sd = 0.2,
@@ -110,8 +109,8 @@ add_batch_effect <- function(symsimobs, nbatch,
   ## add batch effects to observed counts
   # use different mean and same sd to generate the
   # multiplicative factor for different gene in different batch
-  observed_counts <- symsimobs[["counts"]]
-  ncells <- ncol(symsimobs$counts)
+  cnt <- symsimobs[["counts"]]
+  total_cells <- ncol(symsimobs$counts)
   ngenes <- nrow(symsimobs$counts)
 
   ## set gene-batch effect matrix
@@ -131,18 +130,21 @@ add_batch_effect <- function(symsimobs, nbatch,
   }
 
   ## add batch effects the entire observed count matrix
-  batch_factor <- matrix(0, ngenes, ncells)
+  batch_factor <- matrix(0, ngenes, total_cells)
   for (i in seq_len(ngenes)) {
-    for (j in seq_len(ncells)) {
-      batch_factor[i, j] <- rnorm(
-        n = 1,
-        mean = mean_matrix[i, batchids[j]],
-        sd = batch_factor_sd
-      )
+    for (j in seq_len(total_cells)) {
+      ##   batch_factor[i, j] <- rnorm(
+      ##     n = 1,
+      ##     mean = mean_matrix[i, batchids[j]],
+      ##     sd = batch_factor_sd
+      ##   )
+      batch_factor[i, j] <- mean_matrix[i, batchids[j]]
     }
   }
 
-  observed_counts <- round(2^(log2(observed_counts) + batch_factor))
+  ## when cnt[i,j] = 0, log2(0) = -Inf, then observed will still be 0.
+  ## this might be not good.
+  observed_counts <- round(2^(log2(cnt) + batch_factor))
 
   ## double check observed_counts counts data as integer
   intc <- apply(observed_counts, c(1, 2), function(x) {
@@ -165,6 +167,7 @@ add_batch_effect <- function(symsimobs, nbatch,
 }
 
 ## set getDEgenes on any two groups of cells
+## deprecated: we can directly use SymSim::getDEgenes
 symsim_de_analysis <- function(true_counts_res, popA_idx, popB_idx) {
   meta_cell <- true_counts_res$cell_meta
   meta_gene <- true_counts_res$gene_effects
@@ -217,23 +220,40 @@ symsim_de_analysis <- function(true_counts_res, popA_idx, popB_idx) {
     }
   )
   wil.adjp_true_counts <- p.adjust(wil.p_true_counts, method = "fdr")
-  return(list(
+  return(invisible(list(
     nDiffEVF = n_useDEevf,
     logFC_theoretical = logFC_theoretical,
     wil.p_true_counts = wil.adjp_true_counts
-  ))
+  )))
 }
 
 get_symsim_degenes <- function(symsim_dea,
+<<<<<<< HEAD
                                nDiffEVF = 1, logFC = 0.6) {
+=======
+                               nDiffEVF = 1,
+                               logFC = 0.6) {
+>>>>>>> dev
   invisible((symsim_dea$nDiffEVF >= nDiffEVF) &
-    (symsim_dea$logFC_theoretical >= logFC))
+    (abs(symsim_dea$logFC_theoretical) >= logFC))
 }
 
 get_symsim_strict_ndegenes <- function(symsim_dea,
+<<<<<<< HEAD
                                        nDiffEVF = 0, logFC = 0.1) {
   invisible((symsim_dea$nDiffEVF <= nDiffEVF) &
     (symsim_dea$logFC_theoretical <= logFC))
+=======
+                                       nDiffEVF = 0,
+                                       logFC = 0.1) {
+  ## use absolute value of log fold change.
+  invisible((symsim_dea$nDiffEVF <= nDiffEVF) &
+    (abt(symsim_dea$logFC_theoretical) <= logFC))
+}
+
+get_symsim_ndiffevf_genes <- function(symsim_dea, nDiffEVF = 0) {
+  invisible((symsim_dea$nDiffEVF <= nDiffEVF))
+>>>>>>> dev
 }
 
 get_symsim_ndiffevf_genes <- function(symsim_dea, nDiffEVF = 0) {
@@ -261,9 +281,17 @@ plotviolin <- function(symsimdata, genes) {
     tmp <- plotdata[c(gnm[i], "pop")]
     ggplot(tmp, aes_string(x = "pop", y = gnm[i], fill = "pop")) +
       geom_violin() +
+<<<<<<< HEAD
       stat_summary(fun.data = "mean_sdl",
                    mult = 1, geom = "pointrange", color = "red",
                    size = 0.2) +
+=======
+      stat_summary(
+        fun.data = "mean_sdl",
+        mult = 1, geom = "pointrange", color = "red",
+        size = 0.2
+      ) +
+>>>>>>> dev
       myggtitle +
       theme(
         legend.position = "none",

@@ -1,0 +1,56 @@
+\begin{frame}{Hierarchical Bayesian Model}
+  $\kappa^{2}_{g}$ and $\tau^{2}_{g}$ are
+  estimated by the hierarchical structures shared among genes.
+  \vspace{1em}
+  \begin{columns}
+    \begin{column}{0.5\textwidth}
+      \begin{align*}
+        X_{ijk}^{g} &\sim {\it Poisson} (S_{ijk}\cdot \lambda_{jk}^{g})\\
+        \ln \lambda_{jk}^{g} &= \mu^{g} + \mywarn{\mu_{k}^{g}} + \myemph{\mu_{j}^{g}} \\
+        \mu^{g} &\sim \mathcal{N}(0, \sigma^{2}_{0}) \\
+        \mywarn{\mu_{k}^{g}} &\sim \mathcal{N}(0, \kappa^{2}_{g}) \\
+        \myemph{\mu_{j}^{g}} &\sim \mathcal{N}(0, \tau^{2}_{g}) \\
+        \kappa^{2}_{g} &\sim invgamma(\alpha_{\kappa}, \beta_{\kappa}) \\
+        \tau^{2}_{g} &\sim invgamma(\alpha_{\tau}, \beta_{\tau}) \\
+        % \mu_{ind}^{g} &\sim \mathcal{N}(\mu_{ind_{0}}, \sigma_{ind_{0}}^{2}) \\
+        % \sigma_{g,ind}^{2} &\sim invgamma(alpha_{1}, beta_{1}) \\
+        % \mu &\sim \mathcal{N}(\mu_{0}, \sigma_{0}^{2}) \\
+        % \sigma^{2} &\sim invgamma(alpha_{0}, beta{0})
+      \end{align*}
+    \end{column}
+    \begin{column}{0.6\textwidth}
+      \scalebox{0.85}{
+        \begin{tikzpicture}
+          \node[obs] (xgijk) {$X_{ijk}^{g}$};
+          \node[latent, right=of xgijk] (mgj) {\myemph{$\mu_{j}^{g}$}};
+          \node[latent, above=of mgj] (sgj) {$\tau_{g}^{2}$};
+          \node[latent, right=of sgj] (aj) {$\alpha_{\tau}$};
+          \node[latent, above=of sgj] (bj) {$\beta_{\tau}$};
+          \node[latent, above=of xgijk] (mk) {\mywarn{$\mu_{k}^{g}$}};
+          \node[latent, left=of mk] (si) {$\kappa^{2}_{g}$};
+          \node[latent, left=of si] (ak) {$\alpha_{\kappa}$};
+          \node[latent, above=of si]  (bk) {$\beta_{\kappa}$};
+          \node[latent, left=of xgijk] (mg) {$\mu^{g}$};
+
+          \path[draw=black,->] (mgj) edge (xgijk);
+          \path[draw=black,->] (sgj) edge (mgj);
+          \path[draw=black,->] (aj) edge (sgj);
+          \path[draw=black,->] (bj) edge (sgj);
+          \path[draw=black,->] (mk) edge (xgijk);
+          
+          \path[draw=black,->] (si) edge (mk);
+          \path[draw=black,->] (ak) edge (si);
+          \path[draw=black,->] (bk) edge (si);
+          \path[draw=black,->] (mg) edge (xgijk);
+          
+          \plate {plate0} {(xgijk)} {$\forall i \in \mathcal{N}$};
+          \plate [inner sep=0.15cm, xshift=0.1cm] {plate1} {(plate0) (mgj)} {$\forall j\in \mathcal{C}$};
+          \plate [inner sep=0.1cm, yshift=0.0cm]{plate2} {(plate0) (mk)} {$\forall k\in \mathcal{K}$};
+          \plate [inner sep=0.15cm, yshift=0.1cm] {plate3} {(plate1) (plate2) (mg) } {$\forall g\in\mathcal{G}$};
+        \end{tikzpicture}
+      }
+    \end{column}
+  \end{columns}
+  $\alpha_{\kappa}$, $\beta_{\kappa}$, $\alpha_{\tau}$ and $\beta_{\tau}$ have the
+  priors of Gamma distribution.
+\end{frame}

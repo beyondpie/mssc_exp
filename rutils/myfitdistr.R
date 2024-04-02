@@ -2,8 +2,24 @@ is_outlier <- function(x, up_prob = 0.995) {
   invisible(x > 5 * quantile(x, up_prob))
 }
 
+is_vi_or_opt_success <- function(vi_or_opt) {
+  ## https://github.com/stan-dev/cmdstanr/issues/332
+  if (vi_or_opt$runset$procs$get_proc(1)$get_exit_status() == 0) {
+    return(TRUE)
+  }
+  return(FALSE)
+}
+
+str_glue_vec <- function(nm = "MuInd", a = seq_len(10),
+                         lround = "[", rround = "]") {
+  invisible(vapply(a, function(i) {
+    stringr::str_glue("{nm}{lround}{lround}{i}{rround}")},
+    FUN.VALUE = ""
+    ))
+}
+
 grpoutliers <- function(cntgbc) {
-  outliers <- apply(cntgbc, 1, is_outlier)
+  outliers <- sapply(cntgbc, 1, is_outlier)
   invisible(rowSums(outliers) > 0)
 }
 
@@ -73,28 +89,33 @@ prob_zero_nb <- function(x, rmoutliers = T) {
     x <- x[!outliers]
   }
 
-  nbfit <- tryCatch({
-    MASS::fitdistr(x, densfun = "negative binomial",
-      lower = c(0.00001, 0.00001))
-  }, error = function(cond) {
-    message(cond)
-    return(NULL)
-  }
+  nbfit <- tryCatch(
+    {
+      MASS::fitdistr(x,
+        densfun = "negative binomial",
+        lower = c(0.00001, 0.00001)
+      )
+    },
+    error = function(cond) {
+      message(cond)
+      return(NULL)
+    }
   )
 
   if (is.null(nbfit)) {
     return(invisible(list(p0 = NA)))
   }
-  ## r or its reciprocal 1/r is also called dispersion
-  ## -- 1/r as dispersion  in the paper
-  ##    "Droplet scRNA-Seq is not zero-inflated." Nature Biotech, 2020
-  ## -- r as dispersion in stan
-  ## Here we choose r as dispersion following stan.
-  r <- nbfit$estimate["size"]
-  mu <- nbfit$estimate["mu"]
-  p <- r / (r + mu)
-  v <- mu + mu^2 / r
-  p0 <- (r / (r + mu))^r
+  ## r (size) or 1/r is also called dispersion (ref: wiki)
+  ## but wiki and R use different term to describe NB.
+  ## In wiki, p is the success prob; in R, p is the failure prob.
+
+  ## Here under nbfit, r is the same meaning in R and STAN
+
+  r <- unname(nbfit$estimate["size"])
+  mu <- unname(nbfit$estimate["mu"])
+  p <- unname(r / (r + mu))
+  v <- unname(mu + mu^2 / r)
+  p0 <- unname((r / (r + mu))^r)
 
   invisible(list(
     size = r, r = r, dispersion_stan = r,
@@ -103,8 +124,259 @@ prob_zero_nb <- function(x, rmoutliers = T) {
   ))
 }
 
-## modification sads::dpoilog
+init_snb_logmu <- function(y, median_of_s) {
+  ## init scale negative binomial log mu.
+  ## y should not be all zeros.
+  return(log(mean(y)) - log(median_of_s))
+}
+init_snb <- function(s, y, r_default = 10) {
+  ## directly use sample mean and variance to
+  ## estiamte the parameters for scaled negative binomial
+  ## ref: MASS::fitdistr for nb
+  m <- mean(y)
+  v <- var(y)
+  r <- if(v>m) {
+         m^2 / (v-m)
+       } else {
+         r_default
+       }
+  invisible(list(mu = init_snb_logmu(y, median(s)),
+                 r = r))
+}
+
+
+stanfit_scalenb <- function(s, y, scale_nb_model,
+                            seed = 355113, numiter = 5000,
+                            refresh = 5000, r_default = 10) {
+  ## mu in scaled log level, and minus log(s)
+  ## use stan to fit
+  result <- list(mu = NaN, r = NaN, success = FALSE)
+  # fit scaled negative binomial using stan
+  init_mur <- init_snb(s, y, r_default)
+
+  opt <- scale_nb_model$optimize(
+    data = list(n = length(s), s = s, y = y),
+    seed = seed,
+    refresh = refresh,
+    iter = numiter,
+    init = list(init_mur),
+    algorithm = "lbfgs"
+    )
+
+  if (is_vi_or_opt_success(opt)) {
+    t <- opt$mle()
+    result$mu <- t["mu"]
+    result$r <- t["r"]
+    result$success <- TRUE
+  } else {
+    ## message("STAN cannot fit scaled nb.")
+    result$mu <- init_mur$mu
+    result$r <- init_mur$r
+    result$success <- FALSE
+  }
+  invisible(result)
+}
+
+stanfit_scalenb_fixed_r <- function(s, r, y, model,
+                                    seed = 355113, numiter = 5000,
+                                    refresh = 5000) {
+  ## mu in scaled log level, and minus log(s)
+  ## use stan to fit
+
+  result <- list(mu = NaN, success = FALSE)
+  # fit scaled negative binomial using stan
+  n <- length(s)
+  ## ref: MASS::fitdistr for nb
+  ## y should be not all zeros.
+  init_mu <- init_snb_logmu(y, median(s))
+  opt <- model$optimize(
+    data = list(n = n, s = s, y = y, r = r),
+    seed = seed,
+    refresh = refresh,
+    iter = numiter,
+    init = list(list(
+      mu = init_mu
+    )),
+    algorithm = "lbfgs"
+  )
+  if (is_vi_or_opt_success(opt)) {
+    t <- opt$mle()
+    result$mu <- t["mu"]
+    result$success <- TRUE
+  } else {
+    result$mu <- init_mu
+  }
+  invisible(result)
+}
+
+stanfit_gwsnb_till_cond_level <- function(s, y,
+                                          s_control,
+                                          y_control, s_case, y_case,
+                                          scale_nb_model,
+                                          scale_nb_fixed_r_model) {
+  ## fit negative binomial, and get the mean and dispersion.
+  ## negative binommial scaled (s) and mean in log level (nb v2 as in STAN).
+  ## only global and conditional level, no individuals.
+  ## no outlier detection.
+
+  ## a simple version for scaled negative binomial estimation.
+  ## i.e, fit the nb, then divided by the scale of s.
+
+  result <- list(
+    mu0 = NaN, r0 = NaN,
+    mu_cond = c(NaN, NaN)
+  )
+
+  mur_all <- stanfit_scalenb(s, y, scale_nb_model)
+  if (is.nan(mur_all$mu)) {
+    message("Cannot fit negative binomial for the overall mean.")
+    return(invisible(result))
+  }
+
+  result$mu0 <- mur_all$mu
+  result$r0 <- mur_all$r
+
+  mur_control <- stanfit_scalenb_fixed_r(
+    s_control, mur_all$r, y_control,
+    scale_nb_fixed_r_model
+  )
+  ## TODO: stanfit logic is changed.
+  if (!is.nan(mur_control$mu)) {
+    result$mu_cond[1] <- mur_control$mu - mur_all$mu
+  }
+
+  mur_case <- stanfit_scalenb_fixed_r(
+    s_case, mur_all$r, y_case,
+    scale_nb_fixed_r_model
+  )
+  ## TODO: stanfit logic is changed.
+  if (!is.nan(mur_case$mu)) {
+    result$mu_cond[2] <- mur_case$mu - mur_all$mu
+  }
+  return(invisible(result))
+}
+
+
+stanfit_snb_for_muind <- function(s, y, vec_of_ind, mu, r,
+                                  model, nm = "MuInd",
+                                  seed = 1L, numiter = 5000,
+                                  refresh = 5000) {
+  ## fit muind under scale negative binomial scene
+  ## vec_of_ind:  [1,1, 2, 2, 3,4] like.
+
+  k <- max(vec_of_ind)
+  n <- length(s)
+  param_nms <- str_glue_vec(nm = nm, a = seq_len(k))
+  mu_ind <- rep(NaN, k)
+  names(mu_ind) <- param_nms
+  opt <- model$optimize(
+    data = list(n = n, s = s, y = y, k = k,
+      ind = vec_of_ind, mu = mu,
+      r = r),
+    init = list(list(mu = rep(0.0, k))),
+    algorithm = "lbfgs"
+  )
+  if (is_vi_or_opt_success(opt)) {
+    t <- opt$mle()
+    mu_ind <- t[param_nms]
+  }
+
+  invisible(mu_ind)
+}
+
+nbfit_mur <- function(x) {
+  ## r or its reciprocal 1/r is also called dispersion
+  ## -- 1/r as dispersion  in the paper
+  ##    "Droplet scRNA-Seq is not zero-inflated." Nature Biotech, 2020
+  ## -- r as dispersion in stan
+  ## Here we choose r as dispersion following stan.
+  fit <- tryCatch(
+    {
+      MASS::fitdistr(x,
+        densfun = "negative binomial",
+        lower = c(0.00001, 0.00001)
+      )
+    },
+    error = function(cond) {
+      message(cond)
+      return(NULL)
+    }
+  )
+  if (is.null(fit)) {
+    return(invisible(list(mu = NaN, r = NaN)))
+  }
+  return(invisible(list(
+    mu = fit$estimate["mu"],
+    r = fit$estimate["size"]
+  )))
+}
+
+fit_gwnb_s2_till_cond_level <- function(y, y_control, y_case,
+                                        scale_of_s) {
+  ## fit negative binomial, and get the mean and dispersion.
+  ## negative binommial scaled (s) and mean in log level (nb v2 as in STAN).
+  ## only global and conditional level, no individuals.
+  ## no outlier detection.
+
+  ## a simple version for scaled negative binomial estimation.
+  ## i.e, fit the nb, then divided by the scale of s.
+
+  result <- list(
+    mu0 = NaN, r0 = NaN,
+    mu_cond = c(NaN, NaN),
+    r_cond = c(NaN, NaN)
+  )
+
+  mur_all <- nbfit_mur(y)
+  if (is.nan(mur_all$mu)) {
+    message("Cannot fit negative binomial for the overall mean.")
+    return(invisible(result))
+  }
+
+  result$mu0 <- log(mur_all$mu / scale_of_s)
+  result$r0 <- mur_all$r
+
+  mur_control <- nbfit_mur(y_control)
+  if (!is.nan(mur_control$mu)) {
+    ## both of mus divided by scale_of_s inner log, then that part
+    ## is cancelled.
+    result$mu_cond[1] <- log(mur_control$mu) - log(mur_all$mu)
+    result$r_cond[1] <- mur_control$r
+  }
+
+  mur_case <- nbfit_mur(y_case)
+  if (!is.nan(mur_case$mu)) {
+    ## both of mus divided by scale_of_s inner log, then that part
+    ## is cancelled.
+    result$mu_cond[2] <- log(mur_case$mu) - log(mur_all$mu)
+    result$r_cond[2] <- mur_case$r
+  }
+  return(invisible(result))
+}
+
+fit_gwnb_s2_ind_mu <- function(y, vec_of_ind_under_cond,
+                               mu0, mu_cond, scale_of_s) {
+  ## given fitted mu0 and the mu_cond(either case or control)
+  ## we estimate the mu_ind by minus mu0 and mu_cond
+
+  nms <- unique(sort(vec_of_ind_under_cond))
+  a <- vapply(
+    nms, function(nm) {
+      mur <- nbfit_mur(y[vec_of_ind_under_cond == nm])
+      if (is.nan(mur$mu)) {
+        return(c(NaN, NaN))
+      }
+      return(c(log(nbfit_mur$mu / scale_of_s) - mu0 - mu_cond))
+    },
+    c(0.0, 0.0)
+  )
+  colnames(a) <- nms
+  rownames(a) <- c("mu", "r")
+  invisible(a)
+}
+
 dpoilog <- function(x, mu, sig, log = F, verbose = F) {
+  ## modification sads::dpoilog
   #### FIX: poilog::dpoilog throws an error if an invalid parameter is entered
   #### so we have to circumvent the error here:
   if (length(mu) > 1 | length(sig) > 1) {
@@ -140,24 +412,29 @@ poilog_negsumlld <- function(mu, sig, x, log = T) {
 
 poilog_mle <- function(x) {
   tmp_lambdas <- log((x + 0.01))
-  initpars <- list(mu = mean(tmp_lambdas),
-    sig = sd(tmp_lambdas) + 0.00001)
-  tryCatch({
-    myfit <- bbmle::mle2(poilog_negsumlld,
-      start = initpars,
-      optimizer = "optim",
-      data = list(x = x),
-      lower = list(mu = -Inf, sig = 0.00001),
-      method = "L-BFGS-B",
-      hessian = F,
-    )
-    new("fitsad", myfit, sad = "poilog", distr = "discrete",
-      trunc = NaN)
-  },
-  error = function(cond) {
-    message(cond)
-    return(NULL)
-  }
+  initpars <- list(
+    mu = mean(tmp_lambdas),
+    sig = sd(tmp_lambdas) + 0.00001
+  )
+  tryCatch(
+    {
+      myfit <- bbmle::mle2(poilog_negsumlld,
+        start = initpars,
+        optimizer = "optim",
+        data = list(x = x),
+        lower = list(mu = -Inf, sig = 0.00001),
+        method = "L-BFGS-B",
+        hessian = F,
+      )
+      new("fitsad", myfit,
+        sad = "poilog", distr = "discrete",
+        trunc = NaN
+      )
+    },
+    error = function(cond) {
+      message(cond)
+      return(NULL)
+    }
   )
 }
 
@@ -200,11 +477,11 @@ poislog_negsumlld <- function(mu, sig, cnt, tcnt) {
 }
 
 
-## modification sads::fitpoilog
-## we add sequence depth per cell as scale factor
-## x is the count for a specific gene;
-## s is the total count for the cells
 prob_zero_poislognm <- function(x, s, rmoutliers = T, method = "L-BFGS-B") {
+  ## modification sads::fitpoilog
+  ## we add sequence depth per cell as scale factor
+  ## x is the count for a specific gene;
+  ## s is the total count for the cells
   if (length(x) != length(s)) {
     stop("x and s are unequal lengths.")
   }
@@ -219,21 +496,22 @@ prob_zero_poislognm <- function(x, s, rmoutliers = T, method = "L-BFGS-B") {
   tmp_lambdas <- log((x + 0.01) / s)
   initpars <- list(mu = mean(tmp_lambdas), sig = sd(tmp_lambdas) + 0.00001)
 
-  myfit <- tryCatch({
-    bbmle::mle2(poislog_negsumlld,
-      start = initpars,
-      optimizer = "optim",
-      data = list(cnt = x, tcnt = s),
-      lower = c(mu = -Inf, sig = 0.00001),
-      method = method,
-      control = list(),
-      hessian = F
-    )
-  },
-  error = function(cond) {
-    message(cond)
-    return(NULL)
-  }
+  myfit <- tryCatch(
+    {
+      bbmle::mle2(poislog_negsumlld,
+        start = initpars,
+        optimizer = "optim",
+        data = list(cnt = x, tcnt = s),
+        lower = c(mu = -Inf, sig = 0.00001),
+        method = method,
+        control = list(),
+        hessian = F
+      )
+    },
+    error = function(cond) {
+      message(cond)
+      return(NULL)
+    }
   )
   if (is.null(myfit)) {
     return(invisible(list(mdnp0 = NA, meanp0 = NA)))
@@ -304,8 +582,10 @@ estimate_zeroratios <- function(cntgbc, cellmeta_inds,
 
   totcnt <- Matrix::colSums(cntgbc)[thecells]
   zrs <- lapply(genes, FUN = function(g) {
-    estimate_zeroratio(cntgbc[g, thecells],
-      totcnt, rmoutliers)
+    estimate_zeroratio(
+      cntgbc[g, thecells],
+      totcnt, rmoutliers
+    )
   }) %>% do.call(what = rbind, args = .)
   invisible(zrs)
 }
