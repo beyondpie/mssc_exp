@@ -90,3 +90,4 @@ vignettes/*.pdf
 /src/sysim/twostage_be_symsim/
 /src/modelcheck/stan_binary/
 /src/modelcheck/test_gsea.grp
+*.DS_Store
