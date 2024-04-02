@@ -1,0 +1,16 @@
+\begin{frame}
+  \frametitle{Simulation limitations}
+  \begin{itemize}
+  \item
+    Simulation: current batch effect is added \mywarn{after count generation}, while in
+    our model, we model batch effects on \myemph{gene expression level}.
+  \item
+    Gene modules: batch effect estimation might be hard. So how about consider
+    two gene modules: one is for the false positive ones, and the other is for
+    the positive ones. Then let each of them share the same batch effect. And we
+    estimate the batch effect on gene-module level.
+  \item
+    Pseudobulk analysis might over estimate the genes if the genes have lots of zero
+    counts.
+  \end{itemize}
+\end{frame}

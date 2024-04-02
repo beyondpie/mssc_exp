@@ -1,0 +1,49 @@
+\begin{frame}
+  Furthermore, we model individual batch effects on the \mywarn{gene modules},
+  instead of shared among the genes or independent on every gene.
+  \begin{columns}
+    \begin{column}{0.5\textwidth}
+\begin{align*}
+  X_{ijk}^{g} &\sim {\it Poisson} (S_{ijk}\cdot \lambda_{jk}^{g})\\
+  \ln \lambda_{jk}^{g} &= \mu^{g} + \mywarn{\mu_{k}^{g}} + \myemph{\mu_{j}^{g}} \\
+  \mu^{g} &\sim \mathcal{N}(0, \sigma^{2}_{0}) \\
+  \mywarn{\mu_{k}^{g}} &= \bm{b}_{g}^{t}\cdot \mywarn{\bm{f}_{k}},~~\bm{b}_{g},\bm{f}_{k}\in \mathcal{R}^{p\times 1}\\
+  \mywarn{f_{k}^{p}} &\sim \mathcal{N}(0, \kappa^{2}_{p}) \\
+  \myemph{\mu_{j}^{g}} &\sim \mathcal{N}(0,\tau^{2}_{g})
+\end{align*}
+\end{column}
+\begin{column}{0.6\textwidth}
+      \scalebox{0.85}{
+        \begin{tikzpicture}
+          \node[obs] (xgijk) {$X_{ijk}^{g}$};
+          \node[latent, right=of xgijk] (mgj) {\myemph{$\mu_{j}^{g}$}};
+          \node[latent, right=of mgj] (sgj) {$\tau_{g}^{2}$};
+          \node[latent, above=of xgijk] (mk) {\mywarn{$f_{k}^{p}$}};
+          \node[latent, right=of mk] (si) {$\kappa^{2}_{p}$};
+          \node[latent, left=of xgijk] (mg) {$\mu^{g}$};
+
+          \path[draw=black,->] (mgj) edge (xgijk);
+          \path[draw=black,->] (sgj) edge (mgj);
+          \path[draw=black,->] (mk) edge (xgijk);
+          \path[draw=black,->] (si) edge (mk);
+          \path[draw=black,->] (mg) edge (xgijk);
+          
+          \plate [inner sep=0.1cm, xshift=0.0cm]{plate0} {(xgijk)} {$\forall i \in \mathcal{N}$};
+          \plate [inner sep=0.1cm, xshift=-0.05cm, yshift=-0.05cm] {plate1} {(plate0) (mgj)} {$\forall j\in \mathcal{C}$};
+          \plate [inner sep=0.1cm, yshift=0.0cm] {plate2} {(plate0) (mk)} {$\forall k\in \mathcal{K}$};
+          \plate [inner sep=0.1cm, yshift=0.0cm] {plate3} {(plate0) (plate1)
+            (mg) (sgj)} {$\forall g\in \mathcal{G}$};
+          \plate [inner sep=0.1cm, yshift=0.1cm] {plate4} { (si) (mk)}  {$\forall p \in \mathcal{P}$};
+        \end{tikzpicture}
+      }
+
+\end{column}
+\end{columns}
+\vspace{0.5em}
+$\kappa_{p}^{2}$ and $\tau_{g}^{2}$ are treated as the same as in the previous models. $\bm{B}_{G\times p} = {\{\bm{b}_{g=1},\bm{b}_{g=2},\ldots, 
+  \bm{b}_{g=G}\}}_{g=1,\ldots,G}^{t}$, which describes the gene modules. For
+example, each row $\bm{b}_{g=1}^{t}$ can be one-hot binary vector
+describing which gene module the gene belongs to. We can also estimate B using
+principle components (PCs) from principle component analysis (PCA) of the genes
+on the cells.
+\end{frame}

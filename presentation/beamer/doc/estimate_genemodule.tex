@@ -1,0 +1,15 @@
+\subsection*{Estimating the gene modules}
+\begin{frame}
+  By involving cell-specific gene module expressions, we can estimate $\bm{B}$
+  from the data.
+  \begin{align*}
+    X_{ijk}^{g} &\sim {\it Poisson} (S_{ijk}\cdot \lambda_{ijk}^{g})\\
+    \ln \lambda_{ijk}^{g} &= \mu^{g} + \mycell{\mu_{i}^{g}} + \mywarn{\mu_{k}^{g}} + \myemph{\mu_{j}^{g}} \\
+    \mu^{g} &\sim \mathcal{N}(\mu, \sigma^{2}) \\
+    \mycell{\mu_{i}^{g}} &= \bm{b}_{g}^{t} \cdot \mycell{\bm{f}_{i}}, ~~\bm{b}_{g},\mycell{\bm{f}_{i}}\in \mathcal{R}^{p\times 1}\\
+    \mycell{\bm{f}_{i}} &\sim \mathcal{MVN}(\mycell{\bm{f}_{cell}}, diag(\bm{\sigma}^{2}_{cell})\cdot\bm{I}) \\
+    \mywarn{\mu_{k}^{g}} &= \bm{b}_{g}^{t}\cdot \mywarn{\bm{f}_{k}},~~\mywarn{\bm{f}_{k}}\in \mathcal{R}^{p\times 1}\\
+    \mywarn{\bm{f}_{k}} &\sim \mathcal{MVN}(\mywarn{\bm{f}_{ind}}, diag(\bm{\sigma}^{2}_{ind})\cdot\bm{I}) \\
+    \myemph{\mu_{j}^{g}} &\sim \mathcal{N}(\mu_{cond_{0}}, \sigma_{cond_{0}}^{2})
+  \end{align*}
+\end{frame}

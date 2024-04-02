@@ -1,0 +1,104 @@
+\documentclass{beamer}
+
+% \usepackage{xcolor}
+% \definecolor{darkred}{rgb}{0,0,1}
+
+\mode<presentation>
+{
+  \usetheme{CambridgeUS}
+  \usecolortheme{beaver}
+  \usefonttheme{default}
+  \setbeamertemplate{navigation symbols}{}
+  \setbeamertemplate{caption}[numbered]
+  \setbeamertemplate{itemize item}{\color{darkred}$\blacktriangleright$}
+  \setbeamertemplate{itemize subitem}[square]
+  \setbeamertemplate{itemize subsubitem}[square]
+  \setbeamertemplate{enumerate item}[square]
+  \setbeamertemplate{sections/subsections in toc}[square]
+  \setbeamercolor{section number projected}{bg=darkred,fg=white}
+} 
+
+\usepackage[english]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{enumerate}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\graphicspath{{figures/}{symsimquality/}{adobe/}{modelcheck/}}
+
+\usepackage[sort, numbers]{natbib}
+\bibliographystyle{unsrt}
+
+\usepackage{tikz}
+\usetikzlibrary{bayesnet}
+\usepackage{amsthm}
+\usepackage{amssymb}
+\usepackage{amsfonts}
+\tikzset{>=latex}
+\usepackage{bm}
+
+\def\mywarn#1{\textcolor{red}{#1}}
+\def\myemph#1{\textcolor{blue}{#1}}
+\def\mycell#1{\textcolor{brown}{#1}}
+
+\AtBeginSubsection[] {
+  \begin{frame}<beamer>{Outline}
+    \tableofcontents[currentsection,currentsubsection]
+  \end{frame}
+}
+
+\title[mssc]{\myemph{M}ultiple-\myemph{S}ample Differential
+  Expression Analysis for \myemph{S}ingle-\myemph{C}ell RNA Sequencing Data}
+\author{Songpeng Zu}
+\date{\today}
+
+\begin{document}
+
+\begin{frame}
+  \titlepage
+\end{frame}
+
+\begin{frame}{Outline}
+  \tableofcontents[hideallsubsections]
+  % \tableofcontents
+\end{frame}
+
+\section{Introduction}
+\subsection*{Multi-sample scRNASeq DE analysis}
+\input{doc/intro}
+
+\section{Model}
+\subsection{A general framework}
+\input{doc/general_model_mean}
+\subsection{UMI Count vs TPM}
+\input{doc/pbmc_violin_compare}
+\subsection{Modeling UMI count}
+\input{doc/zero_inflation}
+\input{doc/genemodule_poiglm}
+\subsection{mssc}
+% \input{doc/genewise_poiglm_independent}
+% \input{doc/genewise_poiglm_hier}
+% \input{doc/genemodule_poiglm}
+\input{doc/gw_nbglm}
+\section{Simulation}
+\input{doc/simulations}
+\section{Real data}
+\subsection{A simplified real case}
+\input{doc/deanalysi_pbmc_small_dataset}
+\section{Discussion}
+\subsection*{Simulation}
+\input{doc/simu_discuss}
+\section*{Supplementary}
+\input{doc/paper_review}
+\input{doc/estimate_genemodule}
+
+% \subsection*{Model inference} 
+% \input{doc/stan_intro}
+% \input{doc/pyro_intro}
+
+\section{References}
+\begin{frame}[allowframebreaks]
+  \bibliography{scRNASeq.bib}
+\end{frame}
+
+\end{document}

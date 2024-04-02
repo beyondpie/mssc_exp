@@ -1,0 +1,19 @@
+\begin{frame}
+  \frametitle{Pyro}
+  Besides Stan, there are several probabilistic language programming libraries
+  based on the deep neural network related framework, such as Pyro
+  \cite{bingham2019pyro}, which is based on Pytorch.
+  \begin{itemize}
+  \item
+    It fully supports GPU by Pytorch. So they can easily handle large scale of
+    data sets.
+  \item
+    It supports variational inference (eg. VAE) and NUTS for sampling.
+  \item
+    It's easier to install and implement than Stan.
+  \end{itemize}
+
+  With the help of the scanpy \cite{wolf2018scanpy}, which is a Python package specific designed
+  to handle large scale of scRNAseq dataset, we could write our method using Pyro
+  when the model is mature.
+\end{frame}

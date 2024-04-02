@@ -1,0 +1,13 @@
+\begin{frame}{Modeling the mean}
+  Let \(X_{ij}\) represent the UMI counts for the gene \(i\) in the cell \(j\)
+  \begin{align}
+    X_{ij} \sim f(\mu_{ij}, \phi_i) \\
+    \mu_{ij}  = S_j * \lambda_{ij} \\
+    g^{-1}(\lambda_{ij})  = \sum_r d_{jr} \beta_{ir} \\
+    \bm{\beta_i} \sim {\cal N}(\bm{0}, \bm{\Lambda})
+  \end{align}
+  A typical content in $\mathbf{d_j}$ is followed:
+  \begin{equation*}
+   \mathbf{d_j} = \left(1, \overbrace{(0, 1, \dots, 0, 0)}^{\text{\myemph{individual} one-hot vector}}, \underbrace{(1, 0)}_{\text{\mywarn{conditional} one-hot vector}}\right)
+  \end{equation*}
+\end{frame}

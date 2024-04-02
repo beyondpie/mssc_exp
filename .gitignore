@@ -112,3 +112,4 @@ src/archive/modelcheck/high2/stan/*
 /src/symsim/symsim_202101300028/
 src/mssc/stan/snb
 /figures/out/
+*.DS_Store
