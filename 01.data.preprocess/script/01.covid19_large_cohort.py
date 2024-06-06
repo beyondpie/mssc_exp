@@ -11,7 +11,6 @@ import pyprojroot
 
 proj_root = pyprojroot.here()
 
-# construct anndata
 covid19_cohort_mtx = os.path.join(proj_root, "data",
                                   "COVID19_large_cohort", "mtx")
 
@@ -57,7 +56,17 @@ samplemeta = pd.read_csv(
    sep = ",", header=0
 )
 
-cvd.uns['sample_info'] = samplemeta
-
 cvd.write_h5ad(filename = os.path.join(proj_root, "data", "COVID19_large_cohort",
                                        "covid19.large.cohort.ann.h5ad"))
+
+# * to Seurat, organized by major types
+R: str = os.path.join("/home/szu/miniforge3/envs/r/bin/Rscript")
+scipyann2seurat_script = os.path.join
+ann = ad.read_h5ad(
+    filename = os.path.join(
+        proj_root, "data", "COVID19_large_cohort",
+        "covid19.large.cohort.ann.h5ad")
+)
+
+majorTypes = ann.obs.majorType.unique().to_list()
+

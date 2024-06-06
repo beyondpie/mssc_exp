@@ -113,3 +113,4 @@ src/archive/modelcheck/high2/stan/*
 src/mssc/stan/snb
 /figures/out/
 *.DS_Store
+/data
