@@ -41,15 +41,26 @@ sseu@meta.data$case[sseu@meta.data$sampleID %in% control_samples] <-
 
 # run wilcox.test on pseudo bulk levels
 pseudo_sseu <- AggregateExpression(
-  object = sseu, group.by = "case",
+  object = sseu, group.by = "sampleID",
   normalization.method = "LogNormalize",
   return.seurat = TRUE
 )
+
+pseudo_sseu@meta.data$case <- "positive"
+pseudo_sseu@meta.data$case[
+  pseudo_sseu@meta.data$sampleID %in% control_samples] <- "negative"
+Idents(pseudo_sseu) <- pseudo_sseu@meta.data$case
+
+pseudo_cells <- colnames(pseudo_sseu)
+samples <- pseudo_sseu
+
 bulk_de <- FindMarkers(object = pseudo_sseu,
-  cells.1 = "negative",
-  cells.2 = "positive",
+  ident.1 = "positive",
+  ident.2 = "negative",
   test.use = "wilcox",
   logfc.threshold = 0.1)
+
+
 
 
 
