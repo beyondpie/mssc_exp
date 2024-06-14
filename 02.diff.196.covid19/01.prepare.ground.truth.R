@@ -4,10 +4,21 @@ library(tidyverse)
 # * meta
 projd <- here::here()
 covidir <- file.path(projd, "data", "COVID19_large_cohort")
-mts <- c("B", "CD4",  "DC", "Epi", "Macro",
-  "Mast", "Mega", "Mono", "Neu", "NK", "Plasma")
+mts <- c("Mega", "Mono", "Neu", "NK", "Plasma")
 ## mts <- c("B", "CD4", "CD8", "DC", "Epi", "Macro",
 ##   "Mast", "Mega", "Mono", "Neu", "NK", "Plasma")
+# B: 25
+# CD4: 34
+# CD8: 34
+# DC: 26
+# Epi cannot find negative.
+# Macro: 0
+# Mast: cannot find negative
+# Mega:2
+# Mono: 75
+# Neu: 0
+# NK: 22
+# Plasma: 0
 
 # 1. set up ground truth
 sampleMeta <- file.path(covidir, "GSE158055_sample_metadata.csv") |>
@@ -47,7 +58,7 @@ for (mt in mts){
   sseu@meta.data$case <- "positive"
   sseu@meta.data$case[sseu@meta.data$sampleID %in% control_samples] <-
     "negative"
-
+  message("After loading data, now run diff analysis.")
   # run wilcox.test on pseudo bulk levels
   pseudo_sseu <- AggregateExpression(
     object = sseu, group.by = "sampleID",
@@ -70,7 +81,7 @@ for (mt in mts){
     logfc.threshold = 0.1)
   bulk_de$gene <- rownames(bulk_de)
   message(str_glue(
-    "# significant genes: {sum(bulk_de$p_val_adj <= 0.1).}"))
+    "# significant genes: {sum(bulk_de$p_val_adj <= 0.1)}."))
 
   outd <- file.path(projd, "data", "COVID19_large_cohort",
     str_glue("diff_groundtruth"))
