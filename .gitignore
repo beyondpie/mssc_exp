@@ -114,3 +114,4 @@ src/mssc/stan/snb
 /figures/out/
 *.DS_Store
 /data
+._*
